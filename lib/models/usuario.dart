@@ -1,14 +1,20 @@
 class Usuario {
   final int? id;
+  final String? nombre;
+  final String? apellido;
   final String correo;
   final String? contrasena;
+  final String? fotoPerfil;
   final int? rolId;
   final bool? estado;
 
   Usuario({
     this.id,
+    this.nombre,
+    this.apellido,
     required this.correo,
     this.contrasena,
+    this.fotoPerfil,
     this.rolId,
     this.estado,
   });
@@ -17,8 +23,11 @@ class Usuario {
     final rawCorreo = json['correo'] ?? json['Correo'] ?? json['usuario'] ?? json['Usuario'] ?? '';
 
     return Usuario(
-      id: _parseInt(json['id'] ?? json['ID']),
+      id: _parseInt(json['id'] ?? json['Id'] ?? json['ID']),
       correo: rawCorreo.toString(),
+      nombre: json['nombre'] ?? json['Nombre'],
+      apellido: json['apellido'] ?? json['Apellido'],
+      fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       contrasena: json['contrasena'] ?? json['Contrasena'],
       rolId: _parseInt(json['rolId'] ?? json['RolID']),
       estado: _parseBool(json['estado'] ?? json['Estado']),
@@ -27,15 +36,19 @@ class Usuario {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'usuario': correo, // requerido por la API
+      'usuario': correo,
+      'Nombre': nombre ?? '',
+      'Apellido': apellido ?? '',
       'Correo': correo,
       'Contrasena': contrasena ?? '',
-      'RolID': rolId,
+      'RolId': rolId,
+      'RolID': rolId, // doble compatibilidad
+      'FotoPerfil': fotoPerfil,
       'Estado': estado ?? true,
     };
 
     if (id != null && id != 0) {
-      data['ID'] = id;
+      data['Id'] = id;
     }
 
     return data;

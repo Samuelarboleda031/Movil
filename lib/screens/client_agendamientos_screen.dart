@@ -10,7 +10,6 @@ import '../services/auxiliar_service.dart'; // Import AuxiliarService
 import '../utils/estado_cita.dart';
 import '../utils/app_snackbar.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 import 'client_agendamiento_form_screen.dart';
 
 class ClientAgendamientosScreen extends StatefulWidget {
@@ -148,9 +147,9 @@ class _ClientAgendamientosScreenState extends State<ClientAgendamientosScreen> {
                 const Divider(),
                 _buildDetailRow('Barbero:', barberoNombre), // Display retrieved barber name
                 const Divider(),
-                _buildDetailRow('Fecha:', DateFormat('dd/MM/yyyy').format(DateTime.parse(full.fechaCita))),
-                _buildDetailRow('Hora:', '${full.horaInicio} - ${full.horaFin}'),
-                _buildDetailRow('Estado:', full.estadoCita),
+                _buildDetailRow('Fecha:', DateFormat('dd/MM/yyyy').format(DateTime.parse(full.fechaCita ?? DateTime.now().toIso8601String()))),
+                _buildDetailRow('Hora:', '${full.horaInicio ?? ''} - ${full.horaFin ?? ''}'),
+                _buildDetailRow('Estado:', full.estadoCita ?? 'Pendiente'),
                 if (full.monto != null)
                   _buildDetailRow('Monto:', '\$${full.monto!.toStringAsFixed(2)}', isBold: true),
                 if (full.observaciones != null && full.observaciones!.isNotEmpty)
@@ -249,7 +248,6 @@ class _ClientAgendamientosScreenState extends State<ClientAgendamientosScreen> {
     return SessionGuard(
       requiredRole: AppRole.client,
       child: Scaffold(
-        drawer: const SideMenu(isClient: true),
       appBar: AppBar(
         title: const Text('Mis Citas'),
       ),
@@ -358,17 +356,17 @@ class _ClientAgendamientosScreenState extends State<ClientAgendamientosScreen> {
                                               vertical: 4,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: EstadoCita.getColor(agendamiento.estadoCita)
+                                              color: EstadoCita.getColor(agendamiento.estadoCita ?? 'Pendiente')
                                                   .withOpacity(0.2),
                                               borderRadius: BorderRadius.circular(12),
                                               border: Border.all(
-                                                color: EstadoCita.getColor(agendamiento.estadoCita),
+                                                color: EstadoCita.getColor(agendamiento.estadoCita ?? 'Pendiente'),
                                               ),
                                             ),
                                             child: Text(
-                                              agendamiento.estadoCita,
+                                              agendamiento.estadoCita ?? 'Pendiente',
                                               style: TextStyle(
-                                                color: EstadoCita.getColor(agendamiento.estadoCita),
+                                                color: EstadoCita.getColor(agendamiento.estadoCita ?? 'Pendiente'),
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -399,7 +397,7 @@ class _ClientAgendamientosScreenState extends State<ClientAgendamientosScreen> {
                                               const Icon(Icons.calendar_today, size: 16),
                                               const SizedBox(width: 4),
                                               Text(
-                                                'Fecha: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(agendamiento.fechaCita))}',
+                                                'Fecha: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(agendamiento.fechaCita ?? DateTime.now().toIso8601String()))}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade700,
                                                 ),

@@ -12,7 +12,6 @@ import 'venta_form_screen.dart';
 
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -322,11 +321,13 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Color _getEstadoColor(bool? estado) {
-    if (estado == null || estado) {
-      return Colors.green; // Activa
+  Color _getEstadoColor(String? estado) {
+    if (estado == null || estado.toLowerCase() == 'activa' || estado.toLowerCase() == 'completada' || estado.toLowerCase() == 'pagada') {
+      return Colors.green;
+    } else if (estado.toLowerCase() == 'anulada' || estado.toLowerCase() == 'cancelada') {
+      return Colors.red;
     } else {
-      return Colors.red; // Anulada
+      return Colors.orange; // Otros estados (Pendiente, etc)
     }
   }
 
@@ -380,8 +381,7 @@ class _VentasScreenState extends State<VentasScreen> {
     return SessionGuard(
       requiredRole: AppRole.admin,
       child: Scaffold(
-        drawer: const SideMenu(),
-        appBar: AppBar(title: const Text('Ventas')),
+        appBar: AppBar(title: const Text('MANITO BARBERSHOP')),
         body: Column(
           children: [
             // Barra de búsqueda
@@ -476,7 +476,7 @@ class _VentasScreenState extends State<VentasScreen> {
                                           ),
                                         ),
                                         child: Text(
-                                          venta.estado == true ? 'Activa' : 'Anulada',
+                                          venta.estado ?? 'Activa',
                                           style: TextStyle(
                                             color: _getEstadoColor(venta.estado),
                                             fontSize: 12,

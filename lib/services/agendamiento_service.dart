@@ -18,10 +18,9 @@ class AgendamientoService {
   Future<List<Agendamiento>> obtenerAgendamientos() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?pageSize=1000';
       
       print('🔍 [AgendamientoService] Intentando conectar a: $url');
-      print('📋 [AgendamientoService] Headers: $headers');
       
       final response = await http.get(
         Uri.parse(url),
@@ -29,90 +28,32 @@ class AgendamientoService {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          print('⏰ [AgendamientoService] Tiempo de espera agotado');
           throw Exception('Tiempo de espera agotado. Verifique su conexión a internet.');
         },
       );
 
-      print('📥 [AgendamientoService] Status Code: ${response.statusCode}');
-      print('📄 [AgendamientoService] Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          print('ℹ️ [AgendamientoService] La respuesta está vacía');
-          return [];
-        }
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
         
-        try {
-          // Decodificar la respuesta JSON
-          final dynamic responseData = jsonDecode(response.body);
-          print('🔍 [AgendamientoService] Tipo de respuesta: ${responseData.runtimeType}');
-          
-          // Verificar si la respuesta es una lista o un objeto con una propiedad data
-          if (responseData is List) {
-            print('✅ [AgendamientoService] Respuesta es una lista de ${responseData.length} elementos');
-            if (responseData.isNotEmpty) {
-              print('📝 [AgendamientoService] Primer elemento: ${responseData[0]}');
-            }
-            return responseData.map<Agendamiento>((json) {
-              try {
-                return Agendamiento.fromJson(json);
-              } catch (e) {
-                print('❌ [AgendamientoService] Error al mapear cita: $e');
-                print('📝 JSON problemático: $json');
-                rethrow;
-              }
-            }).toList();
-          } else if (responseData is Map && responseData.containsKey('data')) {
-            print('ℹ️ [AgendamientoService] Respuesta contiene propiedad "data"');
-            final data = responseData['data'] as List;
-            print('✅ [AgendamientoService] ${data.length} citas encontradas en la propiedad data');
-            return data.map<Agendamiento>((json) => Agendamiento.fromJson(json)).toList();
-          } else {
-            print('❌ [AgendamientoService] Formato de respuesta inesperado');
-            print('📝 Respuesta completa: $responseData');
-            throw Exception('Formato de respuesta inesperado de la API');
-          }
-        } catch (e) {
-          print('❌ [AgendamientoService] Error al procesar la respuesta: $e');
-          rethrow;
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else if (rawData is Map && rawData.containsKey('data')) {
+          data = rawData['data'];
+        } else {
+          data = [];
         }
+
+        return data.map<Agendamiento>((json) => Agendamiento.fromJson(json)).toList();
       } else {
-        throw Exception('Error HTTP ${response.statusCode}: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}');
+        throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
       }
-    } on FormatException catch (e) {
-      print('❌ Error de formato JSON: $e');
-      throw Exception('Error al procesar la respuesta de la API (formato JSON inválido): $e');
-    } on http.ClientException catch (e) {
-      print('❌ Error de cliente HTTP: $e');
-      String errorMessage = 'Error de conexión HTTP: $e';
-      
-      // Detectar error de CORS
-      if (e.toString().contains('Failed to fetch') || 
-          e.toString().contains('CORS') ||
-          e.toString().contains('Access-Control-Allow-Origin')) {
-        errorMessage = 'Error de CORS: El servidor no permite peticiones desde el navegador. '
-            'Solución: Ejecuta la app en un dispositivo móvil o usa Chrome con CORS deshabilitado para desarrollo. '
-            'Ver CORS_SOLUTION.md para más detalles.';
-      }
-      
-      throw Exception(errorMessage);
     } catch (e) {
-      print('❌ Error general: $e');
-      print('❌ Tipo de error: ${e.runtimeType}');
-      
-      String errorMessage = 'Error: $e';
-      
-      // Detectar error de CORS
-      if (e.toString().contains('Failed to fetch') || 
-          e.toString().contains('CORS') ||
-          e.toString().contains('Access-Control-Allow-Origin')) {
-        errorMessage = 'Error de CORS: El servidor no permite peticiones desde el navegador. '
-            'Solución: Ejecuta la app en un dispositivo móvil o usa Chrome con CORS deshabilitado para desarrollo. '
-            'Ver CORS_SOLUTION.md para más detalles.';
-      }
-      
-      throw Exception(errorMessage);
+      print('❌ [AgendamientoService] Error general: $e');
+      throw Exception('Error al obtener agendamientos: $e');
     }
   }
 
@@ -137,16 +78,27 @@ class AgendamientoService {
   Future<Agendamiento> crearAgendamiento(Agendamiento agendamiento) async {
     try {
       final headers = await _getHeaders();
+      final payload = agendamiento.toJson();
+      print('📤 [AgendamientoService] Enviando payload: ${jsonEncode(payload)}');
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}'),
         headers: headers,
-        body: jsonEncode(agendamiento.toJson()),
+        body: jsonEncode(payload),
       );
+
+      print('📥 [AgendamientoService] Respuesta ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Agendamiento.fromJson(jsonDecode(response.body));
       } else {
-        throw Exception('Error al crear agendamiento: ${response.statusCode}');
+        // Extraer mensaje del servidor para mostrar al usuario
+        String serverMsg = response.body;
+        try {
+          final parsed = jsonDecode(response.body);
+          serverMsg = parsed['message'] ?? parsed['error'] ?? parsed['title'] ?? serverMsg;
+        } catch (_) {}
+        throw Exception('Error ${response.statusCode}: $serverMsg');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
@@ -202,17 +154,14 @@ class AgendamientoService {
   Future<List<Agendamiento>> obtenerAgendamientosPorCliente(int clienteId) async {
     try {
       final headers = await _getHeaders();
-      // Use query parameters instead of path parameters
-      final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}')
-          .replace(queryParameters: {
-            'clienteId': clienteId.toString(),
-          });
-      
+      // Siguiendo el ejemplo de Front4: /Agendamientos/cliente/{id}
+      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cliente/$clienteId?pageSize=100';
+           
       print('🔍 [AgendamientoService] Obteniendo citas para el cliente: $clienteId');
       print('🔗 URL: $url');
       
       final response = await http.get(
-        url,
+        Uri.parse(url),
         headers: headers,
       ).timeout(
         const Duration(seconds: 30),

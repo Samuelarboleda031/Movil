@@ -13,11 +13,12 @@ class Venta {
   final String? fechaRegistro;
   final int clienteId;
   final int barberoId;
+  final int? usuarioId; // Added usuarioId
   final String metodoPago;
   final double subtotal;
   final double porcentajeDescuento;
   final double total;
-  final bool? estado;
+  final String? estado;
   final Cliente? cliente;
   final Barbero? barbero;
   final List<DetalleVenta>? detalles;
@@ -28,6 +29,7 @@ class Venta {
     this.fechaRegistro,
     required this.clienteId,
     required this.barberoId,
+    this.usuarioId, // Added to constructor
     required this.metodoPago,
     required this.subtotal,
     required this.porcentajeDescuento,
@@ -47,14 +49,15 @@ class Venta {
       id: json['id'] ?? json['ID'],
       numero: json['numero'] ?? json['Numero'] ?? '',
       fechaRegistro: json['fechaRegistro'] ?? json['FechaRegistro'],
-      clienteId: json['clienteId'] ?? json['ClienteID'] ?? 0,
-      barberoId: json['barberoId'] ?? json['BarberoID'] ?? 0,
+      clienteId: json['clienteId'] ?? json['ClienteId'] ?? json['ClienteID'] ?? 0,
+      barberoId: json['barberoId'] ?? json['BarberoId'] ?? json['BarberoID'] ?? 0,
+      usuarioId: json['usuarioId'] ?? json['UsuarioId'] ?? json['UsuarioID'], // Added to fromJson
       metodoPago: json['metodoPago'] ?? json['MetodoPago'] ?? '',
       // Convertir a double con seguridad
       subtotal: (json['subtotal'] ?? json['Subtotal'] ?? 0).toDouble(),
       porcentajeDescuento: (json['porcentajeDescuento'] ?? json['PorcentajeDescuento'] ?? 0).toDouble(),
       total: (json['total'] ?? json['Total'] ?? 0).toDouble(),
-      estado: json['estado'] ?? json['Estado'],
+      estado: json['estado']?.toString() ?? json['Estado']?.toString(),
       // Asume que Cliente.fromJson y Barbero.fromJson existen
       cliente: json['cliente'] != null ? Cliente.fromJson(json['cliente']) : null,
       barbero: json['barbero'] != null ? Barbero.fromJson(json['barbero']) : null,
@@ -67,24 +70,56 @@ class Venta {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'numero': numero,
-      'fechaRegistro': fechaRegistro,
-      'clienteId': clienteId,
-      'barberoId': barberoId,
-      'metodoPago': metodoPago,
-      'subtotal': subtotal,
-      'porcentajeDescuento': porcentajeDescuento,
-      'total': total,
-      'estado': estado ?? true, 
-      // *** CORRECCIÓN CLAVE para el API: Usar 'detalleVenta' ***
-      'detalleVenta': detalles?.map((d) => d.toJson()).toList() ?? [], 
+      'NumeroVenta': int.tryParse(numero.replaceAll(RegExp(r'[^0-9]'), '')) ?? DateTime.now().millisecondsSinceEpoch % 1000000,
+      'Fecha': fechaRegistro,
+      'ClienteId': clienteId,
+      'BarberoId': barberoId,
+      'UsuarioId': usuarioId, // Added to toJson
+      'MetodoPago': metodoPago,
+      'Subtotal': subtotal,
+      'Descuento': porcentajeDescuento,
+      'Total': total,
+      'Estado': estado ?? 'Completada',
+      'Detalles': detalles?.map((d) => d.toJson()).toList() ?? [],
     };
     
     if (id != null && id != 0) {
-      data['id'] = id;
+      data['Id'] = id;
     }
     
     return data;
+  }
+
+  Venta copyWith({
+    int? id,
+    String? numero,
+    String? fechaRegistro,
+    int? clienteId,
+    int? barberoId,
+    String? metodoPago,
+    double? subtotal,
+    double? porcentajeDescuento,
+    double? total,
+    String? estado,
+    Cliente? cliente,
+    Barbero? barbero,
+    List<DetalleVenta>? detalles,
+  }) {
+    return Venta(
+      id: id ?? this.id,
+      numero: numero ?? this.numero,
+      fechaRegistro: fechaRegistro ?? this.fechaRegistro,
+      clienteId: clienteId ?? this.clienteId,
+      barberoId: barberoId ?? this.barberoId,
+      metodoPago: metodoPago ?? this.metodoPago,
+      subtotal: subtotal ?? this.subtotal,
+      porcentajeDescuento: porcentajeDescuento ?? this.porcentajeDescuento,
+      total: total ?? this.total,
+      estado: estado ?? this.estado,
+      cliente: cliente ?? this.cliente,
+      barbero: barbero ?? this.barbero,
+      detalles: detalles ?? this.detalles,
+    );
   }
 }
 
@@ -126,19 +161,15 @@ class DetalleVenta {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'productoId': productoId,
-      'servicioId': servicioId,
-      'paqueteId': paqueteId,
-      'cantidad': cantidad,
-      'precioUnitario': precioUnitario,
-      'subTotal': subTotal, // Usando 'subTotal' para coincidir con la API
+      if (productoId != null) 'ProductoId': productoId,
+      if (servicioId != null) 'ServicioId': servicioId,
+      if (paqueteId != null) 'PaqueteId': paqueteId,
+      'Cantidad': cantidad,
+      'PrecioUnitario': precioUnitario,
     };
 
     if (id != null && id != 0) {
-      data['id'] = id;
-    }
-    if (ventaId != 0) {
-      data['ventaId'] = ventaId;
+      data['Id'] = id;
     }
 
     return data;

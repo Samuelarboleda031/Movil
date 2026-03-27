@@ -40,17 +40,16 @@ class Producto {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'nombre': nombre,
-      'descripcion': descripcion,
-      'categoriaId': categoriaId,
-      'proveedorId': proveedorId,
-      'precioCompra': precioCompra,
-      'precioVenta': precioVenta,
-      'stock': stock,
-      'stockMinimo': stockMinimo,
-      'estado': estado,
+      if (id != null && id != 0) 'Id': id,
+      'Nombre': nombre,
+      'Descripcion': descripcion,
+      'CategoriaId': categoriaId,
+      'ProveedorId': proveedorId,
+      'PrecioCompra': precioCompra,
+      'PrecioVenta': precioVenta,
+      'Stock': stock,
+      'StockMinimo': stockMinimo,
+      'Estado': estado,
     };
   }
 }
-

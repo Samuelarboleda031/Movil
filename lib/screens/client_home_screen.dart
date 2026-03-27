@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class ClientHomeScreen extends StatelessWidget {
   const ClientHomeScreen({super.key});
@@ -15,7 +14,6 @@ class ClientHomeScreen extends StatelessWidget {
     return SessionGuard(
       requiredRole: AppRole.client,
       child: Scaffold(
-        drawer: const SideMenu(isClient: true),
         appBar: AppBar(
           title: const Text('Mi Cuenta'),
         ),

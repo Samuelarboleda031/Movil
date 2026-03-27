@@ -15,15 +15,21 @@ import 'screens/barber_agendamientos_screen.dart';
 import 'screens/barber_ventas_screen.dart';
 import 'screens/client_profile_screen.dart';
 import 'screens/barber_profile_screen.dart';
+import 'screens/servicios_gestion_screen.dart';
+import 'screens/servicio_form_screen.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
+import 'models/app_role.dart';
+import 'widgets/main_layout.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initializeDateFormatting('es_ES', null);
   runApp(const MyApp());
 }
 
@@ -61,15 +67,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Barbería',
+      title: 'MANITO BARBERSHOP',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.brown, // Keep brown as seed for buttons/accents
+          seedColor: const Color(0xFFD8B081),
           brightness: Brightness.dark,
-          primary: Colors.brown,
+          primary: const Color(0xFFD8B081),
           secondary: Colors.grey,
-          surface: Colors.grey.shade900,
+          surface: const Color(0xFF111111),
           background: Colors.black,
         ),
         useMaterial3: true,
@@ -80,8 +86,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           elevation: 0,
         ),
         cardTheme: CardThemeData(
-          color: Colors.grey.shade900,
-          elevation: 2,
+          color: const Color(0xFF111111),
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
         ),
         dialogTheme: DialogThemeData(
@@ -100,20 +107,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade700),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.grey.shade800),
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade900),
+          ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.brown),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFD8B081)),
           ),
           filled: true,
-          fillColor: Colors.grey.shade900,
-          hintStyle: TextStyle(color: Colors.grey.shade500),
+          fillColor: const Color(0xFF111111),
+          hintStyle: TextStyle(color: Colors.grey.shade600),
         ),
         textTheme: const TextTheme(
           bodyMedium: TextStyle(color: Colors.white),
@@ -139,6 +146,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/barbero/mis-ventas': (context) => const BarberVentasScreen(),
         '/cliente/perfil': (context) => const ClientProfileScreen(),
         '/barbero/perfil': (context) => const BarberProfileScreen(),
+        '/servicios': (context) => const ServiciosGestionScreen(),
+        // Nuevas rutas con Bottom Navigation
+        '/main-admin': (context) => const MainLayout(role: AppRole.admin),
+        '/main-barber': (context) => const MainLayout(role: AppRole.barber),
+        '/main-client': (context) => const MainLayout(role: AppRole.client),
       },
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

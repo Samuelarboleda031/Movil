@@ -12,7 +12,6 @@ import '../services/auxiliar_service.dart';
 import '../services/auth_service.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class BarberVentasScreen extends StatefulWidget {
   const BarberVentasScreen({super.key});
@@ -439,11 +438,13 @@ class _BarberVentasScreenState extends State<BarberVentasScreen> {
     );
   }
 
-  Color _getEstadoColor(bool? estado) {
-    if (estado == null || estado) {
+  Color _getEstadoColor(String? estado) {
+    if (estado == null || estado.toLowerCase() == 'activa' || estado.toLowerCase() == 'completada' || estado.toLowerCase() == 'pagada') {
       return Colors.green;
-    } else {
+    } else if (estado.toLowerCase() == 'anulada' || estado.toLowerCase() == 'cancelada') {
       return Colors.red;
+    } else {
+      return Colors.orange; // Otros estados
     }
   }
 
@@ -452,7 +453,6 @@ class _BarberVentasScreenState extends State<BarberVentasScreen> {
     return SessionGuard(
       requiredRole: AppRole.barber,
       child: Scaffold(
-        drawer: const SideMenu(isBarber: true),
         appBar: AppBar(
           title: const Text('Mis Ventas'),
           actions: [
@@ -563,7 +563,7 @@ class _BarberVentasScreenState extends State<BarberVentasScreen> {
                                         ),
                                       ),
                                       child: Text(
-                                        venta.estado == true ? 'Activa' : 'Anulada',
+                                        venta.estado ?? 'Activa',
                                         style: TextStyle(
                                           color: _getEstadoColor(venta.estado),
                                           fontSize: 12,

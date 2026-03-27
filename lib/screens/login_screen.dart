@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _obscureText = true;
 
-  AppRole _selectedRole = AppRole.client; // Cliente por defecto
+  // AppRole _selectedRole = AppRole.client; // YA NO SE USA MANUALMENTE
 
   @override
   void dispose() {
@@ -34,12 +34,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _homeRouteForRole(AppRole role) {
     switch (role) {
-      case AppRole.client:
-        return '/client_home';
-      case AppRole.barber:
-        return '/barber_home';
+      case AppRole.manager:
       case AppRole.admin:
-        return '/home';
+        return '/main-admin';
+      case AppRole.barber:
+        return '/main-barber';
+      case AppRole.client:
+        return '/main-client';
     }
   }
 
@@ -80,224 +81,248 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _verificarAccesoYRedirigir() async {
     final firebaseUser = _auth.currentUser;
     final emailActual = firebaseUser?.email ?? '(sin correo)';
-    final rolSeleccionadoId = rolIdForRole(_selectedRole);
-    print('[Login] Intentando ingresar $emailActual como ${roleLabel(_selectedRole)} (rolId=$rolSeleccionadoId)');
+    
+    print('[Login] Verificando acceso para $emailActual...');
 
     Usuario? usuarioApi = await _auth.fetchUsuarioDesdeApi();
 
-    // Fallback CONTROLADO a datos cacheados (solo si corresponden al mismo correo)
+    // Fallback a datos cacheados
     if (usuarioApi == null && firebaseUser?.email != null) {
       final cached = await _auth.getCurrentUser();
       if (cached != null && cached.correo.toLowerCase() == firebaseUser!.email!.toLowerCase()) {
-        print('[Login] Usando datos cacheados para ${cached.correo} con rolId ${cached.rolId}');
         usuarioApi = cached;
       }
     }
 
     if (usuarioApi == null) {
-      // Si el usuario no existe en la API, intentamos crearlo con el rol seleccionado
-      // Esto es común la primera vez que alguien entra con Google
-      print('[Login] Usuario no encontrado en API. Intentando registrar con rol: ${roleLabel(_selectedRole)}');
-      usuarioApi = await _auth.syncUsuarioConApi(rolId: rolSeleccionadoId);
-      
-      if (usuarioApi == null) {
-        _showMessage('No fue posible registrar/validar tu usuario en la API. Intenta más tarde.');
-        await _auth.signOut();
-        return;
-      }
+      // Si el usuario no existe (nueva cuenta Google), por defecto es CLIENTE (rolId: 3)
+      print('[Login] Usuario no encontrado. Registrando como Cliente por defecto.');
+      usuarioApi = await _auth.syncUsuarioConApi(rolId: 3); // 3 = Cliente
     }
 
-    if (usuarioApi.rolId == null) {
-      _showMessage('Tu cuenta no tiene un rol asignado en la API. Contacta al administrador.');
+    if (usuarioApi == null || usuarioApi.rolId == null) {
+      _showMessage('No fue posible validar tu rol. Contacta al administrador.');
       await _auth.signOut();
       return;
     }
 
-    print('[Login] Rol en API para $emailActual: ${usuarioApi.rolId} (${roleLabelFromRolId(usuarioApi.rolId)})');
+    final AppRole role = roleForRolId(usuarioApi.rolId) ?? AppRole.client;
+    print('[Login] Ingresando con rol: ${roleLabel(role)}');
 
-    if (usuarioApi.rolId != rolSeleccionadoId) {
-      final rolCuenta = roleLabelFromRolId(usuarioApi.rolId);
-      final rolSeleccion = roleLabel(_selectedRole);
-      _showMessage('Tu cuenta está registrada como $rolCuenta. Ingresa seleccionando ese rol (no $rolSeleccion).');
-      await _auth.signOut();
-      return;
-    }
-
-    // --- LÓGICA DE AUTO-CREACIÓN DE PERFILES (CLIENTE / BARBERO) ---
+    // --- AUTO-CREACIÓN DE PERFILES ---
     try {
-      if (_selectedRole == AppRole.client) {
+      if (role == AppRole.client) {
         final clienteService = ClienteService();
         final clienteExistente = await clienteService.obtenerClientePorUsuarioId(usuarioApi.id!);
-        
         if (clienteExistente == null) {
-          print('[Login] Creando perfil de Cliente automáticamente para ${usuarioApi.correo}');
-          // Crear cliente con datos básicos
           final nuevoCliente = Cliente(
-            documento: 'G-${DateTime.now().millisecondsSinceEpoch}', // Documento temporal/generado
+            documento: 'G-${DateTime.now().millisecondsSinceEpoch}',
             nombre: firebaseUser?.displayName?.split(' ').first ?? 'Usuario',
             apellido: firebaseUser?.displayName?.split(' ').skip(1).join(' ') ?? 'Google',
             email: usuarioApi.correo,
+            fotoPerfil: firebaseUser?.photoURL, // Añadir foto de perfil
             usuarioId: usuarioApi.id,
             estado: true,
           );
           await clienteService.crearCliente(nuevoCliente);
-          print('[Login] Perfil de Cliente creado exitosamente.');
-        } else {
-          print('[Login] Perfil de Cliente ya existe.');
         }
-      } else if (_selectedRole == AppRole.barber) {
+      } else if (role == AppRole.barber) {
         final barberoService = BarberoService();
         final barberoExistente = await barberoService.obtenerBarberoPorUsuarioId(usuarioApi.id!);
-
         if (barberoExistente == null) {
-          print('[Login] Creando perfil de Barbero automáticamente para ${usuarioApi.correo}');
-          // Crear barbero con datos básicos
           final nuevoBarbero = Barbero(
             documento: 'G-${DateTime.now().millisecondsSinceEpoch}',
             nombre: firebaseUser?.displayName?.split(' ').first ?? 'Barbero',
             apellido: firebaseUser?.displayName?.split(' ').skip(1).join(' ') ?? 'Google',
             email: usuarioApi.correo,
+            fotoPerfil: firebaseUser?.photoURL, // Añadir foto de perfil si tu modelo lo tiene
             usuarioId: usuarioApi.id,
             estado: true,
-            // La API espera DateOnly (yyyy-MM-dd), no ISO completo con hora
             fechaIngreso: DateTime.now().toIso8601String().split('T').first, 
           );
           await barberoService.crearBarbero(nuevoBarbero);
-          print('[Login] Perfil de Barbero creado exitosamente.');
-        } else {
-          print('[Login] Perfil de Barbero ya existe.');
         }
       }
     } catch (e) {
-      print('[Login] Error en auto-creación de perfil: $e');
-      if (mounted) {
-        _showMessage('Error al crear tu perfil de ${_selectedRole == AppRole.client ? 'Cliente' : 'Barbero'}: $e');
-      }
-      await _auth.signOut();
-      return;
+      print('[Login] Error en auto-creación: $e');
     }
-    // ---------------------------------------------------------------
 
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, _homeRouteForRole(_selectedRole));
+    Navigator.pushReplacementNamed(context, _homeRouteForRole(role));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Iniciar Sesión')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Logo
-              Image.asset(
-                'assets/images/logo.png',
-                height: 150,
-              ),
-              const SizedBox(height: 24),
-              // Selector de rol
-              Wrap(
-                spacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Cliente'),
-                    selected: _selectedRole == AppRole.client,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedRole = AppRole.client);
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Barbero'),
-                    selected: _selectedRole == AppRole.barber,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedRole = AppRole.barber);
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Administrador'),
-                    selected: _selectedRole == AppRole.admin,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedRole = AppRole.admin);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Usuario (correo)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _passCtrl,
-                obscureText: _obscureText,
-                decoration: InputDecoration(
-                  labelText: 'Clave',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () {
-                      setState(() {
-                        _obscureText = !_obscureText;
-                      });
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ForgotPasswordScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('¿Olvidaste tu contraseña?'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _login,
-                  child: _loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Iniciar Sesión'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _loading ? null : _googleLogin,
-                  icon: const Icon(Icons.g_mobiledata, size: 24), // O usa un asset de Google
-                  label: const Text('Iniciar con Google'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('¿Aún no tienes cuenta?'),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/register'),
-                child: const Text('Registrarte'),
-              ),
+      backgroundColor: Colors.black,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topRight,
+            radius: 1.5,
+            colors: [
+              const Color(0xFFD8B081).withOpacity(0.05),
+              Colors.black,
             ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo Circular
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD8B081).withOpacity(0.2),
+                        blurRadius: 30,
+                        spreadRadius: 5,
+                      )
+                    ],
+                    border: Border.all(color: const Color(0xFFD8B081).withOpacity(0.3), width: 2),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/Manito.jpeg'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'MANITO BARBERSHOP',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sistema de Gestión',
+                  style: TextStyle(
+                    color: const Color(0xFFD8B081).withOpacity(0.8),
+                    fontSize: 14,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 48),
+
+                // Formulario
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Correo Electrónico',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passCtrl,
+                  obscureText: _obscureText,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureText ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () => setState(() => _obscureText = !_obscureText),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      '¿Olvidaste tu contraseña?',
+                      style: TextStyle(color: Color(0xFFD8B081)),
+                    ),
+                  ),
+                ),
+                // Botones
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 8,
+                      shadowColor: const Color(0xFFD8B081).withOpacity(0.4),
+                    ),
+                    child: _loading
+                        ? const CircularProgressIndicator(color: Colors.black)
+                        : const Text(
+                            'INICIAR SESIÓN',
+                            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                const Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.white10)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('o continúa con', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ),
+                    Expanded(child: Divider(color: Colors.white10)),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _loading ? null : _googleLogin,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Colors.white10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png', height: 20),
+                    label: const Text('Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: () => Navigator.pushNamed(context, '/register'),
+                  child: RichText(
+                    text: const TextSpan(
+                      text: '¿No tienes una cuenta? ',
+                      style: TextStyle(color: Colors.grey),
+                      children: [
+                        TextSpan(
+                          text: 'Regístrate aquí',
+                          style: TextStyle(color: Color(0xFFD8B081), fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

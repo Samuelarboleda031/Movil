@@ -7,6 +7,7 @@ class Barbero {
   final String? email;
   final String? direccion;
   final String? fechaIngreso;
+  final String? fotoPerfil;
   final int? usuarioId;
   final bool? estado;
 
@@ -19,13 +20,14 @@ class Barbero {
     this.email,
     this.direccion,
     this.fechaIngreso,
+    this.fotoPerfil,
     this.usuarioId,
     this.estado,
   });
 
   factory Barbero.fromJson(Map<String, dynamic> json) {
     return Barbero(
-      id: json['id'] ?? json['ID'],
+      id: json['id'] ?? json['Id'] ?? json['ID'],
       documento: json['documento'] ?? json['Documento'] ?? '',
       nombre: json['nombre'] ?? json['Nombre'] ?? '',
       apellido: json['apellido'] ?? json['Apellido'] ?? '',
@@ -33,7 +35,8 @@ class Barbero {
       email: json['email'] ?? json['Email'],
       direccion: json['direccion'] ?? json['Direccion'],
       fechaIngreso: json['fechaIngreso'] ?? json['FechaIngreso'],
-      usuarioId: json['usuarioId'] ?? json['UsuarioID'],
+      fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
+      usuarioId: json['usuarioId'] ?? json['UsuarioID'] ?? json['UsuarioId'],
       estado: json['estado'] ?? json['Estado'],
     );
   }
@@ -55,6 +58,9 @@ class Barbero {
     }
     if (direccion != null && direccion!.isNotEmpty) {
       data['Direccion'] = direccion;
+    }
+    if (fotoPerfil != null && fotoPerfil!.isNotEmpty) {
+      data['FotoPerfil'] = fotoPerfil;
     }
     if (estado != null) {
       data['Estado'] = estado;

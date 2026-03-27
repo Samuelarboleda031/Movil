@@ -5,14 +5,24 @@ import '../models/cliente.dart';
 
 class ClienteService {
   Future<List<Cliente>> obtenerClientes() async {
-    final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}';
+    final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}?pageSize=1000';
 
     try {
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return [];
-        final List<dynamic> data = jsonDecode(response.body);
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
+        }
+
         return data.map((json) => Cliente.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener clientes: ${response.statusCode} - ${response.body}');

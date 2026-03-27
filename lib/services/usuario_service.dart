@@ -7,14 +7,28 @@ import '../models/usuario.dart';
 
 class UsuarioService {
   Future<List<Usuario>> obtenerUsuarios() async {
-    final url = '${ApiConfig.baseUrl}${ApiConfig.usuarios}';
+    // Pedimos un pageSize alto para evitar problemas de paginación en el login por ahora
+    final url = '${ApiConfig.baseUrl}${ApiConfig.usuarios}?pageSize=1000';
 
     try {
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return [];
-        final List<dynamic> data = jsonDecode(response.body);
+        final dynamic rawData = jsonDecode(response.body);
+        
+        // Manejar tanto List directo como { "items": [...] }
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else if (rawData is Map && rawData.containsKey('data')) {
+           data = rawData['data'];
+        } else {
+          data = [];
+        }
+
         return data.map((json) => Usuario.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener usuarios: ${response.statusCode} - ${response.body}');

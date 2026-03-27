@@ -12,6 +12,7 @@ import '../services/user_context_service.dart';
 import '../models/app_role.dart';
 import '../utils/estado_cita.dart';
 import '../widgets/session_guard.dart';
+import '../widgets/searchable_selector.dart';
 
 class ClientAgendamientoFormScreen extends StatefulWidget {
   final Agendamiento? agendamiento;
@@ -105,9 +106,9 @@ class _ClientAgendamientoFormScreenState extends State<ClientAgendamientoFormScr
       esServicio = false;
     }
 
-    final fecha = DateTime.parse(agendamiento.fechaCita);
-    final horaInicioParts = agendamiento.horaInicio.split(':');
-    final horaFinParts = agendamiento.horaFin.split(':');
+    final fecha = DateTime.parse(agendamiento.fechaCita ?? DateTime.now().toIso8601String());
+    final horaInicioParts = (agendamiento.horaInicio ?? '00:00').split(':');
+    final horaFinParts = (agendamiento.horaFin ?? '00:00').split(':');
     final horaInicio = TimeOfDay(
       hour: int.parse(horaInicioParts[0]),
       minute: int.parse(horaInicioParts[1]),
@@ -138,7 +139,7 @@ class _ClientAgendamientoFormScreenState extends State<ClientAgendamientoFormScr
       _fechaSeleccionada = fecha;
       _horaInicio = horaInicio;
       _horaFin = horaFin;
-      _estadoCita = agendamiento.estadoCita == 'Confirmado' ? 'Confirmada' : agendamiento.estadoCita;
+      _estadoCita = (agendamiento.estadoCita ?? 'Pendiente') == 'Confirmado' ? 'Confirmada' : (agendamiento.estadoCita ?? 'Pendiente');
       _monto = agendamiento.monto;
       _observaciones = agendamiento.observaciones;
     });
@@ -273,9 +274,8 @@ class _ClientAgendamientoFormScreenState extends State<ClientAgendamientoFormScr
     }
   }
 
-  String _formatItemLabel(String nombre, double precio) {
-    return '$nombre - \$${precio.toStringAsFixed(2)}';
-  }
+  // _formatItemLabel ya no se usa con SearchableSelector
+
 
   Widget _buildPickerField({
     required String label,
@@ -481,30 +481,16 @@ class _ClientAgendamientoFormScreenState extends State<ClientAgendamientoFormScr
                     const SizedBox(height: 16),
                     
                     // Barbero
-                    DropdownButtonFormField<Barbero>(
-                      value: _barberoSeleccionado,
-                      decoration: const InputDecoration(
-                        labelText: 'Barbero',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: _barberos.map((barbero) {
-                        return DropdownMenuItem<Barbero>(
-                          value: barbero,
-                          child: Text(barbero.nombreCompleto),
-                        );
-                      }).toList(),
-                      onChanged: (Barbero? value) {
-                        setState(() {
-                          _barberoSeleccionado = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Por favor seleccione un barbero';
-                        }
-                        return null;
-                      },
+                    SearchableSelector<Barbero>(
+                      label: 'Barbero *',
+                      hint: 'Escribe el nombre del barbero...',
+                      items: _barberos,
+                      selectedItem: _barberoSeleccionado,
+                      displayText: (b) => b.nombreCompleto,
+                      searchText: (b) => '${b.nombreCompleto} ${b.documento}',
+                      prefixIcon: Icons.badge,
+                      required: true,
+                      onSelected: (b) => setState(() => _barberoSeleccionado = b),
                     ),
                     const SizedBox(height: 16),
                     
@@ -551,57 +537,59 @@ class _ClientAgendamientoFormScreenState extends State<ClientAgendamientoFormScr
                     
                     // Servicio o Paquete
                     _esServicio
-                        ? DropdownButtonFormField<Servicio>(
-                            value: _servicioSeleccionado,
-                            decoration: const InputDecoration(
-                              labelText: 'Servicio',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            isExpanded: true,
-                            items: _servicios.map((servicio) {
-                              return DropdownMenuItem<Servicio>(
-                                value: servicio,
-                                child: Text(
-                                  _formatItemLabel(servicio.nombre, servicio.precio),
-                                  overflow: TextOverflow.ellipsis,
+                        ? SearchableSelector<Servicio>(
+                            label: 'Servicio *',
+                            hint: 'Escribe el nombre del servicio...',
+                            items: _servicios,
+                            selectedItem: _servicioSeleccionado,
+                            displayText: (s) => s.nombre,
+                            searchText: (s) => s.nombre,
+                            prefixIcon: Icons.cut,
+                            required: true,
+                            renderItem: (s) => Row(
+                              children: [
+                                Expanded(
+                                  child: Text(s.nombre,
+                                      style: const TextStyle(color: Colors.white, fontSize: 14)),
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: (Servicio? value) {
+                                Text('\$${s.precio.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Color(0xFFD8B081), fontSize: 12)),
+                              ],
+                            ),
+                            onSelected: (s) {
                               setState(() {
-                                _servicioSeleccionado = value;
+                                _servicioSeleccionado = s;
                                 _paqueteSeleccionado = null;
                                 _calcularMonto();
                               });
                             },
-                            validator: (value) => value == null ? 'Por favor seleccione un servicio' : null,
                           )
-                        : DropdownButtonFormField<Paquete>(
-                            value: _paqueteSeleccionado,
-                            decoration: const InputDecoration(
-                              labelText: 'Paquete',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            isExpanded: true,
-                            items: _paquetes.map((paquete) {
-                              return DropdownMenuItem<Paquete>(
-                                value: paquete,
-                                child: Text(
-                                  _formatItemLabel(paquete.nombre, paquete.precio),
-                                  overflow: TextOverflow.ellipsis,
+                        : SearchableSelector<Paquete>(
+                            label: 'Paquete *',
+                            hint: 'Escribe el nombre del paquete...',
+                            items: _paquetes,
+                            selectedItem: _paqueteSeleccionado,
+                            displayText: (p) => p.nombre,
+                            searchText: (p) => p.nombre,
+                            prefixIcon: Icons.inventory_2,
+                            required: true,
+                            renderItem: (p) => Row(
+                              children: [
+                                Expanded(
+                                  child: Text(p.nombre,
+                                      style: const TextStyle(color: Colors.white, fontSize: 14)),
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: (Paquete? value) {
+                                Text('\$${p.precio.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Color(0xFFD8B081), fontSize: 12)),
+                              ],
+                            ),
+                            onSelected: (p) {
                               setState(() {
-                                _paqueteSeleccionado = value;
+                                _paqueteSeleccionado = p;
                                 _servicioSeleccionado = null;
                                 _calcularMonto();
                               });
                             },
-                            validator: (value) => value == null ? 'Por favor seleccione un paquete' : null,
                           ),
                     const SizedBox(height: 16),
                     

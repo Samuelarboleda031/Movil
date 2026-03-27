@@ -18,25 +18,41 @@ class SideMenu extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900,
+            decoration: const BoxDecoration(
+              color: Color(0xFF111111),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(
-                  Icons.content_cut,
-                  color: Colors.white,
-                  size: 48,
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFD8B081).withOpacity(0.5), width: 2),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/Manito.jpeg'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-                SizedBox(height: 10),
-                Text(
-                  'Barbería',
+                const SizedBox(height: 12),
+                const Text(
+                  'MANITO BARBERSHOP',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                Text(
+                  'Sistema de Gestión',
+                  style: TextStyle(
+                    color: const Color(0xFFD8B081).withOpacity(0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

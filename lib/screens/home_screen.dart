@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/app_role.dart';
 import '../services/auth_service.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -13,9 +12,33 @@ class HomeScreen extends StatelessWidget {
     return SessionGuard(
       requiredRole: AppRole.admin,
       child: Scaffold(
-        drawer: const SideMenu(),
         appBar: AppBar(
-          title: const Text('Home'),
+          title: const Text('MANITO BARBERSHOP'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Cerrar Sesión'),
+                    content: const Text('¿Estás seguro de que deseas salir?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Salir', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await AuthService().signOut();
+                  if (context.mounted) Navigator.pushReplacementNamed(context, '/');
+                }
+              },
+            ),
+          ],
         ),
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [

@@ -7,7 +7,6 @@ import '../services/auth_service.dart';
 import '../models/cliente.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class MisComprasScreen extends StatefulWidget {
   const MisComprasScreen({super.key});
@@ -112,7 +111,6 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
     return SessionGuard(
       requiredRole: AppRole.client,
       child: Scaffold(
-        drawer: const SideMenu(isClient: true),
         appBar: AppBar(title: const Text('Mis Compras')),
         body: Column(
           children: [

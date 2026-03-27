@@ -18,7 +18,7 @@ class VentaService {
   Future<List<Venta>> obtenerVentas() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.ventas}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.ventas}?pageSize=1000';
       
       print('🔍 Intentando conectar a: $url');
       
@@ -35,10 +35,18 @@ class VentaService {
       print('📥 Status Code: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+
         return data.map((json) => Venta.fromJson(json)).toList();
       } else {
         throw Exception('Error HTTP ${response.statusCode}: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}');
@@ -168,7 +176,7 @@ class VentaService {
         subtotal: venta.subtotal,
         porcentajeDescuento: venta.porcentajeDescuento,
         total: venta.total,
-        estado: false, // Deactivate
+        estado: 'Cancelada', // Soft delete / Anular
         detalles: venta.detalles,
       );
 
@@ -181,7 +189,7 @@ class VentaService {
   Future<List<DetalleVenta>> obtenerDetallesVenta(int ventaId) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.detalleVenta}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.detalleVenta}?pageSize=5000'; // Muchos detalles posibles
       
       print('🔍 Consultando detalles en: $url');
 
@@ -191,7 +199,18 @@ class VentaService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
+        }
+
         final todosLosDetalles = data.map((json) => DetalleVenta.fromJson(json)).toList();
         
         // Filtrar por ventaId en el cliente

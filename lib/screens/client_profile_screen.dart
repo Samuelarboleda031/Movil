@@ -5,7 +5,6 @@ import '../services/auth_service.dart';
 import '../services/auxiliar_service.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
-import '../widgets/side_menu.dart';
 
 class ClientProfileScreen extends StatefulWidget {
   const ClientProfileScreen({super.key});
@@ -22,7 +21,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
   Cliente? _clienteActual;
   bool _isLoading = true;
   bool _isSaving = false;
-
+  bool _documentoEditable = true;
   final _documentoCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
   final _apellidoCtrl = TextEditingController();
@@ -51,9 +50,13 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _documentoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Documento *',
-                border: OutlineInputBorder(),
+              readOnly: !_documentoEditable,
+              decoration: InputDecoration(
+                labelText: _documentoEditable ? 'Documento *' : 'Documento (Protegido)',
+                border: const OutlineInputBorder(),
+                filled: !_documentoEditable,
+                fillColor: _documentoEditable ? null : Colors.grey.withOpacity(0.1),
+                helperText: _documentoEditable ? 'Ingresa tu documento oficial' : 'Este campo no se puede modificar',
               ),
               keyboardType: TextInputType.text,
               validator: (value) {
@@ -148,7 +151,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -165,6 +168,25 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     : const Text('Guardar cambios'),
               ),
             ),
+            const SizedBox(height: 24),
+            const Divider(color: Colors.white10),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await _authService.signOut();
+                  if (mounted) Navigator.pushReplacementNamed(context, '/');
+                },
+                icon: const Icon(Icons.logout, color: Colors.red),
+                label: const Text('CERRAR SESIÓN', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.red),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -214,6 +236,12 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       _telefonoCtrl.text = encontrado?.telefono ?? '';
       _emailCtrl.text = encontrado?.email ?? correo;
       _direccionCtrl.text = encontrado?.direccion ?? '';
+
+      // Si el documento es nulo, vacío o empieza con TMP/G-, permitimos editarlo una vez.
+      final docActual = _documentoCtrl.text;
+      _documentoEditable = docActual.isEmpty || 
+                           docActual.startsWith('TMP') || 
+                           docActual.startsWith('G-');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -291,7 +319,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     return SessionGuard(
       requiredRole: AppRole.client,
       child: Scaffold(
-        drawer: const SideMenu(isClient: true),
         appBar: AppBar(
           title: const Text('Mi Perfil'),
         ),

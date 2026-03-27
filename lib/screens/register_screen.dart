@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/cliente_service.dart';
-import '../services/barbero_service.dart';
 import '../models/app_role.dart';
-import '../models/usuario.dart';
 import '../models/cliente.dart';
-import '../models/barbero.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,26 +13,23 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _nombreCtrl = TextEditingController();
+  final _apellidoCtrl = TextEditingController();
+  final _documentoCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _emailConfirmCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _passConfirmCtrl = TextEditingController();
   final _auth = AuthService();
   final _clienteService = ClienteService();
-  final _barberoService = BarberoService();
   bool _loading = false;
-  AppRole _selectedRole = AppRole.client; // Por defecto, cliente
-
-  String _generateDocumentoTemp() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final suffix = timestamp.length > 12
-        ? timestamp.substring(timestamp.length - 12)
-        : timestamp.padLeft(12, '0');
-    return 'TMP$suffix'; // 3 + 12 = 15 caracteres máx.
-  }
+  final AppRole _selectedRole = AppRole.client; // Todos los registros de la app móvil son Clientes por defecto
 
   @override
   void dispose() {
+    _nombreCtrl.dispose();
+    _apellidoCtrl.dispose();
+    _documentoCtrl.dispose();
     _emailCtrl.dispose();
     _emailConfirmCtrl.dispose();
     _passCtrl.dispose();
@@ -48,13 +42,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    final nombre = _nombreCtrl.text.trim();
+    final apellido = _apellidoCtrl.text.trim();
+    final documento = _documentoCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final emailConf = _emailConfirmCtrl.text.trim();
     final pass = _passCtrl.text;
     final passConf = _passConfirmCtrl.text;
 
-    if (email.isEmpty || pass.isEmpty) {
-      _showMessage('Complete todos los campos');
+    if (nombre.isEmpty || apellido.isEmpty || documento.isEmpty || email.isEmpty || pass.isEmpty) {
+      _showMessage('Complete todos los campos obligatorios');
       return;
     }
     if (email != emailConf) {
@@ -69,15 +66,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _loading = true);
     try {
       await _auth.signUp(email, pass);
-      // Sincronizar también el usuario con la API usando el rol elegido
+      
+      // Sincronizar el usuario con la API incluyendo nombre y apellido
       final usuarioApi = await _auth.syncUsuarioConApi(
         rolId: rolIdForRole(_selectedRole),
         contrasena: pass,
       );
       
-      // Crear el registro de rol si el usuario fue creado exitosamente
       if (usuarioApi != null && usuarioApi.id != null) {
-        await _crearRegistroRol(usuarioApi);
+        // Crear registro de cliente con los datos reales
+        final cliente = Cliente(
+          documento: documento,
+          nombre: nombre,
+          apellido: apellido,
+          email: email,
+          usuarioId: usuarioApi.id,
+          estado: true,
+        );
+        await _clienteService.crearCliente(cliente);
       }
       
       await _auth.sendEmailVerification();
@@ -86,56 +92,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Error al registrar');
     } catch (e) {
-      _showMessage('Error inesperado');
+      _showMessage('Error inesperado: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _crearRegistroRol(Usuario usuarioApi) async {
-    if (usuarioApi.id == null) {
-      return;
-    }
-
-    final usuarioId = usuarioApi.id!;
-
-    try {
-      if (_selectedRole == AppRole.barber) {
-        // Verificar si ya existe
-        final existente = await _barberoService.obtenerBarberoPorUsuarioId(usuarioId);
-        if (existente != null) return;
-
-        // Crear registro de barbero
-        final barbero = Barbero(
-          documento: _generateDocumentoTemp(),
-          nombre: 'Por completar',
-          apellido: 'Por completar',
-          email: usuarioApi.correo,
-          usuarioId: usuarioId,
-          estado: true,
-        );
-        await _barberoService.crearBarbero(barbero);
-      } else if (_selectedRole == AppRole.client) {
-        // Verificar si ya existe
-        final existente = await _clienteService.obtenerClientePorUsuarioId(usuarioId);
-        if (existente != null) return;
-
-        // Crear registro de cliente
-        final cliente = Cliente(
-          documento: _generateDocumentoTemp(),
-          nombre: 'Por completar',
-          apellido: 'Por completar',
-          email: usuarioApi.correo,
-          usuarioId: usuarioId,
-          estado: true,
-        );
-        await _clienteService.crearCliente(cliente);
-      }
-      // Rol administrador: no requiere registro adicional
-    } catch (e) {
-      print('Error al crear registro de rol: $e');
-      // No bloquear el registro si falla la creación del rol
-      // El usuario puede completar su perfil más tarde
     }
   }
 
@@ -144,7 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final user = await _auth.signInWithGoogle();
       if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main-client');
       }
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Error en registro con Google');
@@ -158,70 +117,132 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registrarse')),
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('MANITO BARBERSHOP')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Selector de rol
-            Wrap(
-              spacing: 12,
-              alignment: WrapAlignment.center,
-              children: [
-                ChoiceChip(
-                  label: const Text('Cliente'),
-                  selected: _selectedRole == AppRole.client,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _selectedRole = AppRole.client);
-                    }
-                  },
-                ),
-                ChoiceChip(
-                  label: const Text('Barbero'),
-                  selected: _selectedRole == AppRole.barber,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _selectedRole = AppRole.barber);
-                    }
-                  },
-                ),
-                ChoiceChip(
-                  label: const Text('Administrador'),
-                  selected: _selectedRole == AppRole.admin,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _selectedRole = AppRole.admin);
-                    }
-                  },
-                ),
-              ],
+            const Text(
+              'Crear Cuenta',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 24),
-            TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Correo'), keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 12),
-            TextField(controller: _emailConfirmCtrl, decoration: const InputDecoration(labelText: 'Confirmar correo'), keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 12),
-            TextField(controller: _passCtrl, decoration: const InputDecoration(labelText: 'Contraseña'), obscureText: true),
-            const SizedBox(height: 12),
-            TextField(controller: _passConfirmCtrl, decoration: const InputDecoration(labelText: 'Confirmar contraseña'), obscureText: true),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            const Text(
+              'Únete a la mejor experiencia de barbería',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 32),
+            
+            TextField(
+              controller: _nombreCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Nombre *',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            
+            TextField(
+              controller: _apellidoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Apellido *',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: _documentoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Documento / Cédula *',
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: _emailCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Correo Electrónico *',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailConfirmCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Confirmar Correo',
+                prefixIcon: Icon(Icons.mail_outline),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Contraseña *',
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passConfirmCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Confirmar Contraseña',
+                prefixIcon: Icon(Icons.lock_reset_outlined),
+              ),
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _loading ? null : _register,
-                child: _loading ? const CircularProgressIndicator(color: Colors.white) : const Text('Registrarse'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _loading 
+                  ? const CircularProgressIndicator(color: Colors.black) 
+                  : const Text('REGISTRARSE', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            const Row(
+              children: [
+                Expanded(child: Divider(color: Colors.white10)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('o continúa con', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: Colors.white10)),
+              ],
+            ),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _loading ? null : _googleRegister,
-                icon: const Icon(Icons.g_mobiledata, size: 24),
-                label: const Text('Registrarse con Google'),
+                icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png', height: 20),
+                label: const Text('Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.white10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),

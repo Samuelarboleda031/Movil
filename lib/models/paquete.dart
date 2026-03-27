@@ -28,13 +28,12 @@ class Paquete {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'nombre': nombre,
-      'descripcion': descripcion,
-      'precio': precio,
-      'duracionMinutos': duracionMinutos,
-      'estado': estado,
+      if (id != null && id != 0) 'Id': id,
+      'Nombre': nombre,
+      'Descripcion': descripcion,
+      'Precio': precio,
+      'DuracionMinutos': duracionMinutos,
+      'Estado': estado,
     };
   }
 }
-

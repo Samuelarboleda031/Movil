@@ -23,7 +23,7 @@ class AuxiliarService {
   Future<List<Cliente>> obtenerClientes() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),
@@ -36,10 +36,18 @@ class AuxiliarService {
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+
         return data.map((json) => Cliente.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener clientes: ${response.statusCode} - ${response.body}');
@@ -108,7 +116,7 @@ class AuxiliarService {
   Future<List<Barbero>> obtenerBarberos() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.barberos}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.barberos}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),
@@ -121,10 +129,18 @@ class AuxiliarService {
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+
         return data.map((json) => Barbero.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener barberos: ${response.statusCode} - ${response.body}');
@@ -193,7 +209,7 @@ class AuxiliarService {
   Future<List<Servicio>> obtenerServicios() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),
@@ -206,10 +222,18 @@ class AuxiliarService {
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+        
         return data.map((json) => Servicio.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener servicios: ${response.statusCode} - ${response.body}');
@@ -226,11 +250,98 @@ class AuxiliarService {
     }
   }
 
+  Future<Servicio> crearServicio(Servicio servicio) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode(servicio.toJson()),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return Servicio.fromJson(jsonDecode(response.body));
+      } else {
+        throw Exception('Error al crear servicio: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al crear servicio: $e');
+    }
+  }
+
+  Future<Servicio> actualizarServicio(Servicio servicio) async {
+    if (servicio.id == null || servicio.id == 0) {
+      throw Exception('No se puede actualizar un servicio sin ID');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}/${servicio.id}';
+
+      final response = await http.put(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode(servicio.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        return Servicio.fromJson(jsonDecode(response.body));
+      } else if (response.statusCode == 204) {
+        return servicio;
+      } else {
+        throw Exception('Error al actualizar servicio: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al actualizar servicio: $e');
+    }
+  }
+
+  Future<void> eliminarServicio(int id) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}/$id';
+
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al eliminar servicio: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al eliminar servicio: $e');
+    }
+  }
+
+  Future<void> cambiarEstadoServicio(int id, bool estado) async {
+    try {
+      // Obtenemos el servicio actual primero
+      final servicios = await obtenerServicios();
+      final actual = servicios.firstWhere((s) => s.id == id);
+      
+      final actualizado = Servicio(
+        id: actual.id,
+        nombre: actual.nombre,
+        descripcion: actual.descripcion,
+        precio: actual.precio,
+        duracionMinutos: actual.duracionMinutos,
+        estado: estado,
+      );
+
+      await actualizarServicio(actualizado);
+    } catch (e) {
+      throw Exception('Error al cambiar estado del servicio: $e');
+    }
+  }
+
   // Paquetes
   Future<List<Paquete>> obtenerPaquetes() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),
@@ -243,10 +354,18 @@ class AuxiliarService {
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+
         return data.map((json) => Paquete.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener paquetes: ${response.statusCode} - ${response.body}');
@@ -267,7 +386,7 @@ class AuxiliarService {
   Future<List<Producto>> obtenerProductos() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.productos}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.productos}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),
@@ -280,10 +399,18 @@ class AuxiliarService {
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          return [];
+        if (response.body.isEmpty) return [];
+        final dynamic rawData = jsonDecode(response.body);
+        
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
         }
-        final List<dynamic> data = jsonDecode(response.body);
+
         return data.map((json) => Producto.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener productos: ${response.statusCode} - ${response.body}');

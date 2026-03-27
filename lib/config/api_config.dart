@@ -1,5 +1,5 @@
 class ApiConfig {
-  static const String baseUrl = 'http://barberiaapi.somee.com/api';
+  static const String baseUrl = 'https://manitobarbershop.up.railway.app/api';
   
   // Endpoints de Autenticación
   static const String login = '/Usuarios/login';

@@ -14,6 +14,7 @@ import '../services/auth_service.dart';
 import '../services/user_context_service.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
+import '../widgets/searchable_selector.dart';
 
 // === CLASE AUXILIAR DE VALOR ÚNICO (Solución al Dropdown Error) ===
 // Asegura que el valor seleccionado sea único al combinar tipos (Producto, Servicio, Paquete).
@@ -80,6 +81,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   Cliente? _clienteSeleccionado;
   Barbero? _barberoSeleccionado;
   Barbero? _barberoDelUsuario; // Barbero asociado al usuario que registra
+  int? _usuarioIdActual; // ID del usuario logeado (responsable)
   AppRole? _rolActual;
   String _metodoPago = 'Efectivo';
   double _porcentajeDescuento = 0.0;
@@ -91,7 +93,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   bool _isLoadingData = true; // Bloquea la UI hasta que todo cargue
   String _fechaCreacionTexto = '';
   bool _barberoBloqueado = false;
-  String? _barberoError;
+  // String? _barberoError; // Eliminado por desuso en la nueva lógica de SearchableSelector
 
   @override
   void initState() {
@@ -189,14 +191,10 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         _paquetes = paquetes;
 
         _rolActual = rolActual;
+        _usuarioIdActual = usuarioActual?.id; // Guardar el ID del responsable
         _barberoDelUsuario = barberoPropio;
         _barberoBloqueado = _rolActual == AppRole.barber;
-        _barberoError = null;
         if (_barberoBloqueado) {
-          if (_barberoDelUsuario == null) {
-            _barberoError =
-                'No se encontró un perfil de barbero asociado a tu cuenta. Contacta al administrador.';
-          }
           _barberoSeleccionado = _barberoDelUsuario;
         }
 
@@ -257,10 +255,8 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
     return _subtotal - _descuento;
   }
 
-  bool get _requiereBarbero {
-    // Solo obligatorio si hay al menos un servicio en los detalles
-    return _detalles.any((d) => d.servicioId != null);
-  }
+  // _requiereBarbero eliminado
+
 
   void _eliminarDetalle(int index) {
     setState(() {
@@ -363,6 +359,8 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   }
 
   void _mostrarError(String mensaje) {
+    print('❌ ERROR EN VENTA: $mensaje');
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
@@ -411,16 +409,14 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         _mostrarError('Debe seleccionar un barbero cuando la venta incluye servicios.');
         return;
       }
-
-      if (!tieneServicios && barberoParaVenta == null) {
-        if (_barberoDelUsuario != null) {
-          barberoParaVenta = _barberoDelUsuario;
-        } else {
-          _mostrarError('No se pudo asociar automáticamente un barbero al usuario actual. Seleccione un barbero.');
-          return;
-        }
+      
+      // Fallback final: Si sigue siendo null, no podemos guardar porque barberoId es requerido.
+      if (barberoParaVenta == null) {
+        _mostrarError('Por favor seleccione un barbero responsable de esta venta.');
+        return;
       }
     }
+
 
     setState(() {
       _isLoading = true;
@@ -445,12 +441,13 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         numero: widget.venta?.numero ?? 'V-${DateTime.now().millisecondsSinceEpoch}',
         fechaRegistro: widget.venta?.fechaRegistro ?? DateTime.now().toIso8601String(),
         clienteId: _clienteSeleccionado!.id!,
-        barberoId: barberoParaVenta!.id!,
+        barberoId: barberoParaVenta.id!,
+        usuarioId: _usuarioIdActual, // Pasar el ID del responsable
         metodoPago: _metodoPago,
         subtotal: _subtotal,
         porcentajeDescuento: _porcentajeDescuento,
         total: _total,
-        estado: true,
+        estado: widget.venta?.estado ?? 'Completada',
         detalles: detallesVenta, // Este campo es el que se serializa como 'detalleVenta' en el modelo Venta
       );
 
@@ -520,63 +517,40 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                       const SizedBox(height: 16),
                     ],
                     // Cliente
-                    DropdownButtonFormField<Cliente>(
-                      value: _clienteSeleccionado,
-                      decoration: const InputDecoration(
-                        labelText: 'Cliente *',
-                        border: OutlineInputBorder(),
+                    SearchableSelector<Cliente>(
+                      label: 'Cliente *',
+                      hint: 'Escribe nombre o documento...',
+                      items: _clientes,
+                      selectedItem: _clienteSeleccionado,
+                      displayText: (c) => c.nombreCompleto,
+                      searchText: (c) => '${c.nombreCompleto} ${c.documento}',
+                      prefixIcon: Icons.person_search,
+                      required: true,
+                      renderItem: (c) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(c.nombreCompleto,
+                              style: const TextStyle(color: Colors.white, fontSize: 14)),
+                          Text('Doc: ${c.documento}  ·  Tel: ${c.telefono}',
+                              style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                        ],
                       ),
-                      items: _clientes.map((cliente) {
-                        return DropdownMenuItem<Cliente>(
-                          value: cliente,
-                          child: Text('${cliente.nombre} ${cliente.apellido}'), 
-                        );
-                      }).toList(),
-                      onChanged: (cliente) {
-                        setState(() {
-                          _clienteSeleccionado = cliente;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Seleccione un cliente';
-                        }
-                        return null;
-                      },
+                      onSelected: (c) => setState(() => _clienteSeleccionado = c),
                     ),
                     const SizedBox(height: 16),
                     // Barbero
-                    DropdownButtonFormField<Barbero>(
-                      value: _barberoSeleccionado,
-                      decoration: InputDecoration(
-                        labelText: _barberoBloqueado
-                            ? 'Barbero (asignado automáticamente)'
-                            : 'Barbero (obligatorio solo si hay servicios)',
-                        border: const OutlineInputBorder(),
-                        helperText: _barberoBloqueado
-                            ? 'Se usará tu perfil de barbero para esta venta'
-                            : null,
-                      ),
-                      items: _barberos.map((barbero) {
-                        return DropdownMenuItem(
-                          value: barbero,
-                          child: Text('${barbero.nombre} ${barbero.apellido}'), 
-                        );
-                      }).toList(),
-                      onChanged: _barberoBloqueado
-                          ? null
-                          : (barbero) {
-                              setState(() {
-                                _barberoSeleccionado = barbero;
-                              });
-                            },
-                      validator: (value) {
-                        if (_barberoError != null) return _barberoError;
-                        if (_requiereBarbero && value == null) {
-                          return 'Seleccione un barbero cuando incluya servicios';
-                        }
-                        return null;
-                      },
+                    SearchableSelector<Barbero>(
+                      label: _barberoBloqueado
+                          ? 'Barbero (asignado automáticamente)'
+                          : 'Barbero * (Responsable)',
+                      hint: 'Escribe el nombre del barbero...',
+                      items: _barberos,
+                      selectedItem: _barberoSeleccionado,
+                      displayText: (b) => b.nombreCompleto,
+                      searchText: (b) => '${b.nombreCompleto} ${b.documento}',
+                      prefixIcon: Icons.badge,
+                      enabled: !_barberoBloqueado,
+                      onSelected: (b) => setState(() => _barberoSeleccionado = b),
                     ),
                     const SizedBox(height: 16),
                     // Método de Pago

@@ -56,7 +56,13 @@ class _SessionGuardState extends State<SessionGuard> {
 
     print('[SessionGuard] Rol actual $rolActual, se requiere ${widget.requiredRole}');
 
-    if (rolActual != widget.requiredRole) {
+    // Lógica flexible: El Gerente (Super Admin ID 1) tiene todos los permisos del Administrador (ID 18)
+    bool isAuthorized = (rolActual == widget.requiredRole);
+    if (!isAuthorized && widget.requiredRole == AppRole.admin && rolActual == AppRole.manager) {
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
       await _redirectToRoleHome(
         rolActual,
         'Estás autenticado como ${roleLabel(rolActual)}. No puedes acceder a esta pantalla.',
@@ -95,6 +101,7 @@ class _SessionGuardState extends State<SessionGuard> {
         return '/client_home';
       case AppRole.barber:
         return '/barber_home';
+      case AppRole.manager:
       case AppRole.admin:
         return '/home';
     }

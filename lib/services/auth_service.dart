@@ -102,7 +102,7 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   // Sincroniza el usuario autenticado de Firebase con la API (tabla Usuarios)
-  // rolId: 1 = admin, 2 = barbero, 3 = cliente
+  // rolId: Rol sugerido para usuarios nuevos (ej: 3 para Cliente)
   Future<Usuario?> syncUsuarioConApi({required int rolId, String? contrasena}) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) return null;
@@ -115,22 +115,40 @@ class AuthService {
       Usuario sincronizado;
 
       if (existente == null) {
-        // Crear nuevo usuario en la API
+        // Extraer nombre y apellido de Google/Firebase
+        String nombre = 'Cliente';
+        String apellido = 'Nuevo';
+        
+        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+          final parts = user.displayName!.split(' ');
+          nombre = parts[0];
+          if (parts.length > 1) {
+            apellido = parts.sublist(1).join(' ');
+          }
+        }
+
+        // Crear nuevo usuario en la API con el rol sugerido
         final nuevo = Usuario(
           correo: correo,
+          nombre: nombre,
+          apellido: apellido,
+          fotoPerfil: user.photoURL,
           contrasena: passwordValue,
           rolId: rolId,
           estado: true,
         );
         sincronizado = await _usuarioService.crearUsuario(nuevo);
       } else {
-        // Actualizar rol/estado si es necesario
-        if (existente.rolId != rolId || existente.estado != true) {
+       // RESPETAR EL ROL EXISTENTE: Si ya tiene un rol en la API, no lo cambiamos
+        // Esto evita que un Admin se convierta en Cliente al loguearse.
+        final rolFinal = existente.rolId ?? rolId;
+        
+        if (existente.rolId != rolFinal || existente.estado != true) {
           final actualizado = Usuario(
             id: existente.id,
             correo: existente.correo,
             contrasena: existente.contrasena ?? passwordValue,
-            rolId: rolId,
+            rolId: rolFinal,
             estado: true,
           );
           sincronizado = await _usuarioService.actualizarUsuario(actualizado);
@@ -142,8 +160,6 @@ class AuthService {
       await _saveApiUser(sincronizado);
       return sincronizado;
     } catch (e) {
-      // No bloquear el inicio de sesión por errores de sincronización, solo registrar
-      // ignore: avoid_print
       print('Error sincronizando usuario con API: $e');
       return null;
     }
