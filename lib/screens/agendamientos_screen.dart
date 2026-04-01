@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/agendamiento.dart';
+import '../models/paginacion.dart';
 import '../services/agendamiento_service.dart';
 import '../services/emailjs_service.dart';
-import '../services/auxiliar_service.dart';
-import '../models/cliente.dart';
-import '../models/barbero.dart';
-import '../utils/estado_cita.dart';
 import 'agendamiento_form_screen.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
+import '../utils/app_format.dart';
+import '../models/barbero.dart';
+import '../services/auxiliar_service.dart';
+import '../services/auth_service.dart';
+import '../widgets/searchable_selector.dart';
+import '../utils/app_snackbar.dart';
 
 class AgendamientosScreen extends StatefulWidget {
   const AgendamientosScreen({super.key});
@@ -20,208 +23,121 @@ class AgendamientosScreen extends StatefulWidget {
 
 class _AgendamientosScreenState extends State<AgendamientosScreen> {
   final AgendamientoService _agendamientoService = AgendamientoService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
   final EmailJsService _emailJsService = EmailJsService();
+  final AuxiliarService _auxiliarService = AuxiliarService();
+  final AuthService _authService = AuthService();
+  
   List<Agendamiento> _agendamientos = [];
+  Paginacion<Agendamiento>? _ultimaPaginacion;
   bool _isLoading = true;
+  int _currentPage = 1;
+  static const int _pageSize = 15;
   String _searchQuery = '';
-  String _filtroEstado = 'Todos';
 
   @override
   void initState() {
     super.initState();
-    _cargarAgendamientos();
+    _cargarAgendamientos(1);
   }
 
-  Future<void> _cargarAgendamientos() async {
+  Future<void> _cargarAgendamientos(int page) async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _currentPage = page;
     });
-
     try {
-      final agendamientos = await _agendamientoService.obtenerAgendamientos();
-      setState(() {
-        _agendamientos = agendamientos;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      final paginacion = await _agendamientoService.obtenerAgendamientos(page: page, pageSize: _pageSize);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar agendamientos: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _agendamientos = paginacion.items;
+          _ultimaPaginacion = paginacion;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        AppToast.showError(context, 'Error al cargar agendamientos: $e');
       }
     }
   }
 
   List<Agendamiento> get _agendamientosFiltrados {
-    var filtrados = _agendamientos;
-
-    if (_filtroEstado != 'Todos') {
-      filtrados = filtrados.where((a) => a.estadoCita == _filtroEstado).toList();
-    }
-
-    if (_searchQuery.isNotEmpty) {
-      filtrados = filtrados.where((agendamiento) {
-        final cliente = agendamiento.cliente?.nombreCompleto.toLowerCase() ?? '';
-        final barbero = agendamiento.barbero?.nombreCompleto.toLowerCase() ?? '';
-        final servicio = agendamiento.servicio?.nombre.toLowerCase() ?? '';
-        final paquete = agendamiento.paquete?.nombre.toLowerCase() ?? '';
-        final query = _searchQuery.toLowerCase();
-        return cliente.contains(query) ||
-            barbero.contains(query) ||
-            servicio.contains(query) ||
-            paquete.contains(query);
-      }).toList();
-    }
-
-    return filtrados;
+    final query = _searchQuery.toLowerCase();
+    if (query.isEmpty) return _agendamientos;
+    return _agendamientos.where((a) {
+      final cliente = a.cliente?.nombreCompleto.toLowerCase() ?? '';
+      final barbero = a.barbero?.nombreCompleto.toLowerCase() ?? '';
+      final servicio = a.servicio?.nombre.toLowerCase() ?? '';
+      return cliente.contains(query) || barbero.contains(query) || servicio.contains(query);
+    }).toList();
   }
 
-  Future<void> _verDetallesAgendamiento(Agendamiento agendamientoResumen) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
+  Future<void> _verDetalles(Agendamiento ag) async {
+    showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
     try {
-      final agendamiento = await _agendamientoService.obtenerAgendamientoPorId(agendamientoResumen.id!);
+      final detail = await _agendamientoService.obtenerAgendamientoPorId(ag.id!);
+      if (mounted) Navigator.pop(context);
 
-      String clienteNombre = agendamiento.cliente?.nombreCompleto ?? 'N/A';
-      String barberoNombre = agendamiento.barbero?.nombreCompleto ?? 'N/A';
-
-      if (agendamiento.cliente == null || agendamiento.barbero == null) {
-        try {
-          if (agendamiento.cliente == null) {
-            final clientes = await _auxiliarService.obtenerClientes();
-            final cliente = clientes.firstWhere(
-              (c) => c.id == agendamiento.clienteId,
-              orElse: () => Cliente(id: 0, documento: '', nombre: 'Desconocido', apellido: '', telefono: '', email: '', direccion: '', estado: true),
-            );
-            clienteNombre = cliente.nombreCompleto;
-          }
-          if (agendamiento.barbero == null) {
-            final barberos = await _auxiliarService.obtenerBarberos();
-            final barbero = barberos.firstWhere(
-              (b) => b.id == agendamiento.barberoId,
-              orElse: () => Barbero(id: 0, documento: '', nombre: 'Desconocido', apellido: '', telefono: '', email: '', direccion: '', estado: true),
-            );
-            barberoNombre = barbero.nombreCompleto;
-          }
-        } catch (e) {
-          print('Error recuperando datos auxiliares: $e');
-        }
-      }
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Detalles Cita'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDetailRow('Tipo:', agendamiento.servicio != null ? 'Servicio' : 'Paquete'),
-                _buildDetailRow('Nombre:', agendamiento.servicio?.nombre ?? agendamiento.paquete?.nombre ?? 'N/A'),
-                const Divider(),
-                _buildDetailRow('Cliente:', clienteNombre),
-                _buildDetailRow('Barbero:', barberoNombre),
-                const Divider(),
-                _buildDetailRow('Fecha:', DateFormat('dd/MM/yyyy').format(DateTime.parse(agendamiento.fechaCita ?? DateTime.now().toIso8601String()))),
-                _buildDetailRow('Hora:', '${agendamiento.horaInicio ?? ''} - ${agendamiento.horaFin ?? ''}'),
-                _buildDetailRow('Estado:', agendamiento.estadoCita ?? 'Pendiente'),
-                if (agendamiento.monto != null)
-                  _buildDetailRow('Monto:', '\$${agendamiento.monto!.toStringAsFixed(2)}', isBold: true),
-              ],
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Detalles de la Cita'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _detailRow('Cliente:', detail.cliente?.nombreCompleto ?? 'N/A'),
+                  _detailRow('Barbero:', detail.barbero?.nombreCompleto ?? 'N/A'),
+                  _detailRow('Servicio:', detail.servicio?.nombre ?? detail.paquete?.nombre ?? 'N/A'),
+                  _detailRow('Fecha:', detail.fechaCita ?? 'N/A'),
+                  _detailRow('Hora:', '${detail.horaInicio} - ${detail.horaFin}'),
+                  _detailRow('Monto:', AppFormat.cop(detail.monto ?? 0)),
+                  _detailRow('Estado:', detail.estadoCita ?? 'Pendiente'),
+                  const Divider(),
+                  const Text('Observaciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(detail.observaciones ?? 'Sin observaciones'),
+                ],
+              ),
             ),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        ),
-      );
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar detalles: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) Navigator.pop(context);
+      AppToast.showError(context, 'Error: $e');
     }
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
+  Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Flexible(child: Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.normal), textAlign: TextAlign.end)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value)),
         ],
       ),
     );
   }
 
-  Future<void> _eliminarAgendamiento(Agendamiento agendamiento) async {
+  Future<void> _cancelarAgendamiento(Agendamiento ag) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar Agendamiento'),
-        content: Text('¿Está seguro que desea eliminar el agendamiento del ${agendamiento.fechaCita}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _agendamientoService.eliminarAgendamiento(agendamiento.id!);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Agendamiento eliminado exitosamente'), backgroundColor: Colors.green),
-          );
-          _cargarAgendamientos();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar agendamiento: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _cancelarAgendamiento(Agendamiento agendamiento) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar Agendamiento'),
-        content: Text('¿Está seguro que desea cancelar el agendamiento del ${agendamiento.fechaCita}? se enviará una notificación por correo.'),
+        title: const Text('Cancelar Cita'),
+        content: const Text('¿Está seguro de que desea cancelar esta cita?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Sí, Cancelar'),
           ),
         ],
@@ -230,333 +146,108 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 
     if (confirm == true) {
       try {
-        final agendamientoCancelado = agendamiento.copyWith(estadoCita: EstadoCita.cancelada);
-        await _agendamientoService.actualizarAgendamiento(agendamientoCancelado);
-        
-        if (agendamiento.cliente != null && agendamiento.cliente!.email != null) {
-          try {
-            await _emailJsService.notificarCancelacion(
-              clienteNombre: agendamiento.cliente!.nombreCompleto,
-              clienteEmail: agendamiento.cliente!.email!,
-              barberoNombre: agendamiento.barbero?.nombreCompleto ?? 'Tu barbero',
-              fechaOriginal: '${agendamiento.fechaCita}T${agendamiento.horaInicio}',
-            );
-          } catch (e) {
-            print('Error al enviar notificación por correo: $e');
-          }
-        }
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Agendamiento cancelado exitosamente y correo enviado'), backgroundColor: Colors.green),
+        await _agendamientoService.cancelarAgendamiento(ag.id!);
+        if (ag.cliente?.email != null) {
+          await _emailJsService.notificarCancelacion(
+            clienteEmail: ag.cliente!.email!,
+            clienteNombre: ag.cliente!.nombreCompleto,
+            barberoNombre: ag.barbero?.nombreCompleto ?? 'Tu barbero',
+            fechaOriginal: ag.fechaCita ?? '',
           );
-          _cargarAgendamientos();
         }
+        AppToast.showSuccess(context, 'Cita cancelada');
+        _cargarAgendamientos(_currentPage);
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al cancelar agendamiento: $e'), backgroundColor: Colors.red),
-          );
-        }
+        AppToast.showError(context, 'Error: $e');
       }
     }
   }
 
-  Future<void> _cancelarDiaCompleto() async {
-    // ── PASO 1: Cargar barberos y elegir cuál afecta ─────────────────────────
-    List<Barbero> barberos = [];
-    try {
-      barberos = await _auxiliarService.obtenerBarberos();
-    } catch (_) {}
+  Future<void> _cancelarAgendas() async {
+    Barbero? barberoSeleccionado;
+    final barberosRaw = await _auxiliarService.obtenerBarberos();
+    
+    // Añadimos la opción "Todos los barberos" al inicio
+    final List<Barbero> opcionesBarberos = [
+      Barbero(id: -1, nombre: 'Todos los barberos', apellido: '', documento: '', telefono: '', email: '', direccion: '', estado: true),
+      ...barberosRaw
+    ];
 
-    if (!mounted) return;
-
-    // null = todos los barberos
-    Barbero? barberoElegido;
-
-    final barberoResult = await showDialog<Object>(
-      context: context,
-      builder: (ctx) {
-        Barbero? seleccion;
-        return StatefulBuilder(
-          builder: (ctx, setDs) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
-            title: const Text(
-              'CANCELAR DÍAS — Paso 1 de 2',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '¿A qué barbero aplica la cancelación?',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                // Opción: Todos
-                GestureDetector(
-                  onTap: () => setDs(() => seleccion = null),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: seleccion == null
-                          ? const Color(0xFFD8B081).withOpacity(0.15)
-                          : const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: seleccion == null
-                            ? const Color(0xFFD8B081)
-                            : const Color(0xFF3A3A3A),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.people,
-                          color: seleccion == null
-                              ? const Color(0xFFD8B081)
-                              : Colors.white54,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Todos los barberos',
-                          style: TextStyle(
-                            color: seleccion == null
-                                ? const Color(0xFFD8B081)
-                                : Colors.white,
-                            fontWeight: seleccion == null
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Opciones: barbero individual
-                ...barberos.map((b) => GestureDetector(
-                      onTap: () => setDs(() => seleccion = b),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: seleccion?.id == b.id
-                              ? const Color(0xFFD8B081).withOpacity(0.15)
-                              : const Color(0xFF2A2A2A),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: seleccion?.id == b.id
-                                ? const Color(0xFFD8B081)
-                                : const Color(0xFF3A3A3A),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.person,
-                              color: seleccion?.id == b.id
-                                  ? const Color(0xFFD8B081)
-                                  : Colors.white54,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                b.nombreCompleto,
-                                style: TextStyle(
-                                  color: seleccion?.id == b.id
-                                      ? const Color(0xFFD8B081)
-                                      : Colors.white,
-                                  fontWeight: seleccion?.id == b.id
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('CANCELAR', style: TextStyle(color: Colors.white54)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD8B081),
-                  foregroundColor: Colors.black,
-                ),
-                onPressed: () => Navigator.pop(ctx, seleccion ?? 'todos'),
-                child: const Text('SIGUIENTE →'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (barberoResult == null) return; // canceló
-    barberoElegido = barberoResult is Barbero ? barberoResult : null;
-
-    // ── PASO 2: Elegir los días ───────────────────────────────────────────────
-    final DateTime hoy = DateTime.now();
-    final List<DateTime> proximosDias = List.generate(14, (i) => hoy.add(Duration(days: i)));
-    final List<DateTime> seleccionados = [];
-
-    final String tituloBarbero = barberoElegido != null
-        ? barberoElegido.nombreCompleto
-        : 'Todos los barberos';
-
-    final result = await showDialog<List<DateTime>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
+          builder: (context, setStateDialog) {
+            final esGlobal = barberoSeleccionado?.id == -1;
             return AlertDialog(
-              backgroundColor: const Color(0xFF1E1E1E),
+              backgroundColor: const Color(0xFF161616),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFD8B081), width: 0.5)),
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'CANCELAR DÍAS — Paso 2 de 2',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
+                  Text(esGlobal ? 'CANCELACIÓN GLOBAL' : 'CANCELAR POR BARBERO', 
+                    style: TextStyle(color: esGlobal ? Colors.orange : const Color(0xFFD8B081), fontSize: 14, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD8B081).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.person_pin, size: 13, color: Color(0xFFD8B081)),
-                        const SizedBox(width: 4),
-                        Text(
-                          tituloBarbero,
-                          style: const TextStyle(
-                            color: Color(0xFFD8B081),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const Text('Selecciona barbero y días:', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
               content: SizedBox(
                 width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: proximosDias.length,
-                  itemBuilder: (context, index) {
-                    final dia = proximosDias[index];
-                    final dateStr = DateFormat('EEEE, d MMMM', 'es_ES').format(dia);
-                    final isSelected = seleccionados.any(
-                      (d) => d.day == dia.day && d.month == dia.month,
-                    );
-                    return CheckboxListTile(
-                      activeColor: const Color(0xFFD8B081),
-                      checkColor: Colors.black,
-                      title: Text(dateStr, style: const TextStyle(color: Colors.white)),
-                      value: isSelected,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          if (val == true) {
-                            seleccionados.add(dia);
-                          } else {
-                            seleccionados.removeWhere(
-                              (d) => d.day == dia.day && d.month == dia.month,
-                            );
-                          }
-                        });
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SearchableSelector<Barbero>(
+                      label: 'Barbero',
+                      hint: 'Seleccionar...',
+                      items: opcionesBarberos,
+                      selectedItem: barberoSeleccionado,
+                      displayText: (b) => b.id == -1 ? b.nombre : b.nombreCompleto,
+                      searchText: (b) => b.id == -1 ? b.nombre : b.nombreCompleto,
+                      onSelected: (b) => setStateDialog(() => barberoSeleccionado = b),
+                    ),
+                    const SizedBox(height: 16),
+                    _DaySelectorWidget(
+                      isGlobal: esGlobal,
+                      onDatesSelected: (dates, motivo) {
+                         if (barberoSeleccionado != null && dates.isNotEmpty) {
+                           Navigator.pop(context, {'barbero': barberoSeleccionado, 'fechas': dates, 'motivo': motivo});
+                         } else {
+                           AppToast.showError(context, 'Selecciona un barbero y al menos un día');
+                         }
                       },
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('CANCELAR', style: TextStyle(color: Colors.white54)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD8B081),
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: seleccionados.isEmpty
-                      ? null
-                      : () => Navigator.pop(context, seleccionados),
-                  child: Text('PROCEDER (${seleccionados.length})'),
-                ),
-              ],
             );
-          },
-        );
-      },
-    );
-
-    if (result == null || result.isEmpty) return;
-
-    // ── PASO 3: Filtrar y confirmar ───────────────────────────────────────────
-    final List<String> fechasStr =
-        result.map((d) => DateFormat('yyyy-MM-dd').format(d)).toList();
-
-    final citasACancelar = _agendamientos.where((a) {
-      final fechaMatch = fechasStr.any((f) => a.fechaCita?.contains(f) == true);
-      final estadoOk = a.estadoCita != EstadoCita.cancelada;
-      // Filtrar por barbero si fue seleccionado uno específico
-      final barberoMatch = barberoElegido == null || a.barberoId == barberoElegido.id;
-      return fechaMatch && estadoOk && barberoMatch;
-    }).toList();
-
-    if (citasACancelar.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No hay citas activas para $tituloBarbero en los días seleccionados.',
-            ),
-          ),
+          }
         );
       }
-      return;
-    }
+    );
 
+    if (result == null) return;
+    final Barbero b = result['barbero'];
+    final List<DateTime> dates = result['fechas'];
+    final String motivo = result['motivo'];
+    final bool esGlobal = b.id == -1;
+    
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          'CONFIRMAR CANCELACIÓN MASIVA',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: Text(esGlobal ? '¿CANCELAR TODO EL LOCAL?' : '¿CANCELAR CITAS DE ${b.nombreCompleto}?'),
         content: Text(
-          '🎯 Barbero: $tituloBarbero\n'
-          '📅 Días: ${fechasStr.join(", ")}\n'
-          '📋 Citas a cancelar: ${citasACancelar.length}\n\n'
-          'Se enviará correo de notificación a cada cliente.',
-          style: const TextStyle(color: Colors.white70, height: 1.6),
+          esGlobal 
+            ? 'Esta acción cancelará las citas de TODOS los barberos en los ${dates.length} día(s) seleccionados.'
+            : 'Se cancelarán todas las citas de ${b.nombreCompleto} para los ${dates.length} día(s) seleccionados.',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('NO', style: TextStyle(color: Colors.white54)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('SÍ, CANCELAR TODO'),
+            style: TextButton.styleFrom(foregroundColor: esGlobal ? Colors.orange : Colors.red),
+            child: const Text('SÍ, CANCELAR'),
           ),
         ],
       ),
@@ -564,62 +255,36 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 
     if (confirm != true) return;
 
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
+    final user = await _authService.getCurrentUser();
 
-    int canceladasCount = 0;
     try {
-      for (var ag in citasACancelar) {
-        final cancelado = ag.copyWith(estadoCita: EstadoCita.cancelada);
-        await _agendamientoService.actualizarAgendamiento(cancelado);
-
-        if (ag.cliente?.email != null) {
-          try {
-            await _emailJsService.notificarCancelacion(
-              clienteNombre: ag.cliente!.nombreCompleto,
-              clienteEmail: ag.cliente!.email!,
-              barberoNombre: ag.barbero?.nombreCompleto ?? tituloBarbero,
-              fechaOriginal: '${ag.fechaCita}T${ag.horaInicio}',
-              motivo: 'Cierre de la barbería por días programados.',
-            );
-          } catch (e) {
-            print('Error en correo masivo: $e');
-          }
+      showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
+      for (var d in dates) {
+        final fechaStr = DateFormat('yyyy-MM-dd').format(d);
+        if (esGlobal) {
+          await _agendamientoService.cancelarDiaCompleto(
+            fechaStr,
+            motivo: motivo.isNotEmpty ? motivo : 'El local cerrará este día por motivos administrativos.'
+          );
+        } else {
+          await _agendamientoService.cancelarDiaBarbero(
+            barberoId: b.id!,
+            fecha: fechaStr,
+            usuarioSolicitanteId: user!.id!,
+            motivo: motivo.isNotEmpty ? motivo : 'Cancelado por Administrador desde App Móvil',
+          );
         }
-        canceladasCount++;
       }
-
-      if (!mounted) return;
-      Navigator.pop(context); // Importante: Cerrar el loading dialog
-      _mostarNotificacion(
-        '✅ ¡ÉXITO! Se cancelaron $canceladasCount citas de $tituloBarbero.',
-        esError: false,
-      );
-      _cargarAgendamientos();
-    } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        _mostarNotificacion('ERROR: $e', esError: true);
+        AppToast.showSuccess(context, 'Citas canceladas exitosamente');
+        _cargarAgendamientos(_currentPage);
       }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      AppToast.showError(context, 'Error: $e');
     }
   }
-
-  void _mostarNotificacion(String mensaje, {bool esError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: esError ? Colors.red : Colors.green,
-        duration: Duration(seconds: esError ? 5 : 3),
-      ),
-    );
-  }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -630,9 +295,9 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           title: const Text('Agendamientos'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.event_busy, color: Colors.orange),
-              tooltip: 'Cancelar todo un día',
-              onPressed: _cancelarDiaCompleto,
+              icon: const Icon(Icons.event_busy, color: Colors.orange), 
+              onPressed: _cancelarAgendas, 
+              tooltip: 'Cancelar Citas / Días'
             ),
           ],
         ),
@@ -640,62 +305,50 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por cliente, barbero o servicio...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-                    ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _filtroEstado,
-                    decoration: InputDecoration(
-                      labelText: 'Filtrar por estado',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-                    ),
-                    items: EstadoCita.todosConFiltro.map((estado) => DropdownMenuItem(value: estado, child: Text(estado))).toList(),
-                    onChanged: (value) => setState(() => _filtroEstado = value!),
-                  ),
-                ],
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Buscar en esta página...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _agendamientosFiltrados.isEmpty
-                      ? Center(child: Text('No hay agendamientos'))
+                      ? const Center(child: Text('No hay agendamientos'))
                       : RefreshIndicator(
-                          onRefresh: _cargarAgendamientos,
+                          onRefresh: () => _cargarAgendamientos(1),
                           child: ListView.builder(
-                            itemCount: _agendamientosFiltrados.length,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                            itemCount: _agendamientosFiltrados.length + 1,
                             itemBuilder: (context, index) {
+                              if (index == _agendamientosFiltrados.length) {
+                                if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1) {
+                                  return Padding(padding: const EdgeInsets.only(top: 20, bottom: 40), child: _buildPaginationControls());
+                                }
+                                return const SizedBox(height: 80);
+                              }
                               final ag = _agendamientosFiltrados[index];
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 child: ListTile(
-                                  title: Text(ag.servicio?.nombre ?? ag.paquete?.nombre ?? 'Cita'),
-                                  subtitle: Text('Cliente: ${ag.cliente?.nombreCompleto ?? 'N/A'}\nFecha: ${ag.fechaCita}'),
+                                  title: Text(ag.cliente?.nombreCompleto ?? 'Cita #${ag.id}'),
+                                  subtitle: Text('${ag.fechaCita} | ${ag.horaInicio}\nBarbero: ${ag.barbero?.nombreCompleto ?? "N/A"} | ${AppFormat.cop(ag.monto ?? 0)}'),
                                   trailing: PopupMenuButton(
-                                    onSelected: (value) {
-                                      if (value == 'details') _verDetallesAgendamiento(ag);
-                                      if (value == 'edit') Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(agendamiento: ag))).then((_) => _cargarAgendamientos());
-                                      if (value == 'cancel') _cancelarAgendamiento(ag);
-                                      if (value == 'delete') _eliminarAgendamiento(ag);
+                                    onSelected: (val) {
+                                      if (val == 'details') _verDetalles(ag);
+                                      if (val == 'edit') {
+                                        Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(agendamiento: ag))).then((_) => _cargarAgendamientos(_currentPage));
+                                      }
+                                      if (val == 'cancel') _cancelarAgendamiento(ag);
                                     },
                                     itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 'details', child: Text('Ver Detalles')),
+                                      const PopupMenuItem(value: 'details', child: Text('Detalles')),
                                       const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                                      const PopupMenuItem(value: 'cancel', child: Text('Cancelar Cita')),
-                                      const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                                      const PopupMenuItem(value: 'cancel', child: Text('Cancelar', style: TextStyle(color: Colors.red))),
                                     ],
                                   ),
                                 ),
@@ -706,11 +359,230 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((_) => _cargarAgendamientos()),
-          child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildPaginationControls() {
+    final totalPages = _ultimaPaginacion!.totalPages;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildPageButton(icon: Icons.chevron_left, onTap: _currentPage > 1 ? () => _cargarAgendamientos(_currentPage - 1) : null),
+          const SizedBox(width: 8),
+          ..._buildPageNumbers(totalPages),
+          const SizedBox(width: 8),
+          _buildPageButton(icon: Icons.chevron_right, onTap: _currentPage < totalPages ? () => _cargarAgendamientos(_currentPage + 1) : null),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers(int totalPages) {
+    List<Widget> widgets = [];
+    for (int i = 1; i <= totalPages; i++) {
+      if (i == 1 || i == totalPages || (i >= _currentPage - 1 && i <= _currentPage + 1)) {
+        widgets.add(_buildPageNumberButton(i));
+      } else if (i == _currentPage - 2 || i == _currentPage + 2) {
+        widgets.add(const Text('...', style: TextStyle(color: Colors.grey)));
+      }
+    }
+    return widgets;
+  }
+
+  Widget _buildPageNumberButton(int page) {
+    bool isSelected = page == _currentPage;
+    return GestureDetector(
+      onTap: isSelected ? null : () => _cargarAgendamientos(page),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFD8B081) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected ? null : Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Text(page.toString(), style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+      ),
+    );
+  }
+
+  Widget _buildPageButton({required IconData icon, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.withOpacity(0.3))),
+        child: Icon(icon, color: onTap == null ? Colors.grey : Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _DaySelectorDialog extends StatefulWidget {
+  final String title;
+  final bool isGlobal;
+
+  const _DaySelectorDialog({required this.title, required this.isGlobal});
+
+  @override
+  State<_DaySelectorDialog> createState() => __DaySelectorDialogState();
+}
+
+class __DaySelectorDialogState extends State<_DaySelectorDialog> {
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF161616),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFD8B081), width: 0.5)),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.title, style: TextStyle(color: widget.isGlobal ? Colors.orange : const Color(0xFFD8B081), fontSize: 14, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Selecciona los días:', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _DaySelectorWidget(
+          onDatesSelected: (dates, _) => Navigator.pop(context, dates),
+          isGlobal: widget.isGlobal,
         ),
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
+      ],
+    );
+  }
+}
+
+class _DaySelectorWidget extends StatefulWidget {
+  final Function(List<DateTime>, String) onDatesSelected;
+  final bool isGlobal;
+
+  const _DaySelectorWidget({required this.onDatesSelected, required this.isGlobal});
+
+  @override
+  State<_DaySelectorWidget> createState() => __DaySelectorWidgetState();
+}
+
+class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
+  String _selectedWeek = 'Semana actual';
+  final List<DateTime> _selectedDates = [];
+  final TextEditingController _motivoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _motivoController.dispose();
+    super.dispose();
+  }
+
+  List<DateTime> _getWeekDays(String weekType) {
+    DateTime now = DateTime.now();
+    DateTime monday = now.subtract(Duration(days: now.weekday - 1));
+    if (weekType == 'Siguiente semana') {
+      monday = monday.add(const Duration(days: 7));
+    }
+    return List.generate(7, (i) => monday.add(Duration(days: i)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weekDays = _getWeekDays(_selectedWeek);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedWeek,
+              dropdownColor: const Color(0xFF1E1E1E),
+              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              items: ['Semana actual', 'Siguiente semana'].map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedWeek = val);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: weekDays.map((date) {
+            final isPast = date.isBefore(today);
+            final isSelected = _selectedDates.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+            final name = DateFormat('EEEE', 'es_ES').format(date);
+            final capitalized = name[0].toUpperCase() + name.substring(1);
+
+            return FilterChip(
+              label: Text(capitalized),
+              selected: isSelected,
+              onSelected: isPast ? null : (val) {
+                setState(() {
+                  if (val) _selectedDates.add(date);
+                  else _selectedDates.removeWhere((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+                });
+              },
+              backgroundColor: const Color(0xFF2A2A2A),
+              selectedColor: const Color(0xFFD8B081),
+              labelStyle: TextStyle(
+                color: isPast ? Colors.white24 : (isSelected ? Colors.black : Colors.white70),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              checkmarkColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _motivoController,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Motivo (opcional)...',
+            hintStyle: const TextStyle(color: Colors.white38),
+            filled: true,
+            fillColor: const Color(0xFF2A2A2A),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081), width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          maxLines: 2,
+        ),
+        const SizedBox(height: 10),
+        if (widget.isGlobal)
+          const Text(
+            '* Nota: Esta acción cancelará las citas de TODOS los barberos en los días seleccionados.',
+            style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontStyle: FontStyle.italic),
+          ),
+        const SizedBox(height: 10),
+        ElevatedButton(
+          onPressed: _selectedDates.isEmpty ? null : () => widget.onDatesSelected(_selectedDates, _motivoController.text.trim()),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 45),
+            backgroundColor: const Color(0xFFD8B081),
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('CONFIRMAR SELECCIÓN'),
+        ),
+      ],
     );
   }
 }

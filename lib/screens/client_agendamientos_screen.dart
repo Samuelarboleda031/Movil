@@ -490,19 +490,6 @@ class _ClientAgendamientosScreenState extends State<ClientAgendamientosScreen> {
                 ),
               ],
             ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ClientAgendamientoFormScreen(),
-            ),
-          ).then((_) => _cargarAgendamientosCliente());
-        },
-        backgroundColor: const Color(0xFFD8B081),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
       ),
     );
   }

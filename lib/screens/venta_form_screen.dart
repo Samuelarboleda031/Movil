@@ -15,6 +15,8 @@ import '../services/user_context_service.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
 import '../widgets/searchable_selector.dart';
+import '../utils/app_format.dart';
+import '../utils/app_snackbar.dart';
 
 // === CLASE AUXILIAR DE VALOR ÚNICO (Solución al Dropdown Error) ===
 // Asegura que el valor seleccionado sea único al combinar tipos (Producto, Servicio, Paquete).
@@ -89,11 +91,11 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   List<DetalleVentaItem> _detalles = [];
   Producto? _productoSeleccionadoParaAgregar;
   ItemVenta? _servicioPaqueteSeleccionadoParaAgregar;
+  String? _clienteNombreInvitado;
   bool _isLoading = false;
-  bool _isLoadingData = true; // Bloquea la UI hasta que todo cargue
+  bool _isLoadingData = true; 
   String _fechaCreacionTexto = '';
   bool _barberoBloqueado = false;
-  // String? _barberoError; // Eliminado por desuso en la nueva lógica de SearchableSelector
 
   @override
   void initState() {
@@ -201,12 +203,19 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         // 2. Si estamos editando, inicializar los campos
         if (ventaFull != null) {
           // Inicializar campos principales
-          try {
-            _clienteSeleccionado = _clientes.firstWhere(
-              (c) => c.id == ventaFull!.clienteId,
-            );
-          } catch (_) {
-            _clienteSeleccionado = _clientes.isNotEmpty ? _clientes.first : null;
+          if (ventaFull.clienteId != 0) {
+            try {
+              _clienteSeleccionado = _clientes.firstWhere(
+                (c) => c.id == ventaFull!.clienteId,
+              );
+              _clienteNombreInvitado = null;
+            } catch (_) {
+              _clienteNombreInvitado = ventaFull.clienteNombre;
+              _clienteSeleccionado = null;
+            }
+          } else {
+            _clienteNombreInvitado = ventaFull.clienteNombre;
+            _clienteSeleccionado = null;
           }
 
           try {
@@ -361,13 +370,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   void _mostrarError(String mensaje) {
     print('❌ ERROR EN VENTA: $mensaje');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-      ),
-    );
+    AppToast.showError(context, mensaje);
   }
 
   Future<void> _guardarVenta() async {
@@ -388,8 +391,8 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
       }
     }
 
-    if (_clienteSeleccionado == null) {
-      _mostrarError('Debe seleccionar un cliente');
+    if (_clienteSeleccionado == null && (_clienteNombreInvitado == null || _clienteNombreInvitado!.trim().isEmpty)) {
+      _mostrarError('Debe seleccionar un cliente o ingresar el nombre de un invitado');
       return;
     }
 
@@ -397,22 +400,15 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
     Barbero? barberoParaVenta;
 
     if (_rolActual == AppRole.barber) {
-      barberoParaVenta = _barberoDelUsuario;
-      if (barberoParaVenta == null) {
+      if (tieneServicios && _barberoDelUsuario == null) {
         _mostrarError('Tu cuenta no tiene un perfil de barbero asociado. Contacta al administrador.');
         return;
       }
+      barberoParaVenta = _barberoDelUsuario;
     } else {
       barberoParaVenta = _barberoSeleccionado;
-
       if (tieneServicios && barberoParaVenta == null) {
-        _mostrarError('Debe seleccionar un barbero cuando la venta incluye servicios.');
-        return;
-      }
-      
-      // Fallback final: Si sigue siendo null, no podemos guardar porque barberoId es requerido.
-      if (barberoParaVenta == null) {
-        _mostrarError('Por favor seleccione un barbero responsable de esta venta.');
+        _mostrarError('Debe seleccionar un barbero responsable de prestar el servicio.');
         return;
       }
     }
@@ -440,18 +436,22 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         // Usar la lógica de negocio para generar el número si es nueva
         numero: widget.venta?.numero ?? 'V-${DateTime.now().millisecondsSinceEpoch}',
         fechaRegistro: widget.venta?.fechaRegistro ?? DateTime.now().toIso8601String(),
-        clienteId: _clienteSeleccionado!.id!,
-        barberoId: barberoParaVenta.id!,
-        usuarioId: _usuarioIdActual, // Pasar el ID del responsable
+        clienteId: _clienteSeleccionado?.id ?? 0, // 0 indica cliente invitado/no registrado
+        clienteNombre: _clienteNombreInvitado,
+        barberoId: barberoParaVenta?.id,
+        usuarioId: _usuarioIdActual, 
         metodoPago: _metodoPago,
         subtotal: _subtotal,
         porcentajeDescuento: _porcentajeDescuento,
         total: _total,
         estado: widget.venta?.estado ?? 'Completada',
-        detalles: detallesVenta, // Este campo es el que se serializa como 'detalleVenta' en el modelo Venta
+        detalles: detallesVenta, 
       );
 
       print('Datos a enviar: ${jsonEncode(venta.toJson())}');
+
+      final currentContext = context;
+      final navigator = Navigator.of(currentContext);
 
       if (widget.venta == null) {
         await _ventaService.crearVenta(venta);
@@ -460,15 +460,10 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.venta == null 
-                ? 'Venta creada exitosamente' 
-                : 'Venta actualizada exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop(true); // Retornar éxito
+        AppToast.showSuccess(context, widget.venta == null 
+            ? '✅ Venta creada exitosamente' 
+            : '✅ Venta actualizada exitosamente');
+        navigator.pop(true); // Retornar éxito
       }
     } catch (e) {
       String errorMessage = 'Error al guardar la venta: $e';
@@ -519,13 +514,13 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                     // Cliente
                     SearchableSelector<Cliente>(
                       label: 'Cliente *',
-                      hint: 'Escribe nombre o documento...',
+                      hint: 'Escribe nombre o búscalo...',
                       items: _clientes,
                       selectedItem: _clienteSeleccionado,
                       displayText: (c) => c.nombreCompleto,
                       searchText: (c) => '${c.nombreCompleto} ${c.documento}',
                       prefixIcon: Icons.person_search,
-                      required: true,
+                      required: false, // Permitimos escritura libre para invitados
                       renderItem: (c) => Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -535,15 +530,39 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                               style: const TextStyle(color: Colors.white54, fontSize: 11)),
                         ],
                       ),
-                      onSelected: (c) => setState(() => _clienteSeleccionado = c),
+                      onSelected: (c) {
+                        setState(() {
+                          _clienteSeleccionado = c;
+                          if (c != null) {
+                            _clienteNombreInvitado = null;
+                          }
+                        });
+                      },
+                      onChanged: (text) {
+                        if (_clienteSeleccionado == null) {
+                          setState(() {
+                            _clienteNombreInvitado = text;
+                          });
+                        }
+                      },
                     ),
+                    if (_clienteSeleccionado == null && _clienteNombreInvitado != null && _clienteNombreInvitado!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+                        child: Text(
+                          'Venta para invitado: "$_clienteNombreInvitado"',
+                          style: const TextStyle(color: Color(0xFFD2B48C), fontSize: 12, fontStyle: FontStyle.italic),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     // Barbero
-                    SearchableSelector<Barbero>(
-                      label: _barberoBloqueado
-                          ? 'Barbero (asignado automáticamente)'
-                          : 'Barbero * (Responsable)',
-                      hint: 'Escribe el nombre del barbero...',
+                      SearchableSelector<Barbero>(
+                        label: _barberoBloqueado
+                            ? 'Barbero (asignado automáticamente)'
+                            : _detalles.any((d) => d.servicioId != null)
+                                ? 'Barbero * (Obligatorio por Servicio)' 
+                                : 'Barbero (Opcional)',
+                        hint: 'Escribe el nombre del barbero...',
                       items: _barberos,
                       selectedItem: _barberoSeleccionado,
                       displayText: (b) => b.nombreCompleto,
@@ -742,7 +761,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
 
                       final subtotalDetalle = detalle.cantidad * detalle.precioUnitario;
                       descripcion =
-                          'Cant: ${detalle.cantidad}  |  Precio: \$${detalle.precioUnitario.toStringAsFixed(2)}  |  Subtotal: \$${subtotalDetalle.toStringAsFixed(2)}';
+                          'Cant: ${detalle.cantidad}  |  Precio: ${AppFormat.cop(detalle.precioUnitario)}  |  Subtotal: ${AppFormat.cop(subtotalDetalle)}';
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -800,7 +819,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                         const Text('Subtotal:'),
-                                        Text('\$${_subtotal.toStringAsFixed(2)}'),
+                                        Text(AppFormat.cop(_subtotal)),
                                     ],
                                 ),
                                 const SizedBox(height: 8),
@@ -808,7 +827,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                         Text('Descuento (${_porcentajeDescuento.toStringAsFixed(2)}%):'),
-                                        Text('-\$${_descuento.toStringAsFixed(2)}'),
+                                        Text('-${AppFormat.cop(_descuento)}'),
                                     ],
                                 ),
                                 const Divider(),
@@ -823,7 +842,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                                             ),
                                         ),
                                         Text(
-                                            '\$${_total.toStringAsFixed(2)}',
+                                            AppFormat.cop(_total),
                                             style: TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.bold,
@@ -855,9 +874,8 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                   ],
                 ),
               ),
-             )       ),
+            ),
+      ),
     );
-    
   }
-
 }

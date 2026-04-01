@@ -1,155 +1,97 @@
 import 'package:flutter/material.dart';
 
-/// Utilidad para mostrar notificaciones tipo Toast (overlay) con estilo moderno
-/// 
-/// Las notificaciones aparecen en la parte superior central de la pantalla
-/// y se ocultan automáticamente después de unos segundos.
 class AppToast {
-  /// Muestra un toast de éxito
-  static void showSuccess(
-    BuildContext context,
-    String message, {
-    Duration duration = const Duration(seconds: 3),
-  }) {
+  static void showSuccess(BuildContext context, String message) {
     _showToast(
       context,
       message,
-      backgroundColor: const Color(0xFF4CAF50), // Verde
       icon: Icons.check_circle,
-      duration: duration,
+      iconColor: Colors.green,
     );
   }
 
-  /// Muestra un toast de error
-  static void showError(
-    BuildContext context,
-    String message, {
-    Duration duration = const Duration(seconds: 4),
-  }) {
+  static void showError(BuildContext context, String message) {
     _showToast(
       context,
       message,
-      backgroundColor: const Color(0xFFE53935), // Rojo
       icon: Icons.error,
-      duration: duration,
+      iconColor: Colors.red,
     );
   }
 
-  /// Muestra un toast de advertencia
-  static void showWarning(
-    BuildContext context,
-    String message, {
-    Duration duration = const Duration(seconds: 3),
-  }) {
+  static void showWarning(BuildContext context, String message) {
     _showToast(
       context,
       message,
-      backgroundColor: const Color(0xFFFF9800), // Naranja
-      icon: Icons.warning_amber,
-      duration: duration,
+      icon: Icons.warning,
+      iconColor: Colors.orange,
     );
   }
 
-  /// Muestra un toast de información
-  static void showInfo(
-    BuildContext context,
-    String message, {
-    Duration duration = const Duration(seconds: 3),
-  }) {
-    _showToast(
-      context,
-      message,
-      backgroundColor: const Color(0xFF2196F3), // Azul
-      icon: Icons.info,
-      duration: duration,
-    );
-  }
-
-  /// Método privado para mostrar el toast con overlay
   static void _showToast(
     BuildContext context,
     String message, {
-    required Color backgroundColor,
     required IconData icon,
-    required Duration duration,
+    required Color iconColor,
   }) {
     final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
+    final overlayEntry = OverlayEntry(
       builder: (context) => _ToastWidget(
         message: message,
-        backgroundColor: backgroundColor,
         icon: icon,
-        onDismiss: () {
-          overlayEntry.remove();
-        },
+        iconColor: iconColor,
       ),
     );
 
     overlay.insert(overlayEntry);
 
-    // Remover automáticamente después de la duración
-    Future.delayed(duration, () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (overlayEntry.mounted) {
         overlayEntry.remove();
       }
     });
   }
-
-  /// Prevenir instanciación
-  AppToast._();
 }
 
-/// Widget interno para mostrar el toast con animación
 class _ToastWidget extends StatefulWidget {
   final String message;
-  final Color backgroundColor;
   final IconData icon;
-  final VoidCallback onDismiss;
+  final Color iconColor;
 
   const _ToastWidget({
     required this.message,
-    required this.backgroundColor,
     required this.icon,
-    required this.onDismiss,
+    required this.iconColor,
   });
 
   @override
   State<_ToastWidget> createState() => _ToastWidgetState();
 }
 
-class _ToastWidgetState extends State<_ToastWidget>
-    with SingleTickerProviderStateMixin {
+class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<Offset> _offsetAnimation;
-  late Animation<double> _opacityAnimation;
+  late Animation<double> _opacity;
+  late Animation<Offset> _offset;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
       vsync: this,
+      duration: const Duration(milliseconds: 400),
     );
-
-    _offsetAnimation = Tween<Offset>(
-      begin: const Offset(0, -1.5),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.elasticOut,
-    ));
-
-    _opacityAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    ));
-
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _offset = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
     _controller.forward();
+    
+    // Auto reverse before removal
+    Future.delayed(const Duration(milliseconds: 2600), () {
+      if (mounted) _controller.reverse();
+    });
   }
 
   @override
@@ -161,64 +103,40 @@ class _ToastWidgetState extends State<_ToastWidget>
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 16,
-      left: 16,
-      right: 16,
-      child: SlideTransition(
-        position: _offsetAnimation,
-        child: FadeTransition(
-          opacity: _opacityAnimation,
+      bottom: 100,
+      left: 20,
+      right: 20,
+      child: FadeTransition(
+        opacity: _opacity,
+        child: SlideTransition(
+          position: _offset,
           child: Material(
             color: Colors.transparent,
             child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: widget.backgroundColor,
+                color: const Color(0xFF2A2A2A),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
+                border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+                boxShadow: const [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
+                    color: Colors.black54,
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  )
                 ],
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
               ),
               child: Row(
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  Icon(widget.icon, color: widget.iconColor, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       widget.message,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      _controller.reverse().then((_) {
-                        widget.onDismiss();
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close,
-                        color: Colors.white.withOpacity(0.9),
-                        size: 20,
                       ),
                     ),
                   ),

@@ -32,9 +32,9 @@ class Barbero {
       nombre: json['nombre'] ?? json['Nombre'] ?? '',
       apellido: json['apellido'] ?? json['Apellido'] ?? '',
       telefono: json['telefono'] ?? json['Telefono'],
-      email: json['email'] ?? json['Email'],
+      email: json['email'] ?? json['Email'] ?? json['correo'] ?? json['Correo'],
       direccion: json['direccion'] ?? json['Direccion'],
-      fechaIngreso: json['fechaIngreso'] ?? json['FechaIngreso'],
+      fechaIngreso: json['fechaIngreso'] ?? json['FechaIngreso'] ?? json['fechaContratacion'] ?? json['FechaContratacion'],
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       usuarioId: json['usuarioId'] ?? json['UsuarioID'] ?? json['UsuarioId'],
       estado: json['estado'] ?? json['Estado'],
@@ -55,6 +55,7 @@ class Barbero {
     }
     if (email != null && email!.isNotEmpty) {
       data['Email'] = email;
+      data['Correo'] = email;
     }
     if (direccion != null && direccion!.isNotEmpty) {
       data['Direccion'] = direccion;
@@ -70,6 +71,7 @@ class Barbero {
     // Si es null, la base de datos usará su valor por defecto now()
     if (fechaIngreso != null) {
       data['FechaIngreso'] = fechaIngreso;
+      data['FechaContratacion'] = fechaIngreso;
     }
     
     // Solo incluir ID si existe (para actualizaciones)

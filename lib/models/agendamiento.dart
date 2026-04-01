@@ -82,8 +82,16 @@ class Agendamiento {
       barberoId: barberoIdVal is int ? barberoIdVal : (int.tryParse(barberoIdVal.toString()) ?? 0),
       servicioId: servicioIdVal is int ? servicioIdVal : int.tryParse(servicioIdVal.toString()),
       paqueteId: paqueteIdVal is int ? paqueteIdVal : int.tryParse(paqueteIdVal.toString()),
-      servicioIds: (json['servicioIds'] ?? json['ServicioIds'] ?? (idVal != null && servicioIdVal != null ? [servicioIdVal] : [])).whereType<int>().toList(),
-      productoIds: (json['productoIds'] ?? json['ProductoIds'] ?? []).whereType<int>().toList(),
+      servicioIds: ((json['servicioIds'] ?? json['ServicioIds'] ?? (idVal != null && servicioIdVal != null ? [servicioIdVal] : [])) as List)
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .where((e) => e > 0)
+          .toList()
+          .cast<int>(),
+      productoIds: ((json['productoIds'] ?? json['ProductoIds'] ?? []) as List)
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .where((e) => e > 0)
+          .toList()
+          .cast<int>(),
       serviciosNombres: (json['serviciosNombres'] ?? json['ServiciosNombres'] ?? []).whereType<String>().toList(),
       productosNombres: (json['productosNombres'] ?? json['ProductosNombres'] ?? []).whereType<String>().toList(),
       fechaCita: fCita,
@@ -97,7 +105,20 @@ class Agendamiento {
       duracion: json['duracion'] ?? json['Duracion'],
       precio: (json['precio'] ?? json['Precio'] ?? 0.0).toDouble(),
       cliente: json['cliente'] != null ? Cliente.fromJson(json['cliente']) : null,
-      barbero: json['barbero'] != null ? Barbero.fromJson(json['barbero']) : null,
+      barbero: json['barbero'] != null 
+          ? Barbero.fromJson(json['barbero']) 
+          : ((json['barberoNombre'] ?? json['BarberoNombre']) != null 
+              ? Barbero(
+                  id: barberoIdVal is int ? barberoIdVal : 0, 
+                  nombre: (json['barberoNombre'] ?? json['BarberoNombre']).toString(),
+                  apellido: '',
+                  documento: '',
+                  telefono: '',
+                  email: '',
+                  direccion: '',
+                  estado: true
+                ) 
+              : null),
       servicio: json['servicio'] != null ? Servicio.fromJson(json['servicio']) : null,
       paquete: json['paquete'] != null ? Paquete.fromJson(json['paquete']) : null,
     );

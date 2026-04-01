@@ -2,10 +2,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/agendamiento.dart';
+import '../models/paginacion.dart';
 import '../services/auth_service.dart';
+import '../services/emailjs_service.dart';
 
 class AgendamientoService {
   final AuthService _authService = AuthService();
+  final EmailJsService _emailJsService = EmailJsService();
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();
@@ -15,12 +18,10 @@ class AgendamientoService {
     };
   }
 
-  Future<List<Agendamiento>> obtenerAgendamientos() async {
+  Future<Paginacion<Agendamiento>> obtenerAgendamientos({int page = 1, int pageSize = 15}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?pageSize=1000';
-      
-      print('🔍 [AgendamientoService] Intentando conectar a: $url');
+      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize';
       
       final response = await http.get(
         Uri.parse(url),
@@ -28,28 +29,28 @@ class AgendamientoService {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Tiempo de espera agotado. Verifique su conexión a internet.');
+          throw Exception('Tiempo de espera agotado.');
         },
       );
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) return [];
         final dynamic rawData = jsonDecode(response.body);
-        
-        List<dynamic> data;
-        if (rawData is List) {
-          data = rawData;
-        } else if (rawData is Map && rawData.containsKey('items')) {
-          data = rawData['items'];
-        } else if (rawData is Map && rawData.containsKey('data')) {
-          data = rawData['data'];
+        if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
+          return Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
         } else {
-          data = [];
+          final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
+          return Paginacion<Agendamiento>(
+            items: list.map((j) => Agendamiento.fromJson(j)).toList(),
+            totalCount: list.length,
+            pageSize: list.length,
+            currentPage: 1,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
         }
-
-        return data.map<Agendamiento>((json) => Agendamiento.fromJson(json)).toList();
       } else {
-        throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
+        throw Exception('Error HTTP ${response.statusCode}');
       }
     } catch (e) {
       print('❌ [AgendamientoService] Error general: $e');
@@ -192,8 +193,8 @@ class AgendamientoService {
             // If we get here, the API returned a 200 but with an unexpected format
             // Let's try to get all appointments and filter client-side as a fallback
             print('⚠️ [AgendamientoService] Formato de respuesta inesperado, intentando filtrado local...');
-            final allAppointments = await obtenerAgendamientos();
-            final clientAppointments = allAppointments
+            final allAppointmentsPaginacion = await obtenerAgendamientos(page: 1, pageSize: 5000);
+            final clientAppointments = allAppointmentsPaginacion.items
                 .where((appointment) => appointment.clienteId == clienteId)
                 .toList();
             print('✅ [AgendamientoService] Se encontraron ${clientAppointments.length} citas para el cliente (filtrado local)');
@@ -207,8 +208,8 @@ class AgendamientoService {
         // If we get a 404 or other error, try to get all appointments and filter client-side
         print('⚠️ [AgendamientoService] Error ${response.statusCode} al obtener citas, intentando filtrado local...');
         try {
-          final allAppointments = await obtenerAgendamientos();
-          final clientAppointments = allAppointments
+          final allAppointmentsPaginacion = await obtenerAgendamientos(page: 1, pageSize: 5000);
+          final clientAppointments = allAppointmentsPaginacion.items
               .where((appointment) => appointment.clienteId == clienteId)
               .toList();
           print('✅ [AgendamientoService] Se encontraron ${clientAppointments.length} citas para el cliente (filtrado local)');
@@ -224,6 +225,132 @@ class AgendamientoService {
     } catch (e) {
       print('❌ Error al obtener citas del cliente: $e');
       rethrow;
+    }
+  }
+
+  Future<void> cancelarAgendamiento(int id) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id/cancelar';
+      
+      final response = await http.put(
+        Uri.parse(url),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al cancelar cita: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al cancelar: $e');
+    }
+  }
+
+  Future<void> cancelarDiaCompleto(String fecha, {String? motivo}) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cancelar-dia/$fecha';
+      final response = await http.put(Uri.parse(url), headers: headers);
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al cancelar día: ${response.statusCode}');
+      }
+
+      // 2. Notificar a cada cliente leyendo la respuesta del backend
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        try {
+          final data = jsonDecode(response.body);
+          final List afectadosRaw = data is List ? data : (data['data'] ?? data['items'] ?? data['afectados'] ?? []);
+          
+          for (var cita in afectadosRaw) {
+            final email = (cita['clienteCorreo'] ?? cita['ClienteCorreo'])?.toString();
+            if (email != null && email.isNotEmpty) {
+              final fechaOriginalApi = cita['fechaHoraOriginal'] ?? cita['FechaHoraOriginal'] ?? fecha;
+              List<String>? sugerencias;
+              final sugerenciasRaw = cita['sugerenciasReprogramacion'] ?? cita['SugerenciasReprogramacion'] ?? cita['sugerencias'] ?? cita['Sugerencias'];
+              if (sugerenciasRaw != null && sugerenciasRaw is List) {
+                sugerencias = List<String>.from(sugerenciasRaw.map((x) => x.toString()));
+              }
+
+              _emailJsService.notificarCancelacion(
+                clienteNombre: (cita['clienteNombre'] ?? cita['ClienteNombre'])?.toString() ?? 'Cliente',
+                clienteEmail: email,
+                barberoNombre: (cita['barberoNombre'] ?? cita['BarberoNombre'])?.toString() ?? 'Tu Barbero',
+                fechaOriginal: fechaOriginalApi.toString(),
+                motivo: motivo ?? 'El local cerrará este día por motivos administrativos.',
+                sugerenciasReprogramacion: sugerencias,
+              );
+            }
+          }
+        } catch (e) {
+          print('❌ [AgendamientoService] Error al procesar notificaciones de día completo: $e');
+        }
+      }
+    } catch (e) {
+      throw Exception('Error al cancelar día: $e');
+    }
+  }
+
+  Future<void> cancelarDiaBarbero({
+    required int barberoId,
+    required String fecha,
+    required int usuarioSolicitanteId,
+    String? motivo,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/barbero/$barberoId/cancelar-dia';
+      final body = {
+        'estado': false,
+        'UsuarioSolicitanteId': usuarioSolicitanteId,
+        'FechaReferencia': fecha,
+        if (motivo != null) 'Motivo': motivo,
+        'CantidadSugerencias': 3,
+      };
+
+      final response = await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        String errMsg = 'Error al cancelar día del barbero';
+        try {
+          final data = jsonDecode(response.body);
+          errMsg = data['message'] ?? data['error'] ?? errMsg;
+        } catch (_) {}
+        throw Exception(errMsg);
+      }
+
+      // 2. Notificar a cada cliente (aprovechando datos enriquecidos retornados por API)
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        try {
+          final data = jsonDecode(response.body);
+          final List afectadosRaw = data is List ? data : (data['data'] ?? data['items'] ?? data['afectados'] ?? []);
+          
+          for (var cita in afectadosRaw) {
+            final email = (cita['clienteCorreo'] ?? cita['ClienteCorreo'])?.toString();
+            if (email != null && email.isNotEmpty) {
+              final fechaOriginalApi = cita['fechaHoraOriginal'] ?? cita['FechaHoraOriginal'] ?? fecha;
+              List<String>? sugerencias;
+              final sugerenciasRaw = cita['sugerenciasReprogramacion'] ?? cita['SugerenciasReprogramacion'] ?? cita['sugerencias'] ?? cita['Sugerencias'];
+              if (sugerenciasRaw != null && sugerenciasRaw is List) {
+                sugerencias = List<String>.from(sugerenciasRaw.map((x) => x.toString()));
+              }
+
+              _emailJsService.notificarCancelacion(
+                clienteNombre: (cita['clienteNombre'] ?? cita['ClienteNombre'])?.toString() ?? 'Cliente',
+                clienteEmail: email,
+                barberoNombre: (cita['barberoNombre'] ?? cita['BarberoNombre'])?.toString() ?? 'Tu Barbero',
+                fechaOriginal: fechaOriginalApi.toString(),
+                motivo: motivo ?? 'El barbero no estará disponible este día.',
+                sugerenciasReprogramacion: sugerencias,
+              );
+            }
+          }
+        } catch (e) {
+          print('❌ [AgendamientoService] Error al procesar notificaciones de barbero: $e');
+        }
+      }
+    } catch (e) {
+      throw Exception(e.toString());
     }
   }
 }

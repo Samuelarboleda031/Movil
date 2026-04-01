@@ -13,6 +13,7 @@ class SearchableSelector<T> extends StatefulWidget {
   final String Function(T item) searchText;
   final Widget Function(T item)? renderItem;
   final void Function(T? item) onSelected;
+  final void Function(String)? onChanged;
   final bool required;
   final bool enabled;
   final IconData? prefixIcon;
@@ -27,6 +28,7 @@ class SearchableSelector<T> extends StatefulWidget {
     required this.displayText,
     required this.searchText,
     required this.onSelected,
+    this.onChanged,
     this.renderItem,
     this.required = false,
     this.enabled = true,
@@ -285,6 +287,9 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                 // Si el usuario borró el texto, limpiar selección
                 if (val.isEmpty && widget.selectedItem != null) {
                   widget.onSelected(null);
+                }
+                if (widget.onChanged != null) {
+                  widget.onChanged!(val);
                 }
                 _filter(val);
               },

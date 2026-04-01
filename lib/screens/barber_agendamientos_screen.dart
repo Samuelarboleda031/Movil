@@ -5,10 +5,10 @@ import '../models/agendamiento.dart';
 import '../models/barbero.dart';
 import '../services/agendamiento_service.dart';
 import '../services/auxiliar_service.dart';
-import '../services/emailjs_service.dart';
-import '../services/auth_service.dart';
 import '../models/app_role.dart';
+import '../services/auth_service.dart';
 import '../utils/estado_cita.dart';
+import '../utils/app_snackbar.dart';
 import '../widgets/session_guard.dart';
 import 'barber_agendamiento_form_screen.dart';
 
@@ -23,7 +23,6 @@ class _BarberAgendamientosScreenState extends State<BarberAgendamientosScreen> {
   final AgendamientoService _agendamientoService = AgendamientoService();
   final AuxiliarService _auxiliarService = AuxiliarService();
   final AuthService _authService = AuthService();
-  final EmailJsService _emailJsService = EmailJsService();
 
   List<Agendamiento> _agendamientos = [];
   bool _isLoading = true;
@@ -48,7 +47,8 @@ class _BarberAgendamientosScreenState extends State<BarberAgendamientosScreen> {
         orElse: () => Barbero(id: 0, documento: '', nombre: 'Barbero', apellido: '', telefono: '', email: user.email, direccion: '', estado: true),
       );
 
-      final todos = await _agendamientoService.obtenerAgendamientos();
+      final paginacion = await _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 2000);
+      final todos = paginacion.items;
       final propios = todos.where((a) => a.barberoId == barbero.id || (a.barbero?.email?.toLowerCase() == barbero.email?.toLowerCase())).toList();
 
       setState(() {
@@ -72,98 +72,74 @@ class _BarberAgendamientosScreenState extends State<BarberAgendamientosScreen> {
   }
 
   Future<void> _cancelarMiDiaCompleto() async {
-    final DateTime hoy = DateTime.now();
-    final List<DateTime> proximosDias = List.generate(14, (i) => hoy.add(Duration(days: i)));
-    final List<DateTime> seleccionados = [];
-
-    final result = await showDialog<List<DateTime>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('MIS DÍAS LIBRES'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: proximosDias.length,
-                  itemBuilder: (context, index) {
-                    final dia = proximosDias[index];
-                    final dateStr = DateFormat('EEEE, d MMMM', 'es_ES').format(dia);
-                    final isSelected = seleccionados.contains(dia);
-
-                    return CheckboxListTile(
-                      title: Text(dateStr),
-                      value: isSelected,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          if (val == true) seleccionados.add(dia);
-                          else seleccionados.remove(dia);
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCELAR')),
-                ElevatedButton(
-                  onPressed: seleccionados.isEmpty ? null : () => Navigator.pop(context, seleccionados),
-                  child: const Text('CONFIRMAR'),
-                ),
-              ],
-            );
-          },
-        );
+        return _BarberDaySelectorDialog();
       },
     );
 
-    if (result == null || result.isEmpty) return;
-    final List<String> fechasStr = result.map((d) => DateFormat('yyyy-MM-dd').format(d)).toList();
-    final citasACancelar = _agendamientos.where((a) => fechasStr.any((f) => a.fechaCita?.contains(f) ?? false) && a.estadoCita != EstadoCita.cancelada).toList();
-
-    if (citasACancelar.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sin citas esos días.')));
-      return;
-    }
-
+    if (result == null || result['fechas'] == null || (result['fechas'] as List).isEmpty) return;
+    final List<String> fechasStr = (result['fechas'] as List).map((d) => DateFormat('yyyy-MM-dd').format(d)).toList();
+    final String motivoStr = result['motivo']?.trim() ?? '';
+    
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('CANCELAR MIS DÍAS'),
-        content: Text('¿Deseas cancelar tus ${citasACancelar.length} citas de estos días?'),
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('CANCELAR DÍAS', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '¿Deseas cancelar todas tus citas de los ${fechasStr.length} días seleccionados?\n\nEsta acción no se puede deshacer.',
+          style: const TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO')),
-          TextButton(onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.orange), child: const Text('SÍ')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), 
+            style: TextButton.styleFrom(foregroundColor: Colors.orange), 
+            child: const Text('SÍ, CANCELAR'),
+          ),
         ],
       ),
     );
 
     if (confirm != true) return;
+
+    final user = await _authService.getCurrentUser();
+    final barberos = await _auxiliarService.obtenerBarberos();
+    final barbero = barberos.firstWhere(
+      (b) => (b.email ?? '').toLowerCase() == (user?.correo ?? '').toLowerCase(),
+      orElse: () => Barbero(id: 0, documento: '', nombre: '', apellido: ''),
+    );
+
+    if (barbero.id == 0 || user?.id == null) {
+      if (mounted) AppToast.showError(context, 'No se pudo identificar tu perfil de barbero.');
+      return;
+    }
+
     showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
 
     try {
-      for (var ag in citasACancelar) {
-        await _agendamientoService.actualizarAgendamiento(ag.copyWith(estadoCita: EstadoCita.cancelada));
-        if (ag.cliente?.email != null) {
-          await _emailJsService.notificarCancelacion(
-              clienteNombre: ag.cliente!.nombreCompleto,
-              clienteEmail: ag.cliente!.email!,
-              barberoNombre: ag.barbero?.nombreCompleto ?? 'Tu barbero',
-              fechaOriginal: '${ag.fechaCita}T${ag.horaInicio}',
-              motivo: 'Compromiso imprevisto del barbero.');
-        }
+      int diasCanceladosCount = 0;
+      for (var fecha in fechasStr) {
+        await _agendamientoService.cancelarDiaBarbero(
+          barberoId: barbero.id!,
+          fecha: fecha,
+          usuarioSolicitanteId: user!.id!,
+          motivo: motivoStr.isNotEmpty ? motivoStr : 'Día libre del barbero (Cancelado desde App Móvil)',
+        );
+        diasCanceladosCount++;
       }
+
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Días cancelados y correos enviados.')));
+        AppToast.showSuccess(context, '$diasCanceladosCount día(s) cancelado(s) exitosamente.');
         _cargarAgendamientosBarbero();
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        AppToast.showError(context, 'Error al cancelar día: $e');
       }
     }
   }
@@ -184,7 +160,11 @@ class _BarberAgendamientosScreenState extends State<BarberAgendamientosScreen> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
-                decoration: InputDecoration(hintText: 'Buscar...', prefixIcon: const Icon(Icons.search)),
+                decoration: InputDecoration(
+                  hintText: 'Buscar citas...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
                 onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
@@ -192,31 +172,292 @@ class _BarberAgendamientosScreenState extends State<BarberAgendamientosScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _agendamientosFiltrados.isEmpty
-                      ? Center(child: Text('No hay citas'))
-                      : ListView.builder(
-                          itemCount: _agendamientosFiltrados.length,
-                          itemBuilder: (context, index) {
-                            final ag = _agendamientosFiltrados[index];
-                            return ListTile(
-                              title: Text(ag.servicio?.nombre ?? 'Cita'),
-                              subtitle: Text('Cliente: ${ag.cliente?.nombreCompleto}\nFecha: ${ag.fechaCita}'),
-                              trailing: IconButton(
-                                icon: Icon(Icons.cancel, color: Colors.orange),
-                                onPressed: () {
-                                  // Reutilizar lógica individual si se desea
-                                },
-                              ),
-                            );
-                          },
+                      ? const Center(child: Text('No hay citas'))
+                      : RefreshIndicator(
+                          onRefresh: _cargarAgendamientosBarbero,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _agendamientosFiltrados.length,
+                            itemBuilder: (context, index) {
+                              final ag = _agendamientosFiltrados[index];
+                              return _buildAgendamientoCard(ag);
+                            },
+                          ),
                         ),
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BarberAgendamientoFormScreen())).then((_) => _cargarAgendamientosBarbero()),
-          child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildAgendamientoCard(Agendamiento ag) {
+    final estado = ag.estadoCita ?? 'Pendiente';
+    final isCancelada = estado.toLowerCase() == 'cancelada';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: isCancelada ? Colors.red.withOpacity(0.1) : const Color(0xFFD8B081).withOpacity(0.1),
+          child: Icon(
+            isCancelada ? Icons.close : Icons.calendar_today,
+            color: isCancelada ? Colors.red : const Color(0xFFD8B081),
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                ag.cliente?.nombreCompleto ?? 'Cita #${ag.id}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _buildBadge(estado),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.content_cut, size: 14, color: Color(0xFFD8B081)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    ag.servicio?.nombre ?? (ag.paquete?.nombre ?? 'Servicio múltiple'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 13, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${ag.fechaCita} | ${ag.horaInicio}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ],
+        ),
+        onTap: () => _verDetallesCita(ag),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String texto) {
+    final color = EstadoCita.getColor(texto);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        texto.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Future<void> _verDetallesCita(Agendamiento ag) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Detalles de la Cita'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('Cliente:', ag.cliente?.nombreCompleto ?? 'N/A'),
+            _detailRow('Servicio/Paquete:', ag.servicio?.nombre ?? ag.paquete?.nombre ?? 'N/A'),
+            _detailRow('Fecha:', ag.fechaCita ?? 'N/A'),
+            _detailRow('Hora:', '${ag.horaInicio} - ${ag.horaFin}'),
+            _detailRow('Monto:', '\$${(ag.monto ?? 0).toStringAsFixed(2)}'),
+            _detailRow('Estado:', ag.estadoCita ?? 'Pendiente'),
+            const Divider(),
+            const Text('Observaciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(ag.observaciones ?? 'Sin observaciones'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+          if (ag.estadoCita != EstadoCita.cancelada)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => BarberAgendamientoFormScreen(agendamiento: ag))).then((_) => _cargarAgendamientosBarbero());
+              },
+              child: const Text('Editar'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarberDaySelectorDialog extends StatefulWidget {
+  @override
+  State<_BarberDaySelectorDialog> createState() => __BarberDaySelectorDialogState();
+}
+
+class __BarberDaySelectorDialogState extends State<_BarberDaySelectorDialog> {
+  String _selectedWeek = 'Semana actual';
+  final List<DateTime> _selectedDates = [];
+  final TextEditingController _motivoController = TextEditingController();
+
+  @override
+  void dispose() {
+    _motivoController.dispose();
+    super.dispose();
+  }
+  
+  List<DateTime> _getWeekDays(String weekType) {
+    DateTime now = DateTime.now();
+    // Monday of current week
+    DateTime monday = now.subtract(Duration(days: now.weekday - 1));
+    if (weekType == 'Siguiente semana') {
+      monday = monday.add(const Duration(days: 7));
+    }
+    return List.generate(7, (i) => monday.add(Duration(days: i)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weekDays = _getWeekDays(_selectedWeek);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF161616),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFD8B081), width: 0.5)),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Selecciona los días:', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedWeek,
+                dropdownColor: const Color(0xFF1E1E1E),
+                icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                items: ['Semana actual', 'Siguiente semana'].map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedWeek = val);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: weekDays.map((date) {
+                final isPast = date.isBefore(today);
+                final isSelected = _selectedDates.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+                final name = DateFormat('EEEE', 'es_ES').format(date);
+                final capitalized = name[0].toUpperCase() + name.substring(1);
+
+                return FilterChip(
+                  label: Text(capitalized),
+                  selected: isSelected,
+                  onSelected: isPast ? null : (val) {
+                    setState(() {
+                      if (val) {
+                        _selectedDates.add(date);
+                      } else {
+                        _selectedDates.removeWhere((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+                      }
+                    });
+                  },
+                  backgroundColor: const Color(0xFF2A2A2A),
+                  selectedColor: const Color(0xFFD8B081),
+                  labelStyle: TextStyle(
+                    color: isPast ? Colors.white24 : (isSelected ? Colors.black : Colors.white70),
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  checkmarkColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '* Semana: ${_selectedWeek.split(' ')[1]}. Solo se pueden seleccionar el día de hoy y días futuros.',
+              style: const TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _motivoController,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Motivo (opcional)...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF2A2A2A),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD8B081), width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              maxLines: 2,
+            ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
+        ElevatedButton(
+          onPressed: _selectedDates.isEmpty 
+              ? null 
+              : () => Navigator.pop(context, {'fechas': _selectedDates, 'motivo': _motivoController.text}),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFD8B081),
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('CONFIRMAR'),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/servicio.dart';
 import '../services/auxiliar_service.dart';
+import '../utils/app_snackbar.dart';
 import '../models/app_role.dart';
 import '../widgets/session_guard.dart';
 
@@ -23,6 +26,21 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
   final AuxiliarService _data = AuxiliarService();
   bool _loading = false;
   bool _isNew = true;
+  String? _imagenUrl;
+  XFile? _imagenFile;
+  Uint8List? _imageBytesPreview;
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _imagenFile = image;
+        _imageBytesPreview = bytes;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -33,6 +51,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
       _descripcionCtrl.text = widget.servicio!.descripcion ?? '';
       _precioCtrl.text = widget.servicio!.precio.toString();
       _duracionCtrl.text = widget.servicio!.duracionMinutos.toString();
+      _imagenUrl = widget.servicio!.imagen;
     }
   }
 
@@ -50,6 +69,15 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
 
     setState(() => _loading = true);
     try {
+      String? imagenFinal = _imagenUrl;
+      if (_imagenFile != null && _imageBytesPreview != null) {
+        imagenFinal = await _data.subirImagen(
+          _imagenFile!.path, 
+          imageBytes: _imageBytesPreview, 
+          fileName: _imagenFile!.name
+        );
+      }
+
       final s = Servicio(
         id: widget.servicio?.id,
         nombre: _nombreCtrl.text.trim(),
@@ -57,6 +85,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
         precio: double.parse(_precioCtrl.text),
         duracionMinutos: int.parse(_duracionCtrl.text),
         estado: widget.servicio?.estado ?? true,
+        imagen: imagenFinal,
       );
 
       if (_isNew) {
@@ -66,18 +95,15 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isNew ? 'Servicio creado' : 'Servicio actualizado'), backgroundColor: Colors.green),
-        );
+        AppToast.showSuccess(context, _isNew ? '✅ Servicio creado' : '✅ Servicio actualizado');
         Navigator.pop(context, true);
       }
     } catch (e) {
-      setState(() => _loading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        AppToast.showError(context, 'Error: $e');
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -99,6 +125,47 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
                   decoration: const InputDecoration(labelText: 'Nombre *', border: OutlineInputBorder()),
                   validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                 ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    height: 180,
+                    width: double.infinity,
+                    clipBehavior: Clip.hardEdge,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    child: _imageBytesPreview != null
+                        ? Image.memory(_imageBytesPreview!, fit: BoxFit.cover)
+                        : (_imagenUrl != null && _imagenUrl!.isNotEmpty)
+                            ? Image.network(_imagenUrl!, fit: BoxFit.cover)
+                            : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                                  SizedBox(height: 8),
+                                  Text('Añadir imagen (Opcional)', style: TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+                  ),
+                ),
+                if (_imageBytesPreview != null || (_imagenUrl != null && _imagenUrl!.isNotEmpty))
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _imagenFile = null;
+                          _imageBytesPreview = null;
+                          _imagenUrl = null;
+                        });
+                      },
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('Quitar imagen', style: TextStyle(color: Colors.red)),
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _descripcionCtrl,

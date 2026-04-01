@@ -5,6 +5,7 @@ class Servicio {
   final double precio;
   final int duracionMinutos;
   final bool? estado;
+  final String? imagen;
 
   Servicio({
     this.id,
@@ -13,6 +14,7 @@ class Servicio {
     required this.precio,
     required this.duracionMinutos,
     this.estado,
+    this.imagen,
   });
 
   factory Servicio.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class Servicio {
       precio: (json['precio'] ?? json['Precio'] ?? 0).toDouble(),
       duracionMinutos: json['duracionMinutos'] ?? json['DuracionMinutos'] ?? 0,
       estado: json['estado'] ?? json['Estado'],
+      imagen: json['imagen'] ?? json['Imagen'],
     );
   }
 
@@ -34,6 +37,7 @@ class Servicio {
       'Precio': precio,
       'DuracionMinutos': duracionMinutos,
       'Estado': estado,
+      if (imagen != null && imagen!.isNotEmpty) 'Imagen': imagen,
     };
   }
 }

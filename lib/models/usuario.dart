@@ -8,6 +8,10 @@ class Usuario {
   final int? rolId;
   final bool? estado;
 
+  String get nombreCompleto => '${nombre ?? ''} ${apellido ?? ''}'.trim().isNotEmpty 
+      ? '${nombre ?? ''} ${apellido ?? ''}'.trim() 
+      : correo;
+
   Usuario({
     this.id,
     this.nombre,

@@ -30,7 +30,7 @@ class Cliente {
       nombre: json['nombre'] ?? json['Nombre'] ?? '',
       apellido: json['apellido'] ?? json['Apellido'] ?? '',
       telefono: json['telefono'] ?? json['Telefono'],
-      email: json['email'] ?? json['Email'],
+      email: json['email'] ?? json['Email'] ?? json['correo'] ?? json['Correo'],
       direccion: json['direccion'] ?? json['Direccion'],
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       usuarioId: json['usuarioId'] ?? json['UsuarioID'] ?? json['UsuarioId'],
@@ -52,6 +52,7 @@ class Cliente {
     }
     if (email != null && email!.isNotEmpty) {
       data['Email'] = email;
+      data['Correo'] = email;
     }
     if (direccion != null && direccion!.isNotEmpty) {
       data['Direccion'] = direccion;

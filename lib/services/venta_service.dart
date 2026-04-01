@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/venta.dart';
+import '../models/paginacion.dart';
 import '../services/auth_service.dart';
 
 class VentaService {
@@ -15,10 +16,10 @@ class VentaService {
     };
   }
 
-  Future<List<Venta>> obtenerVentas() async {
+  Future<Paginacion<Venta>> obtenerVentas({int page = 1, int pageSize = 15}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.ventas}?pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.ventas}?page=$page&pageSize=$pageSize';
       
       print('🔍 Intentando conectar a: $url');
       
@@ -32,24 +33,25 @@ class VentaService {
         },
       );
 
-      print('📥 Status Code: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) return [];
         final dynamic rawData = jsonDecode(response.body);
         
-        List<dynamic> data;
-        if (rawData is List) {
-          data = rawData;
-        } else if (rawData is Map && rawData.containsKey('items')) {
-          data = rawData['items'];
-        } else {
-          data = [];
+        if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
+          return Paginacion<Venta>.fromJson(rawData, (j) => Venta.fromJson(j));
+        } else if (rawData is List) {
+          return Paginacion<Venta>(
+            items: rawData.map((j) => Venta.fromJson(j)).toList(),
+            totalCount: rawData.length,
+            pageSize: rawData.length,
+            currentPage: 1,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
         }
-
-        return data.map((json) => Venta.fromJson(json)).toList();
+        throw Exception('Formato de respuesta desconocido');
       } else {
-        throw Exception('Error HTTP ${response.statusCode}: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}');
+        throw Exception('Error HTTP ${response.statusCode}');
       }
     } on FormatException catch (e) {
       print('❌ Error de formato JSON: $e');
@@ -162,28 +164,23 @@ class VentaService {
 
   Future<void> eliminarVenta(int id) async {
     try {
-      // Soft delete: Update estado to false
-      final venta = await obtenerVentaPorId(id);
+      final headers = await _getHeaders();
+      final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$id/anular');
       
-      // Create a copy with estado = false
-      final ventaDesactivada = Venta(
-        id: venta.id,
-        numero: venta.numero,
-        fechaRegistro: venta.fechaRegistro,
-        clienteId: venta.clienteId,
-        barberoId: venta.barberoId,
-        metodoPago: venta.metodoPago,
-        subtotal: venta.subtotal,
-        porcentajeDescuento: venta.porcentajeDescuento,
-        total: venta.total,
-        estado: 'Cancelada', // Soft delete / Anular
-        detalles: venta.detalles,
+      print('📤 Enviando ANULAR a $url');
+      
+      final response = await http.put(
+        url,
+        headers: headers,
       );
-
-      await actualizarVenta(ventaDesactivada);
       
+      print('Respuesta ANULAR servidor: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al anular venta ID $id: ${response.statusCode} - ${response.body}');
+      }
     } catch (e) {
-      throw Exception('Error al eliminar venta: $e');
+      throw Exception('Error al anular venta: $e');
     }
   }
   Future<List<DetalleVenta>> obtenerDetallesVenta(int ventaId) async {

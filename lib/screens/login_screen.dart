@@ -8,6 +8,7 @@ import '../models/barbero.dart';
 import '../services/cliente_service.dart';
 import '../services/barbero_service.dart';
 import 'forgot_password_screen.dart';
+import '../utils/app_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -75,7 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showMessage(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    if (!mounted) return;
+    AppToast.showError(context, msg);
   }
 
   Future<void> _verificarAccesoYRedirigir() async {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../config/api_config.dart';
 import '../models/cliente.dart';
 import '../models/barbero.dart';
@@ -20,10 +21,10 @@ class AuxiliarService {
   }
 
   // Clientes
-  Future<List<Cliente>> obtenerClientes() async {
+  Future<List<Cliente>> obtenerClientes({int page = 1, int pageSize = 1000}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}?pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}?page=$page&pageSize=$pageSize';
       
       final response = await http.get(
         Uri.parse(url),
@@ -206,10 +207,10 @@ class AuxiliarService {
   }
 
   // Servicios
-  Future<List<Servicio>> obtenerServicios() async {
+  Future<List<Servicio>> obtenerServicios({int page = 1, int pageSize = 1000}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}?pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}?page=$page&pageSize=$pageSize';
       
       final response = await http.get(
         Uri.parse(url),
@@ -329,6 +330,7 @@ class AuxiliarService {
         precio: actual.precio,
         duracionMinutos: actual.duracionMinutos,
         estado: estado,
+        imagen: actual.imagen,
       );
 
       await actualizarServicio(actualizado);
@@ -426,5 +428,47 @@ class AuxiliarService {
       throw Exception('Error de conexión: $e');
     }
   }
-}
 
+  // Subir imagen (Servicios, Perfiles, Productos, etc.)
+  Future<String> subirImagen(String filePath, {List<int>? imageBytes, String? fileName}) async {
+    try {
+      final token = await _authService.getToken();
+      final url = Uri.parse('${ApiConfig.baseUrl}/images/subir');
+      final request = http.MultipartRequest('POST', url);
+      
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      
+      if (imageBytes != null && fileName != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'imagen', 
+          imageBytes, 
+          filename: fileName,
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      } else {
+        request.files.add(await http.MultipartFile.fromPath(
+          'imagen', 
+          filePath,
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      }
+      
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final dynamic rawData = jsonDecode(response.body);
+        if (rawData is Map && rawData.containsKey('url')) {
+          return rawData['url'];
+        }
+        return rawData.toString();
+      } else {
+        throw Exception('Error al subir imagen: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al subir imagen: $e');
+    }
+  }
+}

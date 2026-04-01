@@ -5,6 +5,7 @@ import '../models/agendamiento.dart';
 import '../models/barbero.dart';
 import '../models/cliente.dart';
 import '../models/paquete.dart';
+import '../models/producto.dart';
 import '../models/servicio.dart';
 import '../models/app_role.dart';
 import '../services/agendamiento_service.dart';
@@ -34,10 +35,13 @@ class _BarberAgendamientoFormScreenState
   List<Cliente> _clientes = [];
   List<Servicio> _servicios = [];
   List<Paquete> _paquetes = [];
+  List<Producto> _productos = [];
+  List<Agendamiento> _todasLasCitas = [];
 
   Cliente? _clienteSeleccionado;
-  Servicio? _servicioSeleccionado;
+  List<Servicio> _serviciosSeleccionados = [];
   Paquete? _paqueteSeleccionado;
+  Map<int, int> _productoCantidades = {};
   Barbero? _barberoActual;
 
   DateTime _fechaSeleccionada = DateTime.now();
@@ -163,7 +167,9 @@ class _BarberAgendamientoFormScreenState
       }
 
       _clienteSeleccionado = clienteSeleccionado;
-      _servicioSeleccionado = servicioSeleccionado;
+      if (servicioSeleccionado != null) {
+        _serviciosSeleccionados = [servicioSeleccionado];
+      }
       _paqueteSeleccionado = paqueteSeleccionado;
       _esServicio = esServicio;
       
@@ -250,9 +256,10 @@ class _BarberAgendamientoFormScreenState
   }
 
   void _calcularMonto() {
-    if (_esServicio && _servicioSeleccionado != null) {
+    if (_esServicio && _serviciosSeleccionados.isNotEmpty) {
       setState(() {
-        _monto = _servicioSeleccionado!.precio;
+        _monto = _serviciosSeleccionados.fold<double>(
+            0.0, (double sum, s) => sum + s.precio);
       });
     } else if (!_esServicio && _paqueteSeleccionado != null) {
       setState(() {
@@ -288,7 +295,7 @@ class _BarberAgendamientoFormScreenState
       return;
     }
 
-    if (_esServicio && _servicioSeleccionado == null) {
+    if (_esServicio && _serviciosSeleccionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor seleccione un servicio'),
@@ -319,13 +326,16 @@ class _BarberAgendamientoFormScreenState
       final horaFin =
           '${_horaFin.hour.toString().padLeft(2, '0')}:${_horaFin.minute.toString().padLeft(2, '0')}';
 
+      
       final agendamiento = Agendamiento(
         id: widget.agendamiento?.id,
         clienteId: _clienteSeleccionado!.id!,
         barberoId: _barberoActual!.id!,
-        servicioId: _esServicio ? _servicioSeleccionado?.id : null,
-        paqueteId: !_esServicio ? _paqueteSeleccionado?.id : null,
-        fechaCita: fecha,
+        servicioId: _esServicio && _serviciosSeleccionados.isNotEmpty ? _serviciosSeleccionados.first.id : null,
+        servicioIds: _esServicio ? _serviciosSeleccionados.map((s)=>s.id!).toList() : [],
+        productoIds: _productoCantidades.entries.expand((e) => List.filled(e.value, e.key)).toList(),
+        paqueteId: !_esServicio ? _paqueteSeleccionado!.id : null,
+        fechaCita: DateFormat('yyyy-MM-dd').format(_fechaSeleccionada),
         horaInicio: horaInicio,
         horaFin: horaFin,
         estadoCita: _estadoCita,
@@ -503,12 +513,12 @@ class _BarberAgendamientoFormScreenState
                                   value: true,
                                   groupValue: _esServicio,
                                   onChanged: (value) {
-                                    setState(() {
-                                      _esServicio = value ?? true;
-                                      _servicioSeleccionado = null;
-                                      _paqueteSeleccionado = null;
-                                      _calcularMonto();
-                                    });
+                                      setState(() {
+                                        _esServicio = value ?? true;
+                                        _serviciosSeleccionados.clear();
+                                        _paqueteSeleccionado = null;
+                                        _calcularMonto();
+                                      });
                                   },
                                 ),
                               ),
@@ -518,12 +528,12 @@ class _BarberAgendamientoFormScreenState
                                   value: false,
                                   groupValue: _esServicio,
                                   onChanged: (value) {
-                                    setState(() {
-                                      _esServicio = value ?? false;
-                                      _servicioSeleccionado = null;
-                                      _paqueteSeleccionado = null;
-                                      _calcularMonto();
-                                    });
+                                      setState(() {
+                                        _esServicio = value ?? false;
+                                        _serviciosSeleccionados.clear();
+                                        _paqueteSeleccionado = null;
+                                        _calcularMonto();
+                                      });
                                   },
                                 ),
                               ),
@@ -531,35 +541,65 @@ class _BarberAgendamientoFormScreenState
                           ),
                           const SizedBox(height: 16),
 
-                          _esServicio
-                              ? SearchableSelector<Servicio>(
-                                  label: 'Servicio *',
-                                  hint: 'Escribe el nombre del servicio...',
-                                  items: _servicios,
-                                  selectedItem: _servicioSeleccionado,
-                                  displayText: (s) => s.nombre,
-                                  searchText: (s) => s.nombre,
-                                  prefixIcon: Icons.cut,
-                                  required: true,
-                                  renderItem: (s) => Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(s.nombre,
-                                            style: const TextStyle(color: Colors.white, fontSize: 14)),
-                                      ),
-                                      Text('\$${s.precio.toStringAsFixed(0)}',
-                                          style: const TextStyle(color: Color(0xFFD8B081), fontSize: 12)),
-                                    ],
+                          
+                        _esServicio
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SearchableSelector<Servicio>(
+                                    label: 'Añadir Servicio',
+                                    hint: 'Escribe el nombre del servicio...',
+                                    items: _servicios,
+                                    selectedItem: null, // Siempre nulo para multi-select
+                                    displayText: (s) => s.nombre,
+                                    searchText: (s) => s.nombre,
+                                    prefixIcon: Icons.cut,
+                                    required: _serviciosSeleccionados.isEmpty,
+                                    renderItem: (s) => Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(s.nombre,
+                                              style: const TextStyle(color: Colors.white, fontSize: 14)),
+                                        ),
+                                        Text(
+                                          '\$${s.precio.toStringAsFixed(0)} · ${s.duracionMinutos}min',
+                                          style: const TextStyle(color: Color(0xFFD8B081), fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    onSelected: (s) {
+                                      if (s != null && !_serviciosSeleccionados.any((sel) => sel.id == s.id)) {
+                                          setState(() {
+                                            _serviciosSeleccionados.add(s);
+                                            _paqueteSeleccionado = null;
+                                            _calcularMonto();
+                                          });
+                                      }
+                                    },
                                   ),
-                                  onSelected: (s) {
-                                    setState(() {
-                                      _servicioSeleccionado = s;
-                                      _paqueteSeleccionado = null;
-                                      _calcularMonto();
-                                    });
-                                  },
-                                )
-                              : SearchableSelector<Paquete>(
+                                  if (_serviciosSeleccionados.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: _serviciosSeleccionados.map((s) => Chip(
+                                        label: Text(s.nombre),
+                                        onDeleted: () {
+                                          setState(() {
+                                            _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
+                                            _calcularMonto();
+                                          });
+                                        },
+                                        backgroundColor: const Color(0xFFD8B081).withOpacity(0.2),
+                                        deleteIconColor: const Color(0xFFD8B081),
+                                        labelStyle: const TextStyle(color: Colors.white, fontSize: 13),
+                                        side: const BorderSide(color: Color(0xFFD8B081)),
+                                      )).toList(),
+                                    ),
+                                  ],
+                                ],
+                              )
+                            : SearchableSelector<Paquete>(
                                   label: 'Paquete *',
                                   hint: 'Escribe el nombre del paquete...',
                                   items: _paquetes,
@@ -581,7 +621,7 @@ class _BarberAgendamientoFormScreenState
                                   onSelected: (p) {
                                     setState(() {
                                       _paqueteSeleccionado = p;
-                                      _servicioSeleccionado = null;
+                                      _serviciosSeleccionados.clear();
                                       _calcularMonto();
                                     });
                                   },

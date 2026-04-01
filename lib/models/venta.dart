@@ -1,26 +1,23 @@
 import 'cliente.dart';
 import 'barbero.dart';
-// Asegúrate de que los modelos Producto, Servicio y Paquete existan
-// si los necesitas para la deserialización de objetos completos.
-// import 'producto.dart';
-// import 'servicio.dart';
-// import 'paquete.dart'; 
+import 'usuario.dart';
 
-// --- CLASE VENTA ---
 class Venta {
   final int? id;
   final String numero;
   final String? fechaRegistro;
   final int clienteId;
-  final int barberoId;
-  final int? usuarioId; // Added usuarioId
+  final int? barberoId;
+  final int? usuarioId;
   final String metodoPago;
   final double subtotal;
   final double porcentajeDescuento;
   final double total;
   final String? estado;
+  final String? clienteNombre; // Para clientes invitados (no registrados)
   final Cliente? cliente;
   final Barbero? barbero;
+  final Usuario? usuario;
   final List<DetalleVenta>? detalles;
 
   Venta({
@@ -28,40 +25,40 @@ class Venta {
     required this.numero,
     this.fechaRegistro,
     required this.clienteId,
-    required this.barberoId,
-    this.usuarioId, // Added to constructor
+    this.barberoId,
+    this.usuarioId,
     required this.metodoPago,
     required this.subtotal,
     required this.porcentajeDescuento,
     required this.total,
     this.estado,
+    this.clienteNombre,
     this.cliente,
     this.barbero,
+    this.usuario,
     this.detalles,
   });
 
   factory Venta.fromJson(Map<String, dynamic> json) {
-    // Buscar la lista de detalles bajo las claves posibles
     final List<dynamic>? detallesList = 
         json['detalles'] ?? json['detalleVenta'] ?? json['DetalleVenta'];
 
     return Venta(
       id: json['id'] ?? json['ID'],
       numero: json['numero'] ?? json['Numero'] ?? '',
-      fechaRegistro: json['fechaRegistro'] ?? json['FechaRegistro'],
+      fechaRegistro: json['fechaRegistro'] ?? json['FechaRegistro'] ?? json['fecha'] ?? json['Fecha'],
       clienteId: json['clienteId'] ?? json['ClienteId'] ?? json['ClienteID'] ?? 0,
-      barberoId: json['barberoId'] ?? json['BarberoId'] ?? json['BarberoID'] ?? 0,
-      usuarioId: json['usuarioId'] ?? json['UsuarioId'] ?? json['UsuarioID'], // Added to fromJson
+      barberoId: json['barberoId'] ?? json['BarberoId'] ?? json['BarberoID'],
+      usuarioId: json['usuarioId'] ?? json['UsuarioId'] ?? json['UsuarioID'],
       metodoPago: json['metodoPago'] ?? json['MetodoPago'] ?? '',
-      // Convertir a double con seguridad
       subtotal: (json['subtotal'] ?? json['Subtotal'] ?? 0).toDouble(),
-      porcentajeDescuento: (json['porcentajeDescuento'] ?? json['PorcentajeDescuento'] ?? 0).toDouble(),
+      porcentajeDescuento: (json['porcentajeDescuento'] ?? json['PorcentajeDescuento'] ?? json['descuento'] ?? json['Descuento'] ?? 0).toDouble(),
       total: (json['total'] ?? json['Total'] ?? 0).toDouble(),
       estado: json['estado']?.toString() ?? json['Estado']?.toString(),
-      // Asume que Cliente.fromJson y Barbero.fromJson existen
+      clienteNombre: json['clienteNombre'] ?? json['ClienteNombre'],
       cliente: json['cliente'] != null ? Cliente.fromJson(json['cliente']) : null,
       barbero: json['barbero'] != null ? Barbero.fromJson(json['barbero']) : null,
-      
+      usuario: json['usuario'] != null ? Usuario.fromJson(json['usuario']) : null,
       detalles: detallesList != null 
           ? detallesList.map((d) => DetalleVenta.fromJson(d)).toList()
           : null,
@@ -73,13 +70,14 @@ class Venta {
       'NumeroVenta': int.tryParse(numero.replaceAll(RegExp(r'[^0-9]'), '')) ?? DateTime.now().millisecondsSinceEpoch % 1000000,
       'Fecha': fechaRegistro,
       'ClienteId': clienteId,
-      'BarberoId': barberoId,
-      'UsuarioId': usuarioId, // Added to toJson
+      if (barberoId != null) 'BarberoId': barberoId,
+      'UsuarioId': usuarioId,
       'MetodoPago': metodoPago,
       'Subtotal': subtotal,
       'Descuento': porcentajeDescuento,
       'Total': total,
       'Estado': estado ?? 'Completada',
+      if (clienteNombre != null) 'ClienteNombre': clienteNombre,
       'Detalles': detalles?.map((d) => d.toJson()).toList() ?? [],
     };
     
@@ -96,6 +94,7 @@ class Venta {
     String? fechaRegistro,
     int? clienteId,
     int? barberoId,
+    int? usuarioId,
     String? metodoPago,
     double? subtotal,
     double? porcentajeDescuento,
@@ -103,6 +102,7 @@ class Venta {
     String? estado,
     Cliente? cliente,
     Barbero? barbero,
+    Usuario? usuario,
     List<DetalleVenta>? detalles,
   }) {
     return Venta(
@@ -111,6 +111,7 @@ class Venta {
       fechaRegistro: fechaRegistro ?? this.fechaRegistro,
       clienteId: clienteId ?? this.clienteId,
       barberoId: barberoId ?? this.barberoId,
+      usuarioId: usuarioId ?? this.usuarioId,
       metodoPago: metodoPago ?? this.metodoPago,
       subtotal: subtotal ?? this.subtotal,
       porcentajeDescuento: porcentajeDescuento ?? this.porcentajeDescuento,
@@ -118,13 +119,12 @@ class Venta {
       estado: estado ?? this.estado,
       cliente: cliente ?? this.cliente,
       barbero: barbero ?? this.barbero,
+      usuario: usuario ?? this.usuario,
       detalles: detalles ?? this.detalles,
     );
   }
 }
 
-// ------------------------------------------------------------------
-// --- CLASE DETALLEVENTA ---
 class DetalleVenta {
   final int? id;
   final int ventaId;
@@ -133,7 +133,7 @@ class DetalleVenta {
   final int? paqueteId;
   final int cantidad;
   final double precioUnitario;
-  final double? subTotal; // Usando 'subTotal' con 'S' mayúscula según el ejemplo de API
+  final double? subTotal;
 
   DetalleVenta({
     this.id,

@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/cliente_service.dart';
 import '../models/app_role.dart';
 import '../models/cliente.dart';
+import '../utils/app_snackbar.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -37,8 +38,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _showMessage(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _showMessage(String msg, {bool isError = true}) {
+    if (!mounted) return;
+    if (isError) {
+      AppToast.showError(context, msg);
+    } else {
+      AppToast.showSuccess(context, msg);
+    }
   }
 
   Future<void> _register() async {
@@ -87,7 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       
       await _auth.sendEmailVerification();
-      _showMessage('Cuenta creada. Revise su correo para verificar la cuenta.');
+      _showMessage('Cuenta creada. Revise su correo para verificar la cuenta.', isError: false);
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Error al registrar');
