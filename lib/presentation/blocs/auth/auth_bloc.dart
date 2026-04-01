@@ -1,0 +1,70 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
+
+import 'auth_event.dart';
+import 'auth_state.dart';
+import 'package:parte_movil/domain/usecases/login_usecase.dart';
+import 'package:parte_movil/domain/usecases/google_login_usecase.dart';
+import 'package:parte_movil/domain/usecases/logout_usecase.dart';
+
+class AuthBloc extends Bloc<AuthEvent, AuthState> {
+  final LoginUseCase _loginUseCase;
+  final GoogleLoginUseCase _googleLoginUseCase;
+  final LogoutUseCase _logoutUseCase;
+
+  AuthBloc({
+    required LoginUseCase loginUseCase,
+    required GoogleLoginUseCase googleLoginUseCase,
+    required LogoutUseCase logoutUseCase,
+  })  : _loginUseCase = loginUseCase,
+        _googleLoginUseCase = googleLoginUseCase,
+        _logoutUseCase = logoutUseCase,
+        super(AuthInitial()) {
+    on<LoginRequested>(_onLoginRequested);
+    on<GoogleLoginRequested>(_onGoogleLoginRequested);
+    on<LogoutRequested>(_onLogoutRequested);
+  }
+
+  Future<void> _onLoginRequested(
+    LoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      final session = await _loginUseCase(event.email, event.password);
+      emit(AuthAuthenticated(session.role));
+    } on FirebaseAuthException catch (e) {
+      emit(AuthError(e.message ?? 'Error en autenticación'));
+    } catch (e) {
+      emit(AuthError('Error inesperado: $e'));
+    }
+  }
+
+  Future<void> _onGoogleLoginRequested(
+    GoogleLoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      final session = await _googleLoginUseCase();
+      emit(AuthAuthenticated(session.role));
+    } on FirebaseAuthException catch (e) {
+      emit(AuthError(e.message ?? 'Error en autenticación con Google'));
+    } catch (e) {
+      emit(AuthError('Error inesperado con Google: $e'));
+    }
+  }
+
+  Future<void> _onLogoutRequested(
+    LogoutRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      await _logoutUseCase();
+      emit(AuthInitial());
+    } catch (e) {
+      emit(AuthError('Error al cerrar sesión: $e'));
+    }
+  }
+}
