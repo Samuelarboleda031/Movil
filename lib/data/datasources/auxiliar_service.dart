@@ -440,18 +440,29 @@ class AuxiliarService {
         request.headers['Authorization'] = 'Bearer $token';
       }
       
+      final nameToParse = fileName ?? filePath;
+      String ext = 'jpeg';
+      if (nameToParse.contains('.')) {
+        final extParts = nameToParse.split('.').last.toLowerCase();
+        if (extParts == 'png' || extParts == 'gif' || extParts == 'webp') {
+          ext = extParts;
+        } else if (extParts == 'jpg') {
+          ext = 'jpeg';
+        }
+      }
+
       if (imageBytes != null && fileName != null) {
         request.files.add(http.MultipartFile.fromBytes(
           'imagen', 
           imageBytes, 
           filename: fileName,
-          contentType: MediaType('image', 'jpeg'),
+          contentType: MediaType('image', ext),
         ));
       } else {
         request.files.add(await http.MultipartFile.fromPath(
           'imagen', 
           filePath,
-          contentType: MediaType('image', 'jpeg'),
+          contentType: MediaType('image', ext),
         ));
       }
       

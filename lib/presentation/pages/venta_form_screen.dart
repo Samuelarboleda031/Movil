@@ -282,8 +282,6 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
             id: -1,
             nombre: '',
             categoriaId: 0,
-            proveedorId: 0,
-            precioCompra: 0,
             precioVenta: 0,
           ),
         );
@@ -725,8 +723,6 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                                 id: -1,
                                 nombre: 'Producto desconocido',
                                 categoriaId: 0,
-                                proveedorId: 0,
-                                precioCompra: 0,
                                 precioVenta: 0,
                               ),
                             );

@@ -30,15 +30,19 @@ class CancelDiasRequested extends AgendamientosEvent {
   final int barberoId; // -1 for global
   final List<DateTime> fechas;
   final String motivo;
+  final String? horaInicio;
+  final String? horaFin;
 
   const CancelDiasRequested({
     required this.barberoId,
     required this.fechas,
     required this.motivo,
+    this.horaInicio,
+    this.horaFin,
   });
 
   @override
-  List<Object?> get props => [barberoId, fechas, motivo];
+  List<Object?> get props => [barberoId, fechas, motivo, horaInicio, horaFin];
 }
 class ChangeAgendamientoStatusRequested extends AgendamientosEvent {
   final Agendamiento agendamiento;

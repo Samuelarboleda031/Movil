@@ -15,6 +15,8 @@ class Venta {
   final double total;
   final String? estado;
   final String? clienteNombre; // Para clientes invitados (no registrados)
+  final String? responsableNombre;
+  final String? barberoNombreStr;
   final Cliente? cliente;
   final Barbero? barbero;
   final Usuario? usuario;
@@ -33,6 +35,8 @@ class Venta {
     required this.total,
     this.estado,
     this.clienteNombre,
+    this.responsableNombre,
+    this.barberoNombreStr,
     this.cliente,
     this.barbero,
     this.usuario,
@@ -42,6 +46,11 @@ class Venta {
   factory Venta.fromJson(Map<String, dynamic> json) {
     final List<dynamic>? detallesList = 
         json['detalles'] ?? json['detalleVenta'] ?? json['DetalleVenta'];
+
+    String? rNombreStr = json['usuarioNombreCompleto'] ?? json['UsuarioNombreCompleto'] ?? json['responsableNombre'] ?? json['ResponsableNombre'] ?? json['usuarioNombre'] ?? json['UsuarioNombre'];
+    String? bNombreStr = json['barberoNombreCompleto'] ?? json['BarberoNombreCompleto'] ?? json['barberoNombre'] ?? json['BarberoNombre'] ?? json['nombreBarbero'] ?? json['NombreBarbero'];
+    if (bNombreStr == null && json['barbero'] is String) bNombreStr = json['barbero'];
+    if (rNombreStr == null && json['usuario'] is String) rNombreStr = json['usuario'];
 
     return Venta(
       id: json['id'] ?? json['ID'],
@@ -56,9 +65,11 @@ class Venta {
       total: (json['total'] ?? json['Total'] ?? 0).toDouble(),
       estado: json['estado']?.toString() ?? json['Estado']?.toString(),
       clienteNombre: json['clienteNombre'] ?? json['ClienteNombre'],
-      cliente: json['cliente'] != null ? Cliente.fromJson(json['cliente']) : null,
-      barbero: json['barbero'] != null ? Barbero.fromJson(json['barbero']) : null,
-      usuario: json['usuario'] != null ? Usuario.fromJson(json['usuario']) : null,
+      responsableNombre: rNombreStr,
+      barberoNombreStr: bNombreStr,
+      cliente: json['cliente'] is Map<String, dynamic> ? Cliente.fromJson(json['cliente']) : null,
+      barbero: json['barbero'] is Map<String, dynamic> ? Barbero.fromJson(json['barbero']) : null,
+      usuario: json['usuario'] is Map<String, dynamic> ? Usuario.fromJson(json['usuario']) : null,
       detalles: detallesList != null 
           ? detallesList.map((d) => DetalleVenta.fromJson(d)).toList()
           : null,
@@ -100,6 +111,9 @@ class Venta {
     double? porcentajeDescuento,
     double? total,
     String? estado,
+    String? clienteNombre,
+    String? responsableNombre,
+    String? barberoNombreStr,
     Cliente? cliente,
     Barbero? barbero,
     Usuario? usuario,
@@ -117,6 +131,9 @@ class Venta {
       porcentajeDescuento: porcentajeDescuento ?? this.porcentajeDescuento,
       total: total ?? this.total,
       estado: estado ?? this.estado,
+      clienteNombre: clienteNombre ?? this.clienteNombre,
+      responsableNombre: responsableNombre ?? this.responsableNombre,
+      barberoNombreStr: barberoNombreStr ?? this.barberoNombreStr,
       cliente: cliente ?? this.cliente,
       barbero: barbero ?? this.barbero,
       usuario: usuario ?? this.usuario,

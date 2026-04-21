@@ -220,8 +220,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: Image.network(
-                            'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
-                            height: 20),
+                            'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                            height: 20,
+                            width: 20,
+                            errorBuilder: (ctx, err, stack) => const Text('G',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         label: const Text('Google',
                             style: TextStyle(
                                 color: Colors.white, fontWeight: FontWeight.bold)),

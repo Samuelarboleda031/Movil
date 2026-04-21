@@ -10,22 +10,22 @@ import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/user_context_service.dart';
 
 import 'package:parte_movil/presentation/pages/home_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
 import 'package:parte_movil/presentation/pages/ventas_screen.dart';
 import 'package:parte_movil/presentation/pages/servicios_gestion_screen.dart';
+import 'package:parte_movil/presentation/pages/productos_gestion_screen.dart';
 import 'package:parte_movil/presentation/pages/client_home_screen.dart';
-import 'package:parte_movil/presentation/pages/client_agendamientos_screen.dart';
 import 'package:parte_movil/presentation/pages/mis_compras_screen.dart';
 import 'package:parte_movil/presentation/pages/client_profile_screen.dart';
 import 'package:parte_movil/presentation/pages/barber_home_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_agendamientos_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_ventas_screen.dart';
 import 'package:parte_movil/presentation/pages/barber_profile_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_form_screen.dart';
+import 'package:parte_movil/presentation/pages/producto_form_screen.dart';
 import 'package:parte_movil/presentation/pages/client_agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/barber_agendamiento_form_screen.dart';
 
@@ -52,33 +52,66 @@ class _MainLayoutState extends State<MainLayout> {
               agendamientoService: AgendamientoService(),
               emailJsService: EmailJsService(),
               authService: AuthService(),
+              userContextService: UserContextService(),
+              auxiliarService: AuxiliarService(),
             )..add(const LoadAgendamientosRequested(page: 1)),
-            child: const AgendamientosScreen(),
+            child: AgendamientosScreen(role: widget.role),
           ),
+
+
           BlocProvider(
             create: (context) => VentasBloc(
               ventaService: VentaService(),
               auxiliarService: AuxiliarService(),
+              authService: AuthService(),
             )..add(const LoadVentasRequested(page: 1)),
-            child: const VentasScreen(),
+            child: VentasScreen(role: widget.role),
           ),
           const ServiciosGestionScreen(),
+          const ProductosGestionScreen(),
         ];
 
       case AppRole.barber:
         return [
           const BarberHomeScreen(),
-          const BarberAgendamientosScreen(),
-          const BarberVentasScreen(),
+          BlocProvider(
+            create: (context) => AgendamientosBloc(
+              agendamientoService: AgendamientoService(),
+              emailJsService: EmailJsService(),
+              authService: AuthService(),
+              userContextService: UserContextService(),
+              auxiliarService: AuxiliarService(),
+            )..add(const LoadAgendamientosRequested(page: 1)),
+            child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
+          ),
+          BlocProvider(
+            create: (context) => VentasBloc(
+              ventaService: VentaService(),
+              auxiliarService: AuxiliarService(),
+              authService: AuthService(),
+            )..add(const LoadVentasRequested(page: 1)),
+            child: VentasScreen(role: widget.role), // Reutilizamos aquí
+          ),
           const BarberProfileScreen(),
+
         ];
       case AppRole.client:
         return [
           const ClientHomeScreen(),
-          const ClientAgendamientosScreen(),
+          BlocProvider(
+            create: (context) => AgendamientosBloc(
+              agendamientoService: AgendamientoService(),
+              emailJsService: EmailJsService(),
+              authService: AuthService(),
+              userContextService: UserContextService(),
+              auxiliarService: AuxiliarService(),
+            )..add(const LoadAgendamientosRequested(page: 1)),
+            child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
+          ),
           const MisComprasScreen(),
           const ClientProfileScreen(),
         ];
+
     }
   }
 
@@ -91,6 +124,7 @@ class _MainLayoutState extends State<MainLayout> {
           BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Citas'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Ventas'),
           BottomNavigationBarItem(icon: Icon(Icons.content_cut), label: 'Servicios'),
+          BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Productos'),
         ];
       case AppRole.barber:
         return const [
@@ -133,6 +167,12 @@ class _MainLayoutState extends State<MainLayout> {
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ServicioFormScreen())).then((_) => setState(() {})),
         child: const Icon(Icons.add),
       );
+    } else if (_currentIndex == 4 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
+      // Productos Admin
+      floatingActionButton = FloatingActionButton(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductoFormScreen())).then((_) => setState(() {})),
+        child: const Icon(Icons.add),
+      );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       // Agendamiento para Clientes
       floatingActionButton = FloatingActionButton(
@@ -165,9 +205,10 @@ class _MainLayoutState extends State<MainLayout> {
           children: [
             _buildNavItem(0, items[0].icon, items[0].label!),
             _buildNavItem(1, items[1].icon, items[1].label!),
+            if (items.length == 5) _buildNavItem(2, items[2].icon, items[2].label!),
             const SizedBox(width: 40), // Espacio para el FAB
-            _buildNavItem(2, items[2].icon, items[2].label!),
-            _buildNavItem(3, items[3].icon, items[3].label!),
+            _buildNavItem(items.length == 5 ? 3 : 2, items[items.length == 5 ? 3 : 2].icon, items[items.length == 5 ? 3 : 2].label!),
+            _buildNavItem(items.length == 5 ? 4 : 3, items[items.length == 5 ? 4 : 3].icon, items[items.length == 5 ? 4 : 3].label!),
           ],
         ),
       ),

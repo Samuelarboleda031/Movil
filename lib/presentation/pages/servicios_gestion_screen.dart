@@ -146,6 +146,9 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: ListTile(
+                              leading: s.imagen != null && s.imagen!.isNotEmpty 
+                                ? CircleAvatar(backgroundImage: NetworkImage(s.imagen!))
+                                : const CircleAvatar(child: Icon(Icons.content_cut)),
                               title: Text(s.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text('${s.duracionMinutos} min | ${AppFormat.cop(s.precio)}'),
                               trailing: Row(

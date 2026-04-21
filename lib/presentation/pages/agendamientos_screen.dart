@@ -16,13 +16,16 @@ import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 
 class AgendamientosScreen extends StatefulWidget {
-  const AgendamientosScreen({super.key});
+  final AppRole role;
+
+  const AgendamientosScreen({super.key, this.role = AppRole.admin}); // Default a admin por compatibilidad
 
   @override
   State<AgendamientosScreen> createState() => _AgendamientosScreenState();
 }
 
 class _AgendamientosScreenState extends State<AgendamientosScreen> {
+
   final AuxiliarService _auxiliarService = AuxiliarService();
   String _searchQuery = '';
 
@@ -135,11 +138,17 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                     const SizedBox(height: 16),
                     _DaySelectorWidget(
                       isGlobal: esGlobal,
-                      onDatesSelected: (dates, motivo) {
+                      onConfirm: (dates, motivo, {horaInicio, horaFin}) {
                          if (barberoSeleccionado != null && dates.isNotEmpty) {
-                           Navigator.pop(context, {'barbero': barberoSeleccionado, 'fechas': dates, 'motivo': motivo});
+                           Navigator.pop(context, {
+                             'barbero': barberoSeleccionado, 
+                             'fechas': dates, 
+                             'motivo': motivo, 
+                             'horaInicio': horaInicio, 
+                             'horaFin': horaFin
+                           });
                          } else {
-                           AppToast.showError(context, 'Selecciona un barbero y al menos un día');
+                           AppToast.showError(context, 'Rellena todos los datos necesarios');
                          }
                       },
                     ),
@@ -156,35 +165,14 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     final Barbero b = result['barbero'];
     final List<DateTime> dates = result['fechas'];
     final String motivo = result['motivo'];
-    final bool esGlobal = b.id == -1;
     
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(esGlobal ? '¿CANCELAR TODO EL LOCAL?' : '¿CANCELAR CITAS DE ${b.nombreCompleto}?'),
-        content: Text(
-          esGlobal 
-            ? 'Esta acción cancelará las citas de TODOS los barberos en los ${dates.length} día(s) seleccionados.'
-            : 'Se cancelarán todas las citas de ${b.nombreCompleto} para los ${dates.length} día(s) seleccionados.',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: esGlobal ? Colors.orange : Colors.red),
-            child: const Text('SÍ, CANCELAR'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
+    if (mounted) {
       context.read<AgendamientosBloc>().add(CancelDiasRequested(
         barberoId: b.id!,
         fechas: dates,
         motivo: motivo,
+        horaInicio: result['horaInicio'],
+        horaFin: result['horaFin'],
       ));
     }
   }
@@ -192,18 +180,21 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin,
+      requiredRole: widget.role,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Agendamientos'),
+          title: const Text('Citas'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.event_busy, color: Colors.orange), 
-              onPressed: _cancelarAgendas, 
-              tooltip: 'Cancelar Citas / Días'
-            ),
+            if (widget.role != AppRole.client) ...[
+               IconButton(
+                 icon: const Icon(Icons.event_busy, color: Colors.orange), 
+                 onPressed: _cancelarAgendas, 
+                 tooltip: 'Cancelar Citas / Días'
+               ),
+            ]
           ],
         ),
+
         body: BlocConsumer<AgendamientosBloc, AgendamientosState>(
           listener: (context, state) {
             if (state is AgendamientosError) {
@@ -276,6 +267,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                           const PopupMenuItem(value: 'details', child: Text('Detalles')),
                                           const PopupMenuItem(value: 'status', child: Text('Cambiar Estado')),
                                         ],
+
                                       ),
                                     ),
                                   );
@@ -292,7 +284,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   Future<void> _cambiarEstado(Agendamiento ag) async {
-    final estados = ['Pendiente', 'Confirmado', 'En Proceso', 'Finalizado', 'No Asistio', 'Cancelado'];
+    // Si es cliente, solo puede ver y quizá cancelar si quisiéramos habilitar, 
+    // pero basado en su código previo, el cliente solo puede cancelar o el negocio se lo cambia.
+    // Usaremos los estados correspondientes:
+    final estados = widget.role == AppRole.client 
+          ? ['Pendiente', 'Cancelado'] 
+          : ['Pendiente', 'Confirmado', 'En Proceso', 'Finalizado', 'No Asistio', 'Cancelado'];
     
     final nuevoEstado = await showDialog<String>(
       context: context,
@@ -384,18 +381,27 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 }
 
 class _DaySelectorWidget extends StatefulWidget {
-  final Function(List<DateTime>, String) onDatesSelected;
+  final Function(List<DateTime>, String, {String? horaInicio, String? horaFin}) onConfirm;
   final bool isGlobal;
 
-  const _DaySelectorWidget({required this.onDatesSelected, required this.isGlobal});
+  const _DaySelectorWidget({required this.onConfirm, required this.isGlobal});
 
   @override
   State<_DaySelectorWidget> createState() => __DaySelectorWidgetState();
 }
 
 class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
+  int _currentTab = 0; // 0: Hora, 1: Día, 2: Días, 3: Semanal
+  
+  // Para Días y Semanal
   String _selectedWeek = 'Semana actual';
   final List<DateTime> _selectedDates = [];
+  
+  // Para Hora y Día
+  DateTime? _fechaHora;
+  TimeOfDay? _horaInicio;
+  TimeOfDay? _horaFin;
+
   final TextEditingController _motivoController = TextEditingController();
 
   @override
@@ -421,58 +427,52 @@ class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              value: _selectedWeek,
-              dropdownColor: const Color(0xFF1E1E1E),
-              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              items: ['Semana actual', 'Siguiente semana'].map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedWeek = val);
-              },
-            ),
+        // Tabs como en web
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildTab(0, '⏰ Por Hora'),
+              _buildTab(1, '📅 Un Día'),
+              _buildTab(2, '🗓 Varios Días'),
+              _buildTab(3, '📆 Semana'),
+            ],
           ),
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: weekDays.map((date) {
-            final isPast = date.isBefore(today);
-            final isSelected = _selectedDates.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
-            final name = DateFormat('EEEE', 'es_ES').format(date);
-            final capitalized = name[0].toUpperCase() + name.substring(1);
+        
+        if (_currentTab == 0) ...[
+          // HORA
+          Text('Cancela citas dentro de un rango de horas.', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 12),
+          _buildDateField(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _buildTimeField(true)),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('-', style: TextStyle(color: Colors.white))),
+              Expanded(child: _buildTimeField(false)),
+            ],
+          ),
+        ] else if (_currentTab == 1) ...[
+          // DÍA
+          Text('Cancela todas las citas en una fecha específica.', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 12),
+          _buildDateField(),
+        ] else if (_currentTab == 2) ...[
+          // VARIOS DÍAS
+          _buildWeekDropdown(),
+          const SizedBox(height: 12),
+          _buildChips(weekDays, today),
+        ] else if (_currentTab == 3) ...[
+          // SEMANAL
+          Text('Cancela todos los días de una semana.', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 12),
+          _buildWeekDropdown(),
+        ],
 
-            return FilterChip(
-              label: Text(capitalized),
-              selected: isSelected,
-              onSelected: isPast ? null : (val) {
-                setState(() {
-                  if (val) _selectedDates.add(date);
-                  else _selectedDates.removeWhere((d) => d.year == date.year && d.month == date.month && d.day == date.day);
-                });
-              },
-              backgroundColor: const Color(0xFF2A2A2A),
-              selectedColor: const Color(0xFFD8B081),
-              labelStyle: TextStyle(
-                color: isPast ? Colors.white24 : (isSelected ? Colors.black : Colors.white70),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-              checkmarkColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-            );
-          }).toList(),
-        ),
         const SizedBox(height: 20),
         TextField(
           controller: _motivoController,
@@ -492,12 +492,41 @@ class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
         const SizedBox(height: 10),
         if (widget.isGlobal)
           const Text(
-            '* Nota: Esta acción cancelará las citas de TODOS los barberos en los días seleccionados.',
+            '* Nota: Esta acción cancelará las citas de TODOS los barberos en los días o rango seleccionados.',
             style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontStyle: FontStyle.italic),
           ),
         const SizedBox(height: 10),
         ElevatedButton(
-          onPressed: _selectedDates.isEmpty ? null : () => widget.onDatesSelected(_selectedDates, _motivoController.text.trim()),
+          onPressed: () {
+            if (_currentTab == 1) { // Día
+              if (_fechaHora == null) {
+                AppToast.showError(context, 'Selecciona una fecha');
+                return;
+              }
+              widget.onConfirm([_fechaHora!], _motivoController.text.trim());
+            } else if (_currentTab == 2) { // Varios Días
+              if (_selectedDates.isEmpty) return;
+              widget.onConfirm(_selectedDates, _motivoController.text.trim());
+            } else if (_currentTab == 3) { // Semanal
+              final datesToProcess = weekDays.where((d) => _selectedWeek == 'Siguiente semana' || d.isAfter(DateTime.now().subtract(const Duration(days: 1)))).toList();
+              if (datesToProcess.isEmpty) return;
+              widget.onConfirm(datesToProcess, _motivoController.text.trim());
+            } else { // Por Hora
+              if (_fechaHora == null || _horaInicio == null || _horaFin == null) return;
+              
+              final startMins = _horaInicio!.hour * 60 + _horaInicio!.minute;
+              final endMins = _horaFin!.hour * 60 + _horaFin!.minute;
+              if (startMins >= endMins) {
+                AppToast.showError(context, 'La hora de inicio debe ser anterior a la hora de fin');
+                return;
+              }
+
+              final hs = '${_horaInicio!.hour.toString().padLeft(2, '0')}:${_horaInicio!.minute.toString().padLeft(2, '0')}';
+              final hf = '${_horaFin!.hour.toString().padLeft(2, '0')}:${_horaFin!.minute.toString().padLeft(2, '0')}';
+              
+              widget.onConfirm([_fechaHora!], _motivoController.text.trim(), horaInicio: hs, horaFin: hf);
+            }
+          },
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 45),
             backgroundColor: const Color(0xFFD8B081),
@@ -507,6 +536,136 @@ class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
           child: const Text('CONFIRMAR SELECCIÓN'),
         ),
       ],
+    );
+  }
+
+  Widget _buildTab(int index, String label) {
+    final act = _currentTab == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentTab = index),
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: act ? Colors.red.withOpacity(0.1) : Colors.transparent,
+          border: Border(bottom: BorderSide(color: act ? Colors.redAccent : Colors.transparent, width: 2)),
+        ),
+        child: Text(label, style: TextStyle(color: act ? Colors.redAccent : Colors.white54, fontWeight: FontWeight.bold, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildWeekDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: _selectedWeek,
+          dropdownColor: const Color(0xFF1E1E1E),
+          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          items: ['Semana actual', 'Siguiente semana'].map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedWeek = val);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChips(List<DateTime> weekDays, DateTime today) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: weekDays.map((date) {
+        final isPast = date.isBefore(today);
+        final isSelected = _selectedDates.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+        final name = DateFormat('EEEE', 'es_ES').format(date);
+        final capitalized = name[0].toUpperCase() + name.substring(1);
+
+        return FilterChip(
+          label: Text(capitalized),
+          selected: isSelected,
+          onSelected: isPast ? null : (val) {
+            setState(() {
+              if (val) _selectedDates.add(date);
+              else _selectedDates.removeWhere((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+            });
+          },
+          backgroundColor: const Color(0xFF2A2A2A),
+          selectedColor: Colors.redAccent,
+          labelStyle: TextStyle(
+            color: isPast ? Colors.white24 : (isSelected ? Colors.white : Colors.white70),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+          checkmarkColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDateField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+      ),
+      child: TextButton.icon(
+        icon: const Icon(Icons.calendar_today, color: Color(0xFFD8B081)),
+        label: Text(_fechaHora != null ? DateFormat('dd/MM/yyyy').format(_fechaHora!) : 'Seleccionar Fecha', style: const TextStyle(color: Colors.white)),
+        onPressed: () async {
+          final now = DateTime.now();
+          final d = await showDatePicker(
+            context: context, 
+            initialDate: now, 
+            firstDate: now, 
+            lastDate: now.add(const Duration(days: 365)),
+            builder: (context, child) => Theme(
+              data: ThemeData.dark().copyWith(
+                colorScheme: const ColorScheme.dark(primary: Color(0xFFD8B081), onPrimary: Colors.black, surface: Color(0xFF2A2A2A), onSurface: Colors.white),
+              ),
+              child: child!,
+            ),
+          );
+          if (d != null) setState(() => _fechaHora = d);
+        },
+      ),
+    );
+  }
+
+  Widget _buildTimeField(bool isStart) {
+    final tVal = isStart ? _horaInicio : _horaFin;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD8B081), width: 1.5),
+      ),
+      child: TextButton.icon(
+        icon: Icon(Icons.access_time, color: isStart ? const Color(0xFFD8B081) : Colors.redAccent),
+        label: Text(tVal != null ? tVal.format(context) : (isStart ? 'Inicio' : 'Fin'), style: const TextStyle(color: Colors.white)),
+        onPressed: () async {
+          final t = await showTimePicker(
+            context: context, 
+            initialTime: TimeOfDay(hour: isStart ? 8 : 18, minute: 0),
+            builder: (context, child) => Theme(
+              data: ThemeData.dark().copyWith(
+                colorScheme: const ColorScheme.dark(primary: Color(0xFFD8B081), onPrimary: Colors.black, surface: Color(0xFF2A2A2A), onSurface: Colors.white),
+              ),
+              child: child!,
+            ),
+          );
+          if (t != null) setState(() => isStart ? _horaInicio = t : _horaFin = t);
+        },
+      ),
     );
   }
 }

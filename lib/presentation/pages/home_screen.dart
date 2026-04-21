@@ -5,6 +5,7 @@ import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
+import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
 
 
 
@@ -48,15 +49,23 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        body: Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Bienvenido${user != null ? ': ${user.email}' : ''}'),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/ventas'),
-              child: const Text('Ir a Ventas'),
-            ),
-          ]),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Bienvenido${user != null ? ': ${user.email}' : ''}', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 24),
+              const Text('Resumen del Negocio', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              const DashboardGananciasWidget(role: AppRole.admin),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pushNamed(context, '/ventas'),
+                child: const Text('Ir a Ventas'),
+              ),
+            ],
+          ),
         ),
       ),
     );

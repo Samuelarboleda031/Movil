@@ -857,7 +857,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                       if (_productoCantidades.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         ..._productoCantidades.entries.map((e) {
-                          final p = _productos.firstWhere((prod) => prod.id == e.key, orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, proveedorId: 0, precioCompra: 0, precioVenta: 0));
+                          final p = _productos.firstWhere((prod) => prod.id == e.key, orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0));
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0, left: 16, right: 16),
                             child: Row(

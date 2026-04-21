@@ -8,8 +8,10 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/app_role.dart';
-import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/core/network/api_config.dart';
+import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
+import 'package:parte_movil/presentation/widgets/session_guard.dart';
 
 class MisComprasScreen extends StatefulWidget {
   const MisComprasScreen({super.key});
@@ -151,16 +153,25 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   }
 
   String _getResponsableName(Venta venta) {
-    if (venta.usuario != null && venta.usuario!.nombreCompleto.isNotEmpty) {
+    if (venta.responsableNombre != null && venta.responsableNombre!.isNotEmpty && venta.responsableNombre != 'Sin asignar') {
+      return venta.responsableNombre!;
+    } else if (venta.usuario != null && venta.usuario!.nombreCompleto.isNotEmpty) {
       return venta.usuario!.nombreCompleto;
     } else if (venta.usuarioId != null && _nombresUsuarios.containsKey(venta.usuarioId)) {
       return _nombresUsuarios[venta.usuarioId!]!;
+    }
+    return 'N/A';
+  }
+
+  String _getBarberoName(Venta venta) {
+    if (venta.barberoNombreStr != null && venta.barberoNombreStr!.isNotEmpty && venta.barberoNombreStr != 'Sin asignar') {
+      return venta.barberoNombreStr!;
     } else if (venta.barbero != null && venta.barbero!.nombreCompleto.isNotEmpty) {
       return venta.barbero!.nombreCompleto;
     } else if (venta.barberoId != null && _nombresBarberos.containsKey(venta.barberoId)) {
       return _nombresBarberos[venta.barberoId!]!;
     }
-    return 'Ticket #${venta.numero}';
+    return 'Sin asignar';
   }
 
   Widget _buildCompraCard(Venta venta) {
@@ -219,65 +230,14 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
     );
   }
 
-  Future<void> _verDetallesCompra(Venta summary) async {
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-    try {
-      final full = await _ventaService.obtenerVentaPorId(summary.id!);
-      if (mounted) Navigator.pop(context);
-      if (!mounted) return;
-
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Detalle Ticket #${full.numero}'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _detailRow('Responsable:', _getResponsableName(full)),
-                _detailRow('Método Pago:', full.metodoPago),
-                const Divider(),
-                const Text('Items Comprados:', style: TextStyle(fontWeight: FontWeight.bold)),
-                if (full.detalles != null)
-                  ...full.detalles!.map((d) {
-                    String itemName = 'Ítem desconocido';
-                    if (d.productoId != null) {
-                      itemName = _nombresProductos[d.productoId] ?? 'Producto #${d.productoId}';
-                    } else if (d.servicioId != null) {
-                      itemName = _nombresServicios[d.servicioId] ?? 'Servicio #${d.servicioId}';
-                    } else if (d.paqueteId != null) {
-                      itemName = _nombresPaquetes[d.paqueteId] ?? 'Paquete #${d.paqueteId}';
-                    }
-                    
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('• $itemName (${d.cantidad}) x ${AppFormat.cop(d.precioUnitario)}'),
-                    );
-                  }),
-                const Divider(),
-                _detailRow('Total Pagado:', AppFormat.cop(full.total)),
-              ],
-            ),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar'))],
+  void _verDetallesCompra(Venta summary) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VentaDetalleScreen(
+          ventaSummary: summary,
+          role: AppRole.client,
         ),
-      );
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(value),
-        ],
       ),
     );
   }
