@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
@@ -22,7 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passCtrl = TextEditingController();
   final _passConfirmCtrl = TextEditingController();
   final _auth = AuthService();
-  final _clienteService = ClienteService();
+  final _auxiliarService = AuxiliarService();
   bool _loading = false;
   final AppRole _selectedRole = AppRole.client; // Todos los registros de la app móvil son Clientes por defecto
 
@@ -89,7 +89,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           usuarioId: usuarioApi.id,
           estado: true,
         );
-        await _clienteService.crearCliente(cliente);
+        await _auxiliarService.crearCliente(cliente);
       }
       
       await _auth.sendEmailVerification();

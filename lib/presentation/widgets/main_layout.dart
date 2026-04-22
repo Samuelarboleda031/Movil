@@ -17,18 +17,12 @@ import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
 import 'package:parte_movil/presentation/pages/ventas_screen.dart';
 import 'package:parte_movil/presentation/pages/servicios_gestion_screen.dart';
 import 'package:parte_movil/presentation/pages/productos_gestion_screen.dart';
-import 'package:parte_movil/presentation/pages/client_home_screen.dart';
 import 'package:parte_movil/presentation/pages/mis_compras_screen.dart';
-import 'package:parte_movil/presentation/pages/client_profile_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_home_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_profile_screen.dart';
+import 'package:parte_movil/presentation/pages/profile_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_form_screen.dart';
 import 'package:parte_movil/presentation/pages/producto_form_screen.dart';
-import 'package:parte_movil/presentation/pages/client_agendamiento_form_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_agendamiento_form_screen.dart';
-
 
 class MainLayout extends StatefulWidget {
   final AppRole role;
@@ -40,13 +34,20 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
+  late List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = _getScreens();
+  }
 
   List<Widget> _getScreens() {
     switch (widget.role) {
       case AppRole.manager:
       case AppRole.admin:
         return [
-          const HomeScreen(),
+          HomeScreen(role: widget.role),
           BlocProvider(
             create: (context) => AgendamientosBloc(
               agendamientoService: AgendamientoService(),
@@ -73,7 +74,7 @@ class _MainLayoutState extends State<MainLayout> {
 
       case AppRole.barber:
         return [
-          const BarberHomeScreen(),
+          HomeScreen(role: widget.role),
           BlocProvider(
             create: (context) => AgendamientosBloc(
               agendamientoService: AgendamientoService(),
@@ -92,12 +93,11 @@ class _MainLayoutState extends State<MainLayout> {
             )..add(const LoadVentasRequested(page: 1)),
             child: VentasScreen(role: widget.role), // Reutilizamos aquí
           ),
-          const BarberProfileScreen(),
-
+          ProfileScreen(role: widget.role),
         ];
       case AppRole.client:
         return [
-          const ClientHomeScreen(),
+          HomeScreen(role: widget.role),
           BlocProvider(
             create: (context) => AgendamientosBloc(
               agendamientoService: AgendamientoService(),
@@ -109,7 +109,7 @@ class _MainLayoutState extends State<MainLayout> {
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
           const MisComprasScreen(),
-          const ClientProfileScreen(),
+          ProfileScreen(role: widget.role),
         ];
 
     }
@@ -145,7 +145,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = _getScreens();
+    final screens = _screens;
     
     // Configuración del FAB según el rol y la pantalla actual
     Widget? floatingActionButton;
@@ -176,13 +176,13 @@ class _MainLayoutState extends State<MainLayout> {
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       // Agendamiento para Clientes
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ClientAgendamientoFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
         child: const Icon(Icons.add),
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.barber) {
       // Agendamiento para Barberos
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BarberAgendamientoFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
         child: const Icon(Icons.add),
       );
     }

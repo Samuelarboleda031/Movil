@@ -86,11 +86,11 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B1B1B),
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Detalles de la Venta'),
+        title: const Text('Detalles de la Venta', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.black,
       ),
       resizeToAvoidBottomInset: false,
       body: _isLoading
@@ -109,9 +109,6 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
                             const SizedBox(height: 24),
 
                             _buildInfoGrid(_ventaCompleta!),
-                            const SizedBox(height: 24),
-
-                            _buildStatusBadge(_ventaCompleta!),
                             const SizedBox(height: 24),
                             
                             const Text('Items Comprados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -162,51 +159,59 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     final String responsableMostrar = venta.responsableNombre ?? venta.usuario?.nombreCompleto ?? 'N/A';
     final String barberoMostrar = venta.barberoNombreStr ?? venta.barbero?.nombreCompleto ?? 'Sin asignar';
     final String fecha = venta.fechaRegistro?.split('T')[0] ?? 'N/A';
+    final String metodoPago = venta.metodoPago ?? 'N/A';
+    final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
 
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.4,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 2.2,
       children: [
         _buildInfoCard('Cliente', labelCliente),
         _buildInfoCard('Fecha', fecha),
         _buildInfoCard('Responsable', responsableMostrar),
         if (barberoMostrar != 'Sin asignar' && barberoMostrar.isNotEmpty) ...[
            _buildInfoCard('Barbero', barberoMostrar),
-        ]
+        ],
+        _buildInfoCard('Método de Pago', metodoPago),
+        _buildInfoCard(
+          'Estado', 
+          isAnulada ? 'ANULADA' : 'ACTIVA', 
+          valueColor: isAnulada ? Colors.red : Colors.green
+        ),
       ],
     );
   }
 
-  Widget _buildInfoCard(String label, String value) {
+  Widget _buildInfoCard(String label, String value, {Color? valueColor}) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C),
+        color: const Color(0xFF111111),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[800]!, width: 1),
+        border: Border.all(color: Colors.grey[900]!, width: 1),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
-              color: Colors.grey[400],
-              fontWeight: FontWeight.w500,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Colors.white,
+              color: valueColor ?? Colors.grey[400],
               fontWeight: FontWeight.w600,
             ),
             maxLines: 2,
@@ -217,30 +222,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     );
   }
 
-  Widget _buildStatusBadge(Venta venta) {
-    final isAnulada = venta.estado?.toLowerCase() == 'anulada';
 
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: isAnulada ? Colors.red[900] : const Color(0xFFD8B081).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isAnulada ? Colors.red : const Color(0xFFD8B081), width: 0.5)
-          ),
-          child: Text(
-            isAnulada ? 'Estado: Anulada' : 'Pago: ${venta.metodoPago}',
-            style: TextStyle(
-              fontSize: 13,
-              color: isAnulada ? Colors.red[100] : const Color(0xFFD8B081),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildItemsList(Venta venta) {
     return ListView.builder(
@@ -278,9 +260,9 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF232323),
+            color: const Color(0xFF111111),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey[850]!, width: 1),
+            border: Border.all(color: Colors.grey[900]!, width: 1),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.all(8),
@@ -319,24 +301,32 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
           'Resumen Financiero',
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[400],
-            fontWeight: FontWeight.w500,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Subtotal', style: TextStyle(color: Colors.white70)),
-            Text(AppFormat.cop(venta.subtotal), style: const TextStyle(fontWeight: FontWeight.w500)),
+            const Text('Subtotal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+            Text(AppFormat.cop(venta.subtotal), style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[400])),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Descuento', style: TextStyle(color: Colors.white70)),
-            Text('- ${AppFormat.cop(venta.porcentajeDescuento)}', style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.greenAccent)),
+            const Text('Descuento', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+            Text(
+              '- ${AppFormat.cop(venta.porcentajeDescuento)}', 
+              style: TextStyle(
+                fontWeight: FontWeight.w600, 
+                color: (widget.role == AppRole.admin || widget.role == AppRole.manager || widget.role == AppRole.barber) 
+                  ? Colors.red 
+                  : Colors.greenAccent
+              )
+            ),
           ],
         ),
         const Divider(height: 32, thickness: 0.5, color: Colors.grey),
@@ -366,6 +356,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildActionButtonsBar(BuildContext context, Venta venta) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
+    final bool isManagerOrAdmin = widget.role == AppRole.admin || widget.role == AppRole.manager;
     final bool isClient = widget.role == AppRole.client;
 
     if (isClient) {
@@ -375,9 +366,9 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: Colors.black,
         border: Border(
-          top: BorderSide(color: Colors.grey[850]!, width: 1.0),
+          top: BorderSide(color: Colors.grey[900]!, width: 1.0),
         ),
       ),
       padding: EdgeInsets.fromLTRB(
@@ -389,7 +380,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       child: Row(
         children: [
           // Administrador o Barbero
-          if (!isAnulada && widget.role == AppRole.admin) ...[
+          if (!isAnulada && isManagerOrAdmin) ...[
             Expanded(
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
@@ -413,7 +404,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             const SizedBox(width: 12),
           ],
           
-          if (widget.role == AppRole.admin) ...[
+          if (isManagerOrAdmin) ...[
             Expanded(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -470,7 +461,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: const Color(0xFF111111),
         title: const Text('¿Anular venta?'),
         content: const Text('Esta acción no se puede deshacer y el estado pasará a Anulada.'),
         actions: [

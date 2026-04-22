@@ -17,10 +17,10 @@ class ProductoService {
   }
 
   // ================= CATÉGORIAS =================
-  Future<List<Categoria>> getCategorias() async {
+  Future<List<Categoria>> getCategorias({int page = 1, int pageSize = 1000}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/Categorias?page=1&pageSize=1000';
+      final url = '${ApiConfig.baseUrl}/Categorias?page=$page&pageSize=$pageSize';
       
       final response = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 30));
 
@@ -45,10 +45,10 @@ class ProductoService {
   }
 
   // ================= PRODUCTOS =================
-  Future<List<Producto>> getProductos() async {
+  Future<List<Producto>> getProductos({int page = 1, int pageSize = 5}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.productos}?page=1&pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.productos}?page=$page&pageSize=$pageSize';
       
       final response = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 30));
 

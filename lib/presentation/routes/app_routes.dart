@@ -16,13 +16,8 @@ import 'package:parte_movil/presentation/pages/login_screen.dart';
 import 'package:parte_movil/presentation/pages/register_screen.dart';
 import 'package:parte_movil/presentation/pages/ventas_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
-import 'package:parte_movil/presentation/pages/client_home_screen.dart';
 import 'package:parte_movil/presentation/pages/mis_compras_screen.dart';
-import 'package:parte_movil/presentation/pages/client_agendamiento_form_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_home_screen.dart';
 
-import 'package:parte_movil/presentation/pages/client_profile_screen.dart';
-import 'package:parte_movil/presentation/pages/barber_profile_screen.dart';
 import 'package:parte_movil/presentation/pages/servicios_gestion_screen.dart';
 import 'package:parte_movil/presentation/pages/productos_gestion_screen.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -35,14 +30,14 @@ class AppRoutes {
     return {
       '/': (context) => const LoginScreen(),
       '/register': (context) => const RegisterScreen(),
-      '/home': (context) => const HomeScreen(),
+      '/home': (context) => const MainLayout(role: AppRole.client), // Default fallback
       '/ventas': (context) => BlocProvider(
             create: (context) => VentasBloc(
               ventaService: VentaService(),
               auxiliarService: AuxiliarService(),
               authService: AuthService(),
             )..add(const LoadVentasRequested(page: 1)),
-            child: const VentasScreen(),
+            child: const VentasScreen(role: AppRole.admin),
           ),
       '/mis-compras': (context) => const MisComprasScreen(),
 
@@ -54,17 +49,9 @@ class AppRoutes {
               userContextService: UserContextService(),
               auxiliarService: AuxiliarService(),
             )..add(const LoadAgendamientosRequested(page: 1)),
-            child: const AgendamientosScreen(),
+            child: const AgendamientosScreen(role: AppRole.admin),
           ),
 
-      '/client_home': (context) => const ClientHomeScreen(),
-      '/cliente/agendamiento': (context) => const ClientAgendamientoFormScreen(),
-
-      '/cliente/mis-compras': (context) => const MisComprasScreen(),
-      '/barber_home': (context) => const BarberHomeScreen(),
-
-      '/cliente/perfil': (context) => const ClientProfileScreen(),
-      '/barbero/perfil': (context) => const BarberProfileScreen(),
       '/servicios': (context) => const ServiciosGestionScreen(),
       '/productos': (context) => const ProductosGestionScreen(),
       '/main-admin': (context) => const MainLayout(role: AppRole.admin),
@@ -73,3 +60,4 @@ class AppRoutes {
     };
   }
 }
+

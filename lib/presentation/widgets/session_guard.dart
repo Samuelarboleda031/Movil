@@ -4,12 +4,12 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 
 class SessionGuard extends StatefulWidget {
-  final AppRole requiredRole;
+  final List<AppRole> allowedRoles;
   final Widget child;
 
   const SessionGuard({
     super.key,
-    required this.requiredRole,
+    required this.allowedRoles,
     required this.child,
   });
 
@@ -54,11 +54,13 @@ class _SessionGuardState extends State<SessionGuard> {
       return;
     }
 
-    print('[SessionGuard] Rol actual $rolActual, se requiere ${widget.requiredRole}');
+    print('[SessionGuard] Rol actual $rolActual, permitidos ${widget.allowedRoles}');
 
     // Lógica flexible: El Gerente (Super Admin ID 1) tiene todos los permisos del Administrador (ID 18)
-    bool isAuthorized = (rolActual == widget.requiredRole);
-    if (!isAuthorized && widget.requiredRole == AppRole.admin && rolActual == AppRole.manager) {
+    bool isAuthorized = widget.allowedRoles.contains(rolActual);
+    
+    // Si se requiere Admin pero es Manager, también es válido
+    if (!isAuthorized && widget.allowedRoles.contains(AppRole.admin) && rolActual == AppRole.manager) {
       isAuthorized = true;
     }
 
@@ -98,12 +100,12 @@ class _SessionGuardState extends State<SessionGuard> {
   String _homeRouteForRole(AppRole role) {
     switch (role) {
       case AppRole.client:
-        return '/client_home';
+        return '/main-client';
       case AppRole.barber:
-        return '/barber_home';
+        return '/main-barber';
       case AppRole.manager:
       case AppRole.admin:
-        return '/home';
+        return '/main-admin';
     }
   }
 

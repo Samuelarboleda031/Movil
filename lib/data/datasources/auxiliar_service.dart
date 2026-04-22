@@ -20,6 +20,33 @@ class AuxiliarService {
     };
   }
 
+  Future<String?> subirFotoPerfil(int usuarioId, String imagePath) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/Usuarios/$usuarioId/foto');
+    final request = http.MultipartRequest('POST', uri);
+
+    // Optional auth header
+    final token = await _authService.getToken();
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(await http.MultipartFile.fromPath('imagen', imagePath));
+
+    final response = await request.send();
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final resStr = await response.stream.bytesToString();
+      final data = jsonDecode(resStr);
+      // Backend probably returns the URL or the Usuario with FotoPerfil
+      if (data is Map<String, dynamic> && data['fotoPerfil'] != null) {
+        return data['fotoPerfil'];
+      }
+      return 'success'; // Just return truthy value if format is different
+    } else {
+      final resStr = await response.stream.bytesToString();
+      throw Exception('Error al subir foto: $resStr');
+    }
+  }
+
   // Clientes
   Future<List<Cliente>> obtenerClientes({int page = 1, int pageSize = 1000}) async {
     try {
@@ -113,6 +140,15 @@ class AuxiliarService {
     }
   }
 
+  Future<Cliente?> obtenerClientePorUsuarioId(int usuarioId) async {
+    final clientes = await obtenerClientes();
+    try {
+      return clientes.firstWhere((c) => c.usuarioId == usuarioId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Barberos
   Future<List<Barbero>> obtenerBarberos() async {
     try {
@@ -203,6 +239,15 @@ class AuxiliarService {
       }
     } catch (e) {
       throw Exception('Error de conexión al actualizar barbero: $e');
+    }
+  }
+
+  Future<Barbero?> obtenerBarberoPorUsuarioId(int usuarioId) async {
+    final barberos = await obtenerBarberos();
+    try {
+      return barberos.firstWhere((b) => b.usuarioId == usuarioId);
+    } catch (_) {
+      return null;
     }
   }
 

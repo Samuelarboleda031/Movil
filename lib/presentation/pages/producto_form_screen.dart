@@ -203,7 +203,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin,
+      allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
         appBar: AppBar(title: Text(_isNew ? 'Nuevo Producto' : 'Editar Producto')),
         body: SingleChildScrollView(

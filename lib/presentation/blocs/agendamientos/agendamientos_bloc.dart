@@ -37,15 +37,16 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
     on<ChangeAgendamientoStatusRequested>(_onChangeStatus);
   }
 
-
   Future<void> _onChangeStatus(
     ChangeAgendamientoStatusRequested event,
     Emitter<AgendamientosState> emit,
   ) async {
     final currentState = state;
     int page = 1;
+    bool currentMode = false;
     if (currentState is AgendamientosLoaded) {
       page = currentState.currentPage;
+      currentMode = currentState.isWeeklyMode;
     }
 
     emit(AgendamientosActionLoading());
@@ -54,10 +55,10 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       await _agendamientoService.actualizarAgendamiento(updated);
       
       emit(const AgendamientosActionSuccess('Estado actualizado'));
-      add(LoadAgendamientosRequested(page: page));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
       emit(AgendamientosError('Error al cambiar estado: $e'));
-      add(LoadAgendamientosRequested(page: page));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }
 
@@ -68,7 +69,6 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
     emit(AgendamientosLoading());
     try {
       final user = await _authService.getCurrentUser();
-      final fbUser = _authService.currentUser;
       if (user == null || user.rolId == null) {
         throw Exception('Usuario no autenticado o sin rol asignado.');
       }
@@ -80,25 +80,33 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         if (cliente == null || cliente.id == null) {
           throw Exception('No tienes un perfil de cliente configurado. Completa tu perfil.');
         }
-        final items = await _agendamientoService.obtenerAgendamientosPorCliente(cliente.id!);
+        
+        final bool isWeekly = event.estaSemana ?? false;
+        const int pageSize = 10;
+
+        final paginacion = await _agendamientoService.obtenerAgendamientosPorCliente(
+          cliente.id!,
+          page: event.page,
+          pageSize: pageSize,
+          estaSemana: event.estaSemana,
+        );
+        
         emit(AgendamientosLoaded(
-          agendamientos: items,
-          paginacion: null, // Paginación simulada local
-          currentPage: 1,
+          agendamientos: paginacion.items,
+          paginacion: paginacion,
+          currentPage: event.page,
+          isWeeklyMode: isWeekly,
         ));
       } else if (role == AppRole.barber) {
-        final barberos = await _auxiliarService.obtenerBarberos();
-        final emailBuscado = user.correo ?? fbUser?.email ?? '';
-        final barberoLocal = barberos.firstWhere(
-          (b) => (b.email ?? '').toLowerCase() == emailBuscado.toLowerCase(),
-          orElse: () => Barbero(id: 0, documento: '', nombre: 'Barbero', apellido: '', telefono: '', email: emailBuscado, direccion: '', estado: true),
+        final barberoLocal = await _userContextService.obtenerBarberoActual();
+        if (barberoLocal == null) throw Exception('No se encontró el perfil de barbero.');
+
+        final bool isWeekly = event.estaSemana ?? false;
+        final paginacion = await _agendamientoService.obtenerAgendamientos(
+          page: 1, 
+          pageSize: 2000,
+          estaSemana: event.estaSemana,
         );
-
-        if (barberoLocal.id == 0) {
-           throw Exception('Tu correo no está asociado a ningún barbero registrado.');
-        }
-
-        final paginacion = await _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 2000);
         final propios = paginacion.items.where((a) => 
            a.barberoId == barberoLocal.id || 
            (a.barbero?.email?.toLowerCase() == barberoLocal.email?.toLowerCase())
@@ -106,19 +114,27 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         
         emit(AgendamientosLoaded(
           agendamientos: propios,
-          paginacion: null, // Para los barberos omitimos la UI de paginación
+          paginacion: null,
           currentPage: 1,
+          isWeeklyMode: isWeekly,
         ));
       } else {
         // MODO ADMIN / MANAGER
+        final bool isWeekly = event.estaSemana ?? false;
+        const int pageSize = 10;
+        print('🔍 [AgendamientosBloc] Cargando citas ADMIN/MANAGER. isWeekly: $isWeekly');
         final paginacion = await _agendamientoService.obtenerAgendamientos(
           page: event.page,
-          pageSize: 15,
+          pageSize: pageSize,
+          estaSemana: event.estaSemana,
         );
+        print('✅ [AgendamientosBloc] Se obtuvieron ${paginacion.items.length} citas de un total de ${paginacion.totalCount}');
+
         emit(AgendamientosLoaded(
           agendamientos: paginacion.items,
           paginacion: paginacion,
           currentPage: event.page,
+          isWeeklyMode: isWeekly,
         ));
       }
     } catch (e) {
@@ -132,8 +148,10 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
   ) async {
     final currentState = state;
     int page = 1;
+    bool currentMode = false;
     if (currentState is AgendamientosLoaded) {
       page = currentState.currentPage;
+      currentMode = currentState.isWeeklyMode;
     }
 
     emit(AgendamientosActionLoading());
@@ -148,11 +166,12 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
           fechaOriginal: event.agendamiento.fechaCita ?? '',
         );
       }
-      emit(const AgendamientosActionSuccess('Cita cancelada'));
-      add(LoadAgendamientosRequested(page: page));
+
+      emit(const AgendamientosActionSuccess('Agendamiento cancelado'));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
-      emit(AgendamientosError('Error al cancelar cita: $e'));
-      add(LoadAgendamientosRequested(page: page));
+      emit(AgendamientosError('Error al cancelar: $e'));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }
 
@@ -162,8 +181,10 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
   ) async {
     final currentState = state;
     int page = 1;
+    bool currentMode = false;
     if (currentState is AgendamientosLoaded) {
       page = currentState.currentPage;
+      currentMode = currentState.isWeeklyMode;
     }
 
     emit(AgendamientosActionLoading());
@@ -231,11 +252,10 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         emit(const AgendamientosActionSuccess('Días cancelados exitosamente'));
       }
       
-      emit(const AgendamientosActionSuccess('Citas canceladas exitosamente'));
-      add(LoadAgendamientosRequested(page: page));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
       emit(AgendamientosError('Error al cancelar días: $e'));
-      add(LoadAgendamientosRequested(page: page));
+      add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }
 }

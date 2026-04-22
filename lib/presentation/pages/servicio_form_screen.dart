@@ -110,7 +110,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin,
+      allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
         appBar: AppBar(title: Text(_isNew ? 'Nuevo Servicio' : 'Editar Servicio')),
         body: SingleChildScrollView(

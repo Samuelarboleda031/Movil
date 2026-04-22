@@ -14,6 +14,7 @@ import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
+import 'agendamiento_detalle_screen.dart';
 
 class AgendamientosScreen extends StatefulWidget {
   final AppRole role;
@@ -25,9 +26,10 @@ class AgendamientosScreen extends StatefulWidget {
 }
 
 class _AgendamientosScreenState extends State<AgendamientosScreen> {
-
+  final TextEditingController _searchController = TextEditingController();
   final AuxiliarService _auxiliarService = AuxiliarService();
   String _searchQuery = '';
+  int _visibleItemsOnFirstPage = 6;
 
   List<Agendamiento> _agendamientosFiltrados(List<Agendamiento> agendamientos) {
     final query = _searchQuery.toLowerCase();
@@ -41,42 +43,26 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   Future<void> _verDetalles(Agendamiento ag) async {
-    showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
-    try {
-      final detail = await AgendamientoService().obtenerAgendamientoPorId(ag.id!);
-      if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Detalles de la Cita'),
-            content: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _detailRow('Cliente:', detail.cliente?.nombreCompleto ?? 'N/A'),
-                  _detailRow('Barbero:', detail.barbero?.nombreCompleto ?? 'N/A'),
-                  _detailRow('Servicio:', detail.servicio?.nombre ?? detail.paquete?.nombre ?? 'N/A'),
-                  _detailRow('Fecha:', detail.fechaCita ?? 'N/A'),
-                  _detailRow('Hora:', '${detail.horaInicio} - ${detail.horaFin}'),
-                  _detailRow('Monto:', AppFormat.cop(detail.monto ?? 0)),
-                  _detailRow('Estado:', detail.estadoCita ?? 'Pendiente'),
-                  const Divider(),
-                  const Text('Observaciones:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(detail.observaciones ?? 'Sin observaciones'),
-                ],
-              ),
-            ),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
-          ),
-        );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgendamientoDetalleScreen(
+          agendamiento: ag,
+          role: widget.role,
+        ),
+      ),
+    ).then((_) {
+      // Opcional: Recargar si hubo cambios manteniendo el modo actual
+      final state = context.read<AgendamientosBloc>().state;
+      if (state is AgendamientosLoaded) {
+        context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(
+          page: state.currentPage, 
+          estaSemana: state.isWeeklyMode
+        ));
+      } else {
+        context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
       }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      AppToast.showError(context, 'Error: $e');
-    }
+    });
   }
 
   Widget _detailRow(String label, String value) {
@@ -178,9 +164,15 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: widget.role,
+      allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber, AppRole.client],
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Citas'),
@@ -208,11 +200,15 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
             List<Agendamiento> agendamientos = [];
             Paginacion<Agendamiento>? paginacion;
             int currentPage = 1;
+            bool isWeeklyMode = false;
+            int totalItems = 0;
 
             if (state is AgendamientosLoaded) {
               agendamientos = state.agendamientos;
               paginacion = state.paginacion;
               currentPage = state.currentPage;
+              isWeeklyMode = state.isWeeklyMode;
+              totalItems = paginacion?.totalCount ?? agendamientos.length;
             }
 
             final filtrados = _agendamientosFiltrados(agendamientos);
@@ -222,29 +218,67 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Buscar en esta página...',
+                      hintText: 'Buscar...',
                       prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onChanged: (val) => setState(() => _searchQuery = val),
                   ),
                 ),
+
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : filtrados.isEmpty
-                          ? const Center(child: Text('No hay agendamientos en esta página'))
-                          : RefreshIndicator(
-                              onRefresh: () async {
-                                context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
-                              },
+                          ? const Center(child: Text('No hay agendamientos'))
+                          : Builder(
+                              builder: (context) {
+                                List<Agendamiento> itemsToShow = filtrados;
+                                if (currentPage == 1 && _visibleItemsOnFirstPage < filtrados.length) {
+                                  itemsToShow = filtrados.take(_visibleItemsOnFirstPage).toList();
+                                }
+                                
+                                return RefreshIndicator(
+                                  onRefresh: () async {
+                                    setState(() => _visibleItemsOnFirstPage = 6);
+                                    context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
+                                  },
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                                itemCount: filtrados.length + 1,
+                                itemCount: itemsToShow.length + 1,
                                 itemBuilder: (context, index) {
-                                  if (index == filtrados.length) {
-                                    if (paginacion != null && paginacion.totalPages > 1) {
+                                  if (index == itemsToShow.length) {
+                                    if (currentPage == 1 && _visibleItemsOnFirstPage < filtrados.length) {
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 20),
+                                        child: Center(
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFFD8B081),
+                                              foregroundColor: Colors.black,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _visibleItemsOnFirstPage = 10; // Expand to full page size
+                                              });
+                                            },
+                                            child: const Text('Cargar más citas', style: TextStyle(fontWeight: FontWeight.bold)),
+                                          ),
+                                        ),
+                                      );
+                                    } else if (paginacion != null && paginacion.totalPages > 1) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 20, bottom: 40),
                                         child: _buildPaginationControls(paginacion.totalPages, currentPage),
@@ -252,10 +286,11 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                     }
                                     return const SizedBox(height: 80);
                                   }
-                                  final ag = filtrados[index];
+                                  final ag = itemsToShow[index];
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     child: ListTile(
+                                      onTap: () => _verDetalles(ag),
                                       title: Text(ag.cliente?.nombreCompleto ?? 'Cita #${ag.id}'),
                                       subtitle: Text('${ag.fechaCita} | ${ag.horaInicio}\nBarbero: ${ag.barbero?.nombreCompleto ?? "N/A"} | ${AppFormat.cop(ag.monto ?? 0)}'),
                                       trailing: PopupMenuButton(
@@ -273,7 +308,9 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                   );
                                 },
                               ),
-                            ),
+                            );
+                          }
+                        ),
                 ),
               ],
             );
@@ -325,14 +362,20 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         children: [
           _buildPageButton(
             icon: Icons.chevron_left, 
-            onTap: currentPage > 1 ? () => context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage - 1)) : null
+            onTap: currentPage > 1 ? () {
+              setState(() => _visibleItemsOnFirstPage = 6);
+              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage - 1));
+            } : null
           ),
           const SizedBox(width: 8),
           ..._buildPageNumbers(totalPages, currentPage),
           const SizedBox(width: 8),
           _buildPageButton(
             icon: Icons.chevron_right, 
-            onTap: currentPage < totalPages ? () => context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage + 1)) : null
+            onTap: currentPage < totalPages ? () {
+              setState(() => _visibleItemsOnFirstPage = 6);
+              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage + 1));
+            } : null
           ),
         ],
       ),
@@ -354,7 +397,10 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   Widget _buildPageNumberButton(int page, int currentPage) {
     bool isSelected = page == currentPage;
     return GestureDetector(
-      onTap: isSelected ? null : () => context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page)),
+      onTap: isSelected ? null : () {
+        setState(() => _visibleItemsOnFirstPage = 6); // Reset on page change
+        context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page));
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

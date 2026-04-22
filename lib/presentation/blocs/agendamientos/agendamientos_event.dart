@@ -10,11 +10,12 @@ abstract class AgendamientosEvent extends Equatable {
 
 class LoadAgendamientosRequested extends AgendamientosEvent {
   final int page;
+  final bool? estaSemana;
   
-  const LoadAgendamientosRequested({this.page = 1});
+  const LoadAgendamientosRequested({this.page = 1, this.estaSemana});
 
   @override
-  List<Object?> get props => [page];
+  List<Object?> get props => [page, estaSemana];
 }
 
 class CancelAgendamientoRequested extends AgendamientosEvent {

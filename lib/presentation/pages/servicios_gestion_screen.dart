@@ -5,7 +5,9 @@ import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'servicio_form_screen.dart';
+import 'servicio_detalle_screen.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/data/datasources/auth_service.dart';
 
 class ServiciosGestionScreen extends StatefulWidget {
   const ServiciosGestionScreen({super.key});
@@ -15,12 +17,13 @@ class ServiciosGestionScreen extends StatefulWidget {
 }
 
 class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
+  final TextEditingController _searchController = TextEditingController();
   final AuxiliarService _servicioData = AuxiliarService();
   List<Servicio> _servicios = [];
   Paginacion<Servicio>? _ultimaPaginacion;
   bool _isLoading = true;
   int _currentPage = 1;
-  static const int _pageSize = 15;
+  static const int _pageSize = 5;
   String _searchQuery = '';
 
   @override
@@ -42,9 +45,11 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
       // Simulación de paginación si el backend devuelve lista plana
       // (ajustar cuando el backend devuelva Paginacion real para servicios)
       if (mounted) {
+        // Sort alphabetically
+        data.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+        
         setState(() {
           _servicios = data;
-          // Creamos una paginación artificial si no viene del back
           _ultimaPaginacion = Paginacion<Servicio>(
             items: data,
             totalCount: data.length,
@@ -107,9 +112,15 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin, 
+      allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
         appBar: AppBar(title: const Text('Gestión de Servicios')),
         body: Column(
@@ -117,9 +128,19 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
+                controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Buscar en esta página...',
                   prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
@@ -146,6 +167,23 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: ListTile(
+                              onTap: () async {
+                                final auth = AuthService();
+                                final user = await auth.getCurrentUser();
+                                final role = user?.rolId != null ? roleForRolId(user!.rolId) : AppRole.client;
+                                
+                                if (mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ServicioDetalleScreen(
+                                        servicio: s,
+                                        role: role ?? AppRole.client,
+                                      ),
+                                    ),
+                                  ).then((_) => _cargarServicios(_currentPage));
+                                }
+                              },
                               leading: s.imagen != null && s.imagen!.isNotEmpty 
                                 ? CircleAvatar(backgroundImage: NetworkImage(s.imagen!))
                                 : const CircleAvatar(child: Icon(Icons.content_cut)),

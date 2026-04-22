@@ -1,8 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:parte_movil/domain/repositories/auth_repository.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/cliente_service.dart';
-import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/barbero.dart';
@@ -10,16 +9,13 @@ import 'package:parte_movil/data/models/usuario.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthService _authService;
-  final ClienteService _clienteService;
-  final BarberoService _barberoService;
+  final AuxiliarService _auxiliarService;
 
   AuthRepositoryImpl({
     required AuthService authService,
-    required ClienteService clienteService,
-    required BarberoService barberoService,
+    required AuxiliarService auxiliarService,
   })  : _authService = authService,
-        _clienteService = clienteService,
-        _barberoService = barberoService;
+        _auxiliarService = auxiliarService;
 
   @override
   Future<SessionData> loginWithEmail(String email, String password) async {
@@ -67,7 +63,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
     try {
       if (role == AppRole.client) {
-        final clienteExistente = await _clienteService.obtenerClientePorUsuarioId(usuarioApi.id!);
+        final clienteExistente = await _auxiliarService.obtenerClientePorUsuarioId(usuarioApi.id!);
         if (clienteExistente == null) {
           final nuevoCliente = Cliente(
             documento: 'G-${DateTime.now().millisecondsSinceEpoch}',
@@ -78,10 +74,10 @@ class AuthRepositoryImpl implements AuthRepository {
             usuarioId: usuarioApi.id,
             estado: true,
           );
-          await _clienteService.crearCliente(nuevoCliente);
+          await _auxiliarService.crearCliente(nuevoCliente);
         }
       } else if (role == AppRole.barber) {
-        final barberoExistente = await _barberoService.obtenerBarberoPorUsuarioId(usuarioApi.id!);
+        final barberoExistente = await _auxiliarService.obtenerBarberoPorUsuarioId(usuarioApi.id!);
         if (barberoExistente == null) {
           final nuevoBarbero = Barbero(
             documento: 'G-${DateTime.now().millisecondsSinceEpoch}',
@@ -93,7 +89,7 @@ class AuthRepositoryImpl implements AuthRepository {
             estado: true,
             fechaIngreso: DateTime.now().toIso8601String().split('T').first, 
           );
-          await _barberoService.crearBarbero(nuevoBarbero);
+          await _auxiliarService.crearBarbero(nuevoBarbero);
         }
       }
     } catch (e) {

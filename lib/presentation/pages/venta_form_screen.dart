@@ -185,6 +185,12 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
         }
       }
 
+      // 1.2 Sort lists for better UX
+      clientes.sort((a, b) => a.nombreCompleto.toLowerCase().compareTo(b.nombreCompleto.toLowerCase()));
+      barberos.sort((a, b) => a.nombreCompleto.toLowerCase().compareTo(b.nombreCompleto.toLowerCase()));
+      productos.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+      servicios.sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+
       setState(() {
         _clientes = clientes;
         _barberos = barberos;
@@ -481,7 +487,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin,
+      allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber],
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.venta == null ? 'Nueva Venta' : 'Editar Venta'),

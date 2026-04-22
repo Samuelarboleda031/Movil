@@ -31,6 +31,7 @@ class VentasScreen extends StatefulWidget {
 }
 
 class _VentasScreenState extends State<VentasScreen> {
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   
   String _getNombreMostrar(Venta venta, Map<int, Cliente> catalogoClientes) {
@@ -52,9 +53,15 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: widget.role,
+      allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber],
       child: BlocConsumer<VentasBloc, VentasState>(
         listener: (context, state) {
           if (state is VentasError) {
@@ -98,9 +105,19 @@ class _VentasScreenState extends State<VentasScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Buscar en la página...',
                       prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                       filled: true,
                       fillColor: Theme.of(context).cardColor,

@@ -17,15 +17,17 @@ class AgendamientosLoaded extends AgendamientosState {
   final List<Agendamiento> agendamientos;
   final Paginacion<Agendamiento>? paginacion;
   final int currentPage;
+  final bool isWeeklyMode;
 
   const AgendamientosLoaded({
     required this.agendamientos,
     this.paginacion,
     this.currentPage = 1,
+    this.isWeeklyMode = false,
   });
 
   @override
-  List<Object?> get props => [agendamientos, paginacion, currentPage];
+  List<Object?> get props => [agendamientos, paginacion, currentPage, isWeeklyMode];
 }
 
 class AgendamientosActionLoading extends AgendamientosState {}

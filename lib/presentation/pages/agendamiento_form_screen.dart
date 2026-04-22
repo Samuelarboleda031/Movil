@@ -11,6 +11,7 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
@@ -92,7 +93,13 @@ class _HorarioBarbero {
 // ─── Widget Principal ─────────────────────────────────────────────────────────
 class AgendamientoFormScreen extends StatefulWidget {
   final Agendamiento? agendamiento;
-  const AgendamientoFormScreen({super.key, this.agendamiento});
+  final AppRole role;
+  
+  const AgendamientoFormScreen({
+    super.key, 
+    this.agendamiento,
+    this.role = AppRole.admin,
+  });
 
   @override
   State<AgendamientoFormScreen> createState() => _AgendamientoFormScreenState();
@@ -103,6 +110,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   final AgendamientoService _agendamientoService = AgendamientoService();
   final AuxiliarService _auxiliarService = AuxiliarService();
   final AuthService _authService = AuthService();
+  final UserContextService _userContextService = UserContextService();
 
   // Datos base
   List<Cliente> _clientes = [];
@@ -173,7 +181,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       if (!mounted) return;
       setState(() {
         _clientes = (results[0] as List<Cliente>).where((c) => c.estado ?? true).toList();
-        _barberos = (results[1] as List<Barbero>).where((b) => b.estado ?? true).toList();
+        
+        final listBarberRaw = (results[1] as List<Barbero>).where((b) => b.estado ?? true).toList();
+        listBarberRaw.sort((a, b) => a.nombreCompleto.toLowerCase().compareTo(b.nombreCompleto.toLowerCase()));
+        _barberos = listBarberRaw;
+
         _servicios = results[2] as List<Servicio>;
         _paquetes = results[3] as List<Paquete>;
         _productos = results[4] as List<Producto>;
@@ -182,7 +194,24 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         
         _isLoadingData = false;
       });
-      _recalcularSlots();
+
+      Cliente? autoCliente;
+      Barbero? autoBarber;
+
+      if (widget.agendamiento == null) {
+        if (widget.role == AppRole.client) {
+          autoCliente = await _userContextService.obtenerClienteActual(clientesCache: _clientes);
+        } else if (widget.role == AppRole.barber) {
+          autoBarber = await _userContextService.obtenerBarberoActual(barberosCache: _barberos);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _clienteSeleccionado = autoCliente ?? _clienteSeleccionado;
+        _barberoSeleccionado = autoBarber ?? _barberoSeleccionado;
+        _recalcularSlots();
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingData = false);
@@ -687,7 +716,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.admin,
+      allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber, AppRole.client],
       child: Scaffold(
         backgroundColor: const Color(0xFF000000), // Fondo negro oscuro
         appBar: AppBar(
@@ -712,46 +741,58 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // ── Barbero (Selector) ──
-                      SearchableSelector<Barbero>(
-                        label: 'Barbero *',
-                        hint: 'Selecciona un barbero...',
-                        items: _barberos.where((b) {
-                          if (_todosLosHorarios.isEmpty) return true; // Si no hay horarios cargados aún, mostrar todos
-                          final apiDow = _fechaSeleccionada.weekday - 1;
-                          return _todosLosHorarios.any((h) => 
-                            h.barberoId == b.id && 
-                            h.diaSemana == apiDow && 
-                            h.estado == true
-                          );
-                        }).toList(),
-                        selectedItem: _barberoSeleccionado,
-                        displayText: (b) => b.nombreCompleto,
-                        searchText: (b) => b.nombreCompleto,
-                        prefixIcon: Icons.badge,
-                        required: true,
-                        onSelected: (b) {
-                          setState(() {
-                             _barberoSeleccionado = b;
-                             _horaInicioSeleccionada = null;
-                             _horaFinSeleccionada = null;
-                          });
-                          _recalcularSlots();
-                        },
-                      ),
+                      widget.role == AppRole.barber
+                        ? _buildGridBox(
+                            label: 'Barbero',
+                            value: _barberoSeleccionado?.nombreCompleto ?? 'Tú',
+                            rightIcon: Icons.lock_outline,
+                          )
+                        : SearchableSelector<Barbero>(
+                            label: 'Barbero *',
+                            hint: 'Selecciona un barbero...',
+                            items: _barberos.where((b) {
+                              if (_todosLosHorarios.isEmpty) return true;
+                              final apiDow = _fechaSeleccionada.weekday - 1;
+                              return _todosLosHorarios.any((h) => 
+                                h.barberoId == b.id && 
+                                h.diaSemana == apiDow && 
+                                h.estado == true
+                              );
+                            }).toList(),
+                            selectedItem: _barberoSeleccionado,
+                            displayText: (b) => b.nombreCompleto,
+                            searchText: (b) => b.nombreCompleto,
+                            prefixIcon: Icons.badge,
+                            required: true,
+                            onSelected: (b) {
+                              setState(() {
+                                 _barberoSeleccionado = b;
+                                 _horaInicioSeleccionada = null;
+                                 _horaFinSeleccionada = null;
+                              });
+                              _recalcularSlots();
+                            },
+                          ),
                       const SizedBox(height: 24),
 
                       // ── Cliente ──
-                      SearchableSelector<Cliente>(
-                        label: 'Cliente *',
-                        hint: 'Selecciona un cliente...',
-                        items: _clientes,
-                        selectedItem: _clienteSeleccionado,
-                        displayText: (c) => c.nombreCompleto,
-                        searchText: (c) => c.nombreCompleto,
-                        prefixIcon: Icons.person,
-                        required: true,
-                        onSelected: (c) => setState(() => _clienteSeleccionado = c),
-                      ),
+                      widget.role == AppRole.client
+                        ? _buildGridBox(
+                            label: 'Cliente',
+                            value: _clienteSeleccionado?.nombreCompleto ?? 'Tú',
+                            rightIcon: Icons.lock_outline,
+                          )
+                        : SearchableSelector<Cliente>(
+                            label: 'Cliente *',
+                            hint: 'Selecciona un cliente...',
+                            items: _clientes,
+                            selectedItem: _clienteSeleccionado,
+                            displayText: (c) => c.nombreCompleto,
+                            searchText: (c) => c.nombreCompleto,
+                            prefixIcon: Icons.person,
+                            required: true,
+                            onSelected: (c) => setState(() => _clienteSeleccionado = c),
+                          ),
                       const SizedBox(height: 24),
 
                       // ── Tipo de Cita ──

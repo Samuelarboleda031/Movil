@@ -28,6 +28,8 @@ class Agendamiento {
   final Barbero? barbero;
   final Servicio? servicio;
   final Paquete? paquete;
+  final String? clienteNombre;
+  final String? barberoNombre;
 
   Agendamiento({
     this.id,
@@ -53,6 +55,8 @@ class Agendamiento {
     this.barbero,
     this.servicio,
     this.paquete,
+    this.clienteNombre,
+    this.barberoNombre,
   });
 
   factory Agendamiento.fromJson(Map<String, dynamic> json) {
@@ -104,7 +108,16 @@ class Agendamiento {
       fechaHora: fHora,
       duracion: json['duracion'] ?? json['Duracion'],
       precio: (json['precio'] ?? json['Precio'] ?? 0.0).toDouble(),
-      cliente: json['cliente'] != null ? Cliente.fromJson(json['cliente']) : null,
+      cliente: json['cliente'] != null 
+          ? Cliente.fromJson(json['cliente']) 
+          : ((json['clienteNombre'] ?? json['ClienteNombre']) != null 
+              ? Cliente(
+                  id: clienteIdVal is int ? clienteIdVal : 0,
+                  documento: '',
+                  nombre: (json['clienteNombre'] ?? json['ClienteNombre']).toString(),
+                  apellido: '',
+                )
+              : null),
       barbero: json['barbero'] != null 
           ? Barbero.fromJson(json['barbero']) 
           : ((json['barberoNombre'] ?? json['BarberoNombre']) != null 
@@ -121,6 +134,8 @@ class Agendamiento {
               : null),
       servicio: json['servicio'] != null ? Servicio.fromJson(json['servicio']) : null,
       paquete: json['paquete'] != null ? Paquete.fromJson(json['paquete']) : null,
+      clienteNombre: (json['clienteNombre'] ?? json['ClienteNombre'])?.toString(),
+      barberoNombre: (json['barberoNombre'] ?? json['BarberoNombre'])?.toString(),
     );
   }
 
@@ -220,6 +235,8 @@ class Agendamiento {
       barbero: barbero ?? this.barbero,
       servicio: servicio ?? this.servicio,
       paquete: paquete ?? this.paquete,
+      clienteNombre: clienteNombre ?? this.clienteNombre,
+      barberoNombre: barberoNombre ?? this.barberoNombre,
     );
   }
 }

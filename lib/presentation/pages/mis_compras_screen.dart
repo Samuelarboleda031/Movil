@@ -21,6 +21,7 @@ class MisComprasScreen extends StatefulWidget {
 }
 
 class _MisComprasScreenState extends State<MisComprasScreen> {
+  final TextEditingController _searchController = TextEditingController();
   final VentaService _ventaService = VentaService();
   final UserContextService _userContextService = UserContextService();
   final AuxiliarService _auxiliarService = AuxiliarService();
@@ -28,6 +29,8 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   
   List<Venta> _ventas = [];
   bool _isLoading = true;
+  int _currentPage = 1;
+  static const int _pageSize = 5;
   String _searchQuery = '';
   final Map<int, String> _nombresBarberos = {};
   final Map<int, String> _nombresUsuarios = {};
@@ -49,7 +52,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
         throw Exception('Perfil de cliente no encontrado');
       }
 
-      final paginacion = await _ventaService.obtenerVentas(page: 1, pageSize: 2000);
+      final paginacion = await _ventaService.obtenerVentas(page: 1, pageSize: 5000);
       final misVentas = paginacion.items.where((v) => v.clienteId == cliente.id).toList();
 
       final barberos = await _auxiliarService.obtenerBarberos();
@@ -110,9 +113,15 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SessionGuard(
-      requiredRole: AppRole.client,
+      allowedRoles: const [AppRole.client],
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Mis Compras'),
@@ -122,9 +131,19 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
+                controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Buscar por número de ticket...',
                   prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
@@ -137,17 +156,104 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
                       ? const Center(child: Text('No hay compras registradas'))
                       : RefreshIndicator(
                           onRefresh: _cargarCompras,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _ventasFiltradas.length,
-                            itemBuilder: (context, index) {
-                              return _buildCompraCard(_ventasFiltradas[index]);
-                            },
+                          child: Builder(
+                            builder: (context) {
+                              final totalItems = _ventasFiltradas.length;
+                              final totalPages = (totalItems / _pageSize).ceil();
+                              final startIndex = (_currentPage - 1) * _pageSize;
+                              final endIndex = (startIndex + _pageSize < totalItems) ? startIndex + _pageSize : totalItems;
+                              final currentPageItems = _ventasFiltradas.sublist(startIndex, endIndex);
+
+                              return ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                                itemCount: currentPageItems.length + 1,
+                                itemBuilder: (context, index) {
+                                  if (index == currentPageItems.length) {
+                                     if (totalPages > 1) {
+                                       return Padding(
+                                         padding: const EdgeInsets.symmetric(vertical: 20),
+                                         child: _buildPaginationControls(totalPages),
+                                       );
+                                     }
+                                     return const SizedBox(height: 80);
+                                  }
+                                  return _buildCompraCard(currentPageItems[index]);
+                                },
+                              );
+                            }
                           ),
                         ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPaginationControls(int totalPages) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildPageButton(
+          icon: Icons.chevron_left,
+          onTap: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+        ),
+        const SizedBox(width: 8),
+        ..._buildPageNumbers(totalPages),
+        const SizedBox(width: 8),
+        _buildPageButton(
+          icon: Icons.chevron_right,
+          onTap: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildPageNumbers(int totalPages) {
+    List<Widget> widgets = [];
+    for (int i = 1; i <= totalPages; i++) {
+      if (i == 1 || i == totalPages || (i >= _currentPage - 1 && i <= _currentPage + 1)) {
+        widgets.add(_buildPageNumberButton(i));
+      } else if (i == _currentPage - 2 || i == _currentPage + 2) {
+        widgets.add(const Text('...', style: TextStyle(color: Colors.grey)));
+      }
+    }
+    return widgets;
+  }
+
+  Widget _buildPageNumberButton(int page) {
+    bool isSelected = page == _currentPage;
+    return GestureDetector(
+      onTap: isSelected ? null : () => setState(() => _currentPage = page),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFD8B081) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected ? null : Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Text(
+          page.toString(),
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageButton({required IconData icon, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Icon(icon, color: onTap == null ? Colors.grey : Colors.white, size: 20),
       ),
     );
   }
