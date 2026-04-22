@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -171,6 +172,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 labelText: 'Documento / Cédula *',
                 prefixIcon: Icon(Icons.badge_outlined),
               ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),

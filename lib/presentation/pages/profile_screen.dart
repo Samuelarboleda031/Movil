@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -14,19 +15,9 @@ import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
-class AppColors {
-  static const bg        = Color(0xFF141414);
-  static const card      = Color(0xFF1E1E1E);
-  static const cardAlt   = Color(0xFF252525);
-  static const gold      = Color(0xFFC9A96E);
-  static const goldLight = Color(0xFFD4B483);
-  static const white     = Color(0xFFFFFFFF);
-  static const grey      = Color(0xFF8A8A8A);
-  static const greyLight = Color(0xFFAAAAAA);
-  static const divider   = Color(0xFF2E2E2E);
-  static const inputBg   = Color(0xFF1C1C1C);
-  static const inputBorder = Color(0xFF3A3A3A);
-}
+// Colores centralizados — ver core/themes/app_colors.dart
+import 'package:parte_movil/core/themes/app_colors.dart';
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  SCREEN 1 — MI PERFIL
@@ -83,9 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getDocumento() {
-    if (_entidadActual is Barbero) return (_entidadActual as Barbero).documento ?? 'No ingresado';
-    if (_entidadActual is Cliente) return (_entidadActual as Cliente).documento ?? 'No ingresado';
-    return 'No ingresado';
+    String? doc;
+    if (_entidadActual is Barbero) doc = (_entidadActual as Barbero).documento;
+    if (_entidadActual is Cliente) doc = (_entidadActual as Cliente).documento;
+    if (doc == null || doc.isEmpty || doc == 'No ingresado') return 'No ingresado';
+    return doc;
   }
 
   String _getNombre() {
@@ -118,7 +111,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_entidadActual is Cliente) foto = (_entidadActual as Cliente).fotoPerfil;
     if (foto != null && foto.isNotEmpty) {
       if (foto.startsWith('http')) return foto;
-      return '${ApiConfig.baseUrl}$foto';
+      // Las imágenes se sirven desde la raíz, no desde /api
+      final rootUrl = ApiConfig.baseUrl.replaceAll('/api', '');
+      final separator = foto.startsWith('/') ? '' : '/';
+      return '$rootUrl$separator$foto';
     }
     return null;
   }
@@ -656,10 +652,11 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                     const SizedBox(height: 14),
                     // Fields
                     _inputField(
-                      label: _documentoEditable ? 'Documento *' : 'Documento (Protegido)',  
+                      label: _documentoEditable ? 'Documento *' : 'Documento (Protegido)', 
                       ctrl: _documentoCtrl, 
-                      keyboardType: TextInputType.text,
-                      readOnly: !_documentoEditable
+                      keyboardType: TextInputType.number,
+                      readOnly: !_documentoEditable,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
                     _inputField(label: 'Nombre *',     ctrl: _nombreCtrl),
                     _inputField(label: 'Apellido *',   ctrl: _apellidoCtrl),
@@ -692,7 +689,9 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
       if (_fotoPerfil!.startsWith('http')) {
         networkFotoUrl = _fotoPerfil;
       } else {
-        networkFotoUrl = '${ApiConfig.baseUrl}$_fotoPerfil';
+        final rootUrl = ApiConfig.baseUrl.replaceAll('/api', '');
+        final separator = _fotoPerfil!.startsWith('/') ? '' : '/';
+        networkFotoUrl = '$rootUrl$separator$_fotoPerfil';
       }
     }
 
@@ -763,6 +762,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool isLast = false,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -773,6 +773,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
             controller: ctrl,
             readOnly: readOnly,
             keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
             textInputAction: isLast ? TextInputAction.done : TextInputAction.next,
             style: TextStyle(color: readOnly ? AppColors.grey : AppColors.white, fontSize: 15),
             decoration: InputDecoration(

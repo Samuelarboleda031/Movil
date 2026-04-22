@@ -23,6 +23,7 @@ import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_form_screen.dart';
 import 'package:parte_movil/presentation/pages/producto_form_screen.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class MainLayout extends StatefulWidget {
   final AppRole role;
@@ -235,7 +236,7 @@ class _MainLayoutState extends State<MainLayout> {
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8.0,
-        color: const Color(0xFF111111),
+        color: AppColors.bg,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [

@@ -8,6 +8,8 @@ import 'servicio_form_screen.dart';
 import 'servicio_detalle_screen.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 
 class ServiciosGestionScreen extends StatefulWidget {
   const ServiciosGestionScreen({super.key});
@@ -55,7 +57,8 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
             totalCount: data.length,
             pageSize: _pageSize,
             currentPage: page,
-            totalPages: (data.length / _pageSize).ceil().clamp(1, 99), 
+            // Si el backend no devuelve el total, asumimos que si hay _pageSize hay más páginas
+            totalPages: (data.length == _pageSize) ? page + 1 : page,
             hasPreviousPage: page > 1,
             hasNextPage: data.length == _pageSize,
           );
@@ -227,56 +230,14 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
   }
 
   Widget _buildPaginationControls() {
-    final totalPages = _ultimaPaginacion!.totalPages;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildPageButton(icon: Icons.chevron_left, onTap: _currentPage > 1 ? () => _cargarServicios(_currentPage - 1) : null),
-        const SizedBox(width: 8),
-        ..._buildPageNumbers(totalPages),
-        const SizedBox(width: 8),
-        _buildPageButton(icon: Icons.chevron_right, onTap: _currentPage < totalPages ? () => _cargarServicios(_currentPage + 1) : null),
-      ],
-    );
-  }
-
-  List<Widget> _buildPageNumbers(int totalPages) {
-    List<Widget> widgets = [];
-    for (int i = 1; i <= totalPages; i++) {
-      if (i == 1 || i == totalPages || (i >= _currentPage - 1 && i <= _currentPage + 1)) {
-        widgets.add(_buildPageNumberButton(i));
-      } else if (i == _currentPage - 2 || i == _currentPage + 2) {
-        widgets.add(const Text('...', style: TextStyle(color: Colors.grey)));
-      }
-    }
-    return widgets;
-  }
-
-  Widget _buildPageNumberButton(int page) {
-    bool isSelected = page == _currentPage;
-    return GestureDetector(
-      onTap: isSelected ? null : () => _cargarServicios(page),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFD8B081) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected ? null : Border.all(color: Colors.grey.withOpacity(0.3)),
-        ),
-        child: Text(page.toString(), style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
-  }
-
-  Widget _buildPageButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.withOpacity(0.3))),
-        child: Icon(icon, color: onTap == null ? Colors.grey : Colors.white, size: 20),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: EllipsisPagination(
+        totalPages: _ultimaPaginacion!.totalPages,
+        currentPage: _currentPage,
+        onPageChanged: (page) => _cargarServicios(page),
       ),
     );
   }
 }
+

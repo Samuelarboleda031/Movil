@@ -5,21 +5,9 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'producto_form_screen.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
-class AppColors {
-  static const bg          = Color(0xFF111111);
-  static const surface     = Color(0xFF1A1A1A);
-  static const card        = Color(0xFF1F1F1F);
-  static const gold        = Color(0xFFC9A96E);
-  static const goldLight   = Color(0xFFE0C080);
-  static const goldDark    = Color(0xFF9A7040);
-  static const white       = Color(0xFFFFFFFF);
-  static const grey        = Color(0xFF888888);
-  static const greyLight   = Color(0xFFBBBBBB);
-  static const divider     = Color(0xFF2A2A2A);
-  static const green       = Color(0xFF4CAF7D);
-  static const red         = Color(0xFFE05C5C);
-  static const redDark     = Color(0xFF8B1A1A);
-}
+// Colores centralizados — ver core/themes/app_colors.dart
+import 'package:parte_movil/core/themes/app_colors.dart';
+
 
 class ProductoDetalleScreen extends StatefulWidget {
   final Producto producto;

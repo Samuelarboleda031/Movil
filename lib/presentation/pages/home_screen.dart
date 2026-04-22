@@ -21,18 +21,8 @@ import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart'
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
-class AppColors {
-  static const bg = Color(0xFF1A1A1A);
-  static const card = Color(0xFF232323);
-  static const cardAlt = Color(0xFF2A2A2A);
-  static const gold = Color(0xFFC9A96E);
-  static const goldLight = Color(0xFFD4B483);
-  static const white = Color(0xFFFFFFFF);
-  static const grey = Color(0xFF8A8A8A);
-  static const greyLight = Color(0xFFAAAAAA);
-  static const divider = Color(0xFF333333);
-  static const tabInactive = Color(0xFF2E2E2E);
-}
+import 'package:parte_movil/core/themes/app_colors.dart';
+
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
 class HomeScreen extends StatefulWidget {

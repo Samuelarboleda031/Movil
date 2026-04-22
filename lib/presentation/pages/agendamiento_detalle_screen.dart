@@ -9,6 +9,7 @@ import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class AgendamientoDetalleScreen extends StatefulWidget {
   final Agendamiento agendamiento;
@@ -83,7 +84,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

@@ -13,6 +13,7 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_bloc.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_event.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class VentaDetalleScreen extends StatefulWidget {
   final Venta ventaSummary;
@@ -86,11 +87,11 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('Detalles de la Venta', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.bg,
       ),
       resizeToAvoidBottomInset: false,
       body: _isLoading

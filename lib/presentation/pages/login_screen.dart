@@ -6,6 +6,7 @@ import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_state.dart';
 import 'forgot_password_screen.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bg,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
@@ -76,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 radius: 1.5,
                 colors: [
                   const Color(0xFFD8B081).withOpacity(0.05),
-                  Colors.black,
+                  AppColors.bg,
                 ],
               ),
             ),

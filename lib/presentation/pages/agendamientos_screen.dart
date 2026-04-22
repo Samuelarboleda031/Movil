@@ -13,7 +13,8 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
-import 'package:parte_movil/data/datasources/agendamiento_service.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'agendamiento_detalle_screen.dart';
 
 class AgendamientosScreen extends StatefulWidget {
@@ -95,7 +96,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           builder: (context, setStateDialog) {
             final esGlobal = barberoSeleccionado?.id == -1;
             return AlertDialog(
-              backgroundColor: const Color(0xFF161616),
+              backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFD8B081), width: 0.5)),
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,73 +366,18 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   Widget _buildPaginationControls(int totalPages, int currentPage) {
-    if (totalPages <= 1) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildPageButton(
-            icon: Icons.chevron_left, 
-            onTap: currentPage > 1 ? () {
-              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage - 1, estaSemana: false));
-            } : null
-          ),
-          const SizedBox(width: 8),
-          ..._buildPageNumbers(totalPages, currentPage),
-          const SizedBox(width: 8),
-          _buildPageButton(
-            icon: Icons.chevron_right, 
-            onTap: currentPage < totalPages ? () {
-              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage + 1, estaSemana: false));
-            } : null
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: EllipsisPagination(
+        totalPages: totalPages,
+        currentPage: currentPage,
+        onPageChanged: (page) {
+          context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page, estaSemana: false));
+        },
       ),
     );
   }
 
-  List<Widget> _buildPageNumbers(int totalPages, int currentPage) {
-    List<Widget> widgets = [];
-    for (int i = 1; i <= totalPages; i++) {
-      if (i == 1 || i == totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
-        widgets.add(_buildPageNumberButton(i, currentPage));
-      } else if (i == currentPage - 2 || i == currentPage + 2) {
-        widgets.add(const Text('...', style: TextStyle(color: Colors.grey)));
-      }
-    }
-    return widgets;
-  }
-
-  Widget _buildPageNumberButton(int page, int currentPage) {
-    bool isSelected = page == currentPage;
-    return GestureDetector(
-      onTap: isSelected ? null : () {
-        context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page, estaSemana: false));
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFD8B081) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected ? null : Border.all(color: Colors.grey.withOpacity(0.3)),
-        ),
-        child: Text(page.toString(), style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
-  }
-
-  Widget _buildPageButton({required IconData icon, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.withOpacity(0.3))),
-        child: Icon(icon, color: onTap == null ? Colors.grey : Colors.white, size: 20),
-      ),
-    );
-  }
 }
 
 class _DaySelectorWidget extends StatefulWidget {
