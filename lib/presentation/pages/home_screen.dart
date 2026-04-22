@@ -996,13 +996,24 @@ class _HomeScreenState extends State<HomeScreen> {
           vertical: compact ? 10 : 11,
         ),
         decoration: BoxDecoration(
-          color: AppColors.gold,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFC9A96E).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           text,
           style: TextStyle(
-            color: AppColors.bg,
+            color: const Color(0xFF111111),
             fontWeight: FontWeight.bold,
             fontSize: compact ? 12 : 13,
           ),

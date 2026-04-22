@@ -394,9 +394,37 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                   ),
                 
                 const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _loading ? null : _guardar,
-                  child: _loading ? const CircularProgressIndicator(color: Colors.white) : const Text('Guardar Producto'),
+                GestureDetector(
+                  onTap: _loading ? null : _guardar,
+                  child: Container(
+                    height: 54,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFC9A96E).withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _loading
+                          ? const SizedBox(
+                              width: 24, height: 24,
+                              child: CircularProgressIndicator(color: Color(0xFF111111), strokeWidth: 2.5),
+                            )
+                          : const Text(
+                              'Guardar Producto',
+                              style: TextStyle(color: Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
                 ),
               ],
             ),

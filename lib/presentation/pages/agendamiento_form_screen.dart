@@ -1068,23 +1068,37 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _guardarAgendamiento,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFD8B081),
+                            child: GestureDetector(
+                              onTap: _isLoading ? null : _guardarAgendamiento,
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                elevation: 0,
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 22, height: 22,
-                                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
-                                    )
-                                  : Text(
-                                      widget.agendamiento == null ? 'Crear Cita' : 'Actualizar',
-                                      style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFC9A96E).withOpacity(0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 22, height: 22,
+                                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF111111)),
+                                        )
+                                      : Text(
+                                          widget.agendamiento == null ? 'Crear Cita' : 'Actualizar',
+                                          style: const TextStyle(color: Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
                         ],

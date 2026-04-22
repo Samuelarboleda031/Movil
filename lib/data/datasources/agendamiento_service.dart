@@ -21,7 +21,7 @@ class AgendamientoService {
   Future<Paginacion<Agendamiento>> obtenerAgendamientos({int page = 1, int pageSize = 10, bool? estaSemana}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
       if (estaSemana != null) {
         url += '&estaSemana=$estaSemana';
       }
@@ -198,7 +198,7 @@ class AgendamientoService {
   Future<Paginacion<Agendamiento>> obtenerAgendamientosPorCliente(int clienteId, {int page = 1, int pageSize = 10, bool? estaSemana}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cliente/$clienteId?page=$page&pageSize=$pageSize';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cliente/$clienteId?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
       if (estaSemana != null) {
         url += '&estaSemana=$estaSemana';
       }

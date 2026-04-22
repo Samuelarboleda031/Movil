@@ -29,7 +29,6 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   final TextEditingController _searchController = TextEditingController();
   final AuxiliarService _auxiliarService = AuxiliarService();
   String _searchQuery = '';
-  int _visibleItemsOnFirstPage = 6;
 
   List<Agendamiento> _agendamientosFiltrados(List<Agendamiento> agendamientos) {
     final query = _searchQuery.toLowerCase();
@@ -244,49 +243,61 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                           ? const Center(child: Text('No hay agendamientos'))
                           : Builder(
                               builder: (context) {
-                                List<Agendamiento> itemsToShow = filtrados;
-                                if (currentPage == 1 && _visibleItemsOnFirstPage < filtrados.length) {
-                                  itemsToShow = filtrados.take(_visibleItemsOnFirstPage).toList();
-                                }
-                                
                                 return RefreshIndicator(
                                   onRefresh: () async {
-                                    setState(() => _visibleItemsOnFirstPage = 6);
-                                    context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
+                                    context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: 1, estaSemana: isWeeklyMode));
                                   },
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                                itemCount: itemsToShow.length + 1,
-                                itemBuilder: (context, index) {
-                                  if (index == itemsToShow.length) {
-                                    if (currentPage == 1 && _visibleItemsOnFirstPage < filtrados.length) {
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 20),
-                                        child: Center(
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFD8B081),
-                                              foregroundColor: Colors.black,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                                    itemCount: filtrados.length + 1,
+                                    itemBuilder: (context, index) {
+                                      if (index == filtrados.length) {
+                                        if (isWeeklyMode) {
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 20),
+                                            child: Center(
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
+                                                },
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                  decoration: BoxDecoration(
+                                                    gradient: const LinearGradient(
+                                                      colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: const Color(0xFFC9A96E).withOpacity(0.35),
+                                                        blurRadius: 12,
+                                                        offset: const Offset(0, 4),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: const Text(
+                                                    'Ver historial completo',
+                                                    style: TextStyle(
+                                                      color: Color(0xFF111111),
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                            onPressed: () {
-                                              setState(() {
-                                                _visibleItemsOnFirstPage = 10; // Expand to full page size
-                                              });
-                                            },
-                                            child: const Text('Cargar más citas', style: TextStyle(fontWeight: FontWeight.bold)),
-                                          ),
-                                        ),
-                                      );
-                                    } else if (paginacion != null && paginacion.totalPages > 1) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 20, bottom: 40),
-                                        child: _buildPaginationControls(paginacion.totalPages, currentPage),
-                                      );
-                                    }
-                                    return const SizedBox(height: 80);
-                                  }
-                                  final ag = itemsToShow[index];
+                                          );
+                                        } else if (paginacion != null && paginacion.totalPages > 1) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(top: 20, bottom: 40),
+                                            child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                                          );
+                                        }
+                                        return const SizedBox(height: 80);
+                                      }
+                                      final ag = filtrados[index];
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     child: ListTile(
@@ -363,8 +374,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           _buildPageButton(
             icon: Icons.chevron_left, 
             onTap: currentPage > 1 ? () {
-              setState(() => _visibleItemsOnFirstPage = 6);
-              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage - 1));
+              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage - 1, estaSemana: false));
             } : null
           ),
           const SizedBox(width: 8),
@@ -373,8 +383,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           _buildPageButton(
             icon: Icons.chevron_right, 
             onTap: currentPage < totalPages ? () {
-              setState(() => _visibleItemsOnFirstPage = 6);
-              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage + 1));
+              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: currentPage + 1, estaSemana: false));
             } : null
           ),
         ],
@@ -398,8 +407,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     bool isSelected = page == currentPage;
     return GestureDetector(
       onTap: isSelected ? null : () {
-        setState(() => _visibleItemsOnFirstPage = 6); // Reset on page change
-        context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page));
+        context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page, estaSemana: false));
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),

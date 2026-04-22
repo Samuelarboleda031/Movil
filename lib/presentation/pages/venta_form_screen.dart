@@ -648,14 +648,26 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: _agregarProductoSeleccionado,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD8B081),
-                            foregroundColor: Colors.white,
+                        GestureDetector(
+                          onTap: _agregarProductoSeleccionado,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.add, color: Color(0xFF111111), size: 18),
+                                SizedBox(width: 4),
+                                Text('Agregar', style: TextStyle(color: Color(0xFF111111), fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Agregar'),
                         ),
                       ],
                     ),
@@ -699,14 +711,26 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: _agregarServicioPaqueteSeleccionado,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD8B081),
-                            foregroundColor: Colors.white,
+                        GestureDetector(
+                          onTap: _agregarServicioPaqueteSeleccionado,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.add, color: Color(0xFF111111), size: 18),
+                                SizedBox(width: 4),
+                                Text('Agregar', style: TextStyle(color: Color(0xFF111111), fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Agregar'),
                         ),
                       ],
                     ),
@@ -858,20 +882,38 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Botón Guardar
-                    ElevatedButton(
-                      onPressed: _isLoading || _isLoadingData ? null : _guardarVenta,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD8B081),
-                        foregroundColor: Colors.white,
+                    GestureDetector(
+                      onTap: _isLoading || _isLoadingData ? null : _guardarVenta,
+                      child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                              widget.venta == null ? 'Guardar Venta' : 'Actualizar Venta',
-                              style: const TextStyle(fontSize: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFC9A96E).withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
+                          ],
+                        ),
+                        child: Center(
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Color(0xFF111111))
+                              : Text(
+                                  widget.venta == null ? 'Guardar Venta' : 'Actualizar Venta',
+                                  style: const TextStyle(
+                                    color: Color(0xFF111111),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

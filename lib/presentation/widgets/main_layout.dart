@@ -55,7 +55,7 @@ class _MainLayoutState extends State<MainLayout> {
               authService: AuthService(),
               userContextService: UserContextService(),
               auxiliarService: AuxiliarService(),
-            )..add(const LoadAgendamientosRequested(page: 1)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
             child: AgendamientosScreen(role: widget.role),
           ),
 
@@ -82,7 +82,7 @@ class _MainLayoutState extends State<MainLayout> {
               authService: AuthService(),
               userContextService: UserContextService(),
               auxiliarService: AuxiliarService(),
-            )..add(const LoadAgendamientosRequested(page: 1)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
           BlocProvider(
@@ -105,7 +105,7 @@ class _MainLayoutState extends State<MainLayout> {
               authService: AuthService(),
               userContextService: UserContextService(),
               auxiliarService: AuxiliarService(),
-            )..add(const LoadAgendamientosRequested(page: 1)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
           const MisComprasScreen(),
@@ -149,41 +149,77 @@ class _MainLayoutState extends State<MainLayout> {
     
     // Configuración del FAB según el rol y la pantalla actual
     Widget? floatingActionButton;
+    final goldGradient = const LinearGradient(
+      colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
     if (_currentIndex == 1 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
-      // Agendamientos Admin
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     } else if (_currentIndex == 2 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
-      // Ventas Admin
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const VentaFormScreen())).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     } else if (_currentIndex == 3 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
-      // Servicios Admin
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ServicioFormScreen())).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     } else if (_currentIndex == 4 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
-      // Productos Admin
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductoFormScreen())).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
-      // Agendamiento para Clientes
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.barber) {
-      // Agendamiento para Barberos
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
       );
     }
 

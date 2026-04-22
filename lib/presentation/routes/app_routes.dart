@@ -41,15 +41,15 @@ class AppRoutes {
           ),
       '/mis-compras': (context) => const MisComprasScreen(),
 
-      '/agendamiento': (context) => BlocProvider(
-            create: (context) => AgendamientosBloc(
-              agendamientoService: AgendamientoService(),
-              emailJsService: EmailJsService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-              auxiliarService: AuxiliarService(),
-            )..add(const LoadAgendamientosRequested(page: 1)),
-            child: const AgendamientosScreen(role: AppRole.admin),
+          '/agendamiento': (context) => BlocProvider(
+                create: (context) => AgendamientosBloc(
+                  agendamientoService: AgendamientoService(),
+                  emailJsService: EmailJsService(),
+                  authService: AuthService(),
+                  userContextService: UserContextService(),
+                  auxiliarService: AuxiliarService(),
+                )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
+                child: const AgendamientosScreen(role: AppRole.admin),
           ),
 
       '/servicios': (context) => const ServiciosGestionScreen(),
