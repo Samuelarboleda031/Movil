@@ -87,11 +87,6 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
           estaSemana: event.estaSemana,
         );
         
-        if (isWeekly && paginacion.items.isEmpty) {
-          add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-          return;
-        }
-
         emit(AgendamientosLoaded(
           agendamientos: paginacion.items,
           paginacion: paginacion,
@@ -113,10 +108,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
            (a.barbero?.email?.toLowerCase() == barberoLocal.email?.toLowerCase())
         ).toList();
         
-        if (isWeekly && propios.isEmpty) {
-          add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-          return;
-        }
+        // Eliminado el fallback automático.
 
         emit(AgendamientosLoaded(
           agendamientos: propios,
@@ -135,11 +127,6 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
           estaSemana: event.estaSemana,
         );
         print('✅ [AgendamientosBloc] Se obtuvieron ${paginacion.items.length} citas de un total de ${paginacion.totalCount}');
-
-        if (isWeekly && paginacion.items.isEmpty) {
-          add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-          return;
-        }
 
         emit(AgendamientosLoaded(
           agendamientos: paginacion.items,

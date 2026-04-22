@@ -242,7 +242,17 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : filtrados.isEmpty
-                          ? const Center(child: Text('No hay agendamientos'))
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text('No hay agendamientos para esta semana', style: TextStyle(color: AppColors.grey)),
+                                  const SizedBox(height: 16),
+                                  if (isWeeklyMode)
+                                    _buildFullHistoryButton(context),
+                                ],
+                              ),
+                            )
                           : Builder(
                               builder: (context) {
                                 return RefreshIndicator(
@@ -280,42 +290,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                         ),
                 ),
                 if (isWeeklyMode && !isLoading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFC9A96E).withOpacity(0.35),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: const Text(
-                            'Ver historial completo',
-                            style: TextStyle(
-                              color: Color(0xFF111111),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildFullHistoryButton(context),
                 if (!isWeeklyMode && paginacion != null && paginacion.totalPages > 1 && !isLoading)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -361,6 +336,45 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         nuevoEstado: nuevoEstado,
       ));
     }
+  }
+
+  Widget _buildFullHistoryButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: GestureDetector(
+          onTap: () {
+            context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC9A96E).withOpacity(0.35),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Text(
+              'Ver historial completo',
+              style: TextStyle(
+                color: Color(0xFF111111),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildPaginationControls(int totalPages, int currentPage) {
