@@ -7,7 +7,9 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/media_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
@@ -32,7 +34,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
-  final _auxiliarService = AuxiliarService();
+  final _clienteService = ClienteService();
+  final _barberoService = BarberoService();
+  final _mediaService = MediaService();
 
   dynamic _entidadActual; // Barbero o Cliente
   bool _isLoading = true;
@@ -56,12 +60,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _email = correo;
 
       if (widget.role == AppRole.barber) {
-        final barberos = await _auxiliarService.obtenerBarberos();
+        final barberos = await _barberoService.obtenerBarberos();
         try {
           _entidadActual = barberos.firstWhere((b) => (b.email ?? '').toLowerCase() == correo.toLowerCase());
         } catch (_) { _entidadActual = null; }
       } else if (widget.role == AppRole.client) {
-        final clientes = await _auxiliarService.obtenerClientes();
+        final clientes = await _clienteService.obtenerClientes();
         try {
           _entidadActual = clientes.firstWhere((c) => (c.email ?? '').toLowerCase() == correo.toLowerCase());
         } catch (_) { _entidadActual = null; }
@@ -427,7 +431,9 @@ class UpdateProfileScreen extends StatefulWidget {
 }
 
 class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
-  final _auxiliarService = AuxiliarService();
+  final _clienteService = ClienteService();
+  final _barberoService = BarberoService();
+  final _mediaService = MediaService();
   
   late final TextEditingController _documentoCtrl;
   late final TextEditingController _nombreCtrl;
@@ -516,9 +522,9 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         );
 
         if (currentBarber == null || currentBarber.id == null) {
-          await _auxiliarService.crearBarbero(barbero);
+          await _barberoService.crearBarbero(barbero);
         } else {
-          await _auxiliarService.actualizarBarbero(barbero);
+          await _barberoService.actualizarBarbero(barbero);
         }
       } else if (widget.role == AppRole.client) {
         final currentClient = widget.entidadActual as Cliente?;
@@ -534,9 +540,9 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         );
 
         if (currentClient == null || currentClient.id == null) {
-          await _auxiliarService.crearCliente(cliente);
+          await _clienteService.crearCliente(cliente);
         } else {
-          await _auxiliarService.actualizarCliente(cliente);
+          await _clienteService.actualizarCliente(cliente);
         }
       }
 
@@ -568,7 +574,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         }
         
         if (userId != null) {
-          final resFoto = await _auxiliarService.subirFotoPerfil(userId, image.path);
+          final resFoto = await _mediaService.subirFotoPerfil(userId, image.path);
           if (mounted) {
             AppToast.showSuccess(context, 'Foto subida correctamente');
             setState(() {

@@ -4,7 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/categoria.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/media_service.dart';
+import 'package:parte_movil/data/datasources/media_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
@@ -21,7 +22,7 @@ class ProductoFormScreen extends StatefulWidget {
 class _ProductoFormScreenState extends State<ProductoFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final ProductoService _productoService = ProductoService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final MediaService _mediaService = MediaService();
   
   final _nombreCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
@@ -145,9 +146,8 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     setState(() => _loading = true);
     try {
       String? imagenFinal = _imagenUrl;
-      // Usar _auxiliarService.subirImagen porque es el que tiene la funcionalidad (es igual para producto)
       if (_imagenFile != null && _imageBytesPreview != null) {
-        imagenFinal = await _auxiliarService.subirImagen(
+        imagenFinal = await _mediaService.subirImagen(
           _imagenFile!.path, 
           imageBytes: _imageBytesPreview, 
           fileName: _imagenFile!.name

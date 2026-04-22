@@ -2,7 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parte_movil/data/models/servicio.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/media_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
@@ -23,7 +24,8 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
   final _precioCtrl = TextEditingController();
   final _duracionCtrl = TextEditingController();
   
-  final AuxiliarService _data = AuxiliarService();
+  final MediaService _mediaService = MediaService();
+  final ServicioService _servicioService = ServicioService();
   bool _loading = false;
   bool _isNew = true;
   String? _imagenUrl;
@@ -71,7 +73,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     try {
       String? imagenFinal = _imagenUrl;
       if (_imagenFile != null && _imageBytesPreview != null) {
-        imagenFinal = await _data.subirImagen(
+        imagenFinal = await _mediaService.subirImagen(
           _imagenFile!.path, 
           imageBytes: _imageBytesPreview, 
           fileName: _imagenFile!.name
@@ -89,9 +91,9 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
       );
 
       if (_isNew) {
-        await _data.crearServicio(s);
+        await _servicioService.crearServicio(s);
       } else {
-        await _data.actualizarServicio(s);
+        await _servicioService.actualizarServicio(s);
       }
 
       if (mounted) {

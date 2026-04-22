@@ -4,7 +4,6 @@ import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
@@ -17,19 +16,16 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
   final EmailJsService _emailJsService;
   final AuthService _authService;
   final UserContextService _userContextService;
-  final AuxiliarService _auxiliarService;
 
   AgendamientosBloc({
     required AgendamientoService agendamientoService,
     required EmailJsService emailJsService,
     required AuthService authService,
     required UserContextService userContextService,
-    required AuxiliarService auxiliarService,
   })  : _agendamientoService = agendamientoService,
         _emailJsService = emailJsService,
         _authService = authService,
         _userContextService = userContextService,
-        _auxiliarService = auxiliarService,
         super(AgendamientosInitial()) {
     on<LoadAgendamientosRequested>(_onLoadAgendamientos);
     on<CancelAgendamientoRequested>(_onCancelAgendamiento);

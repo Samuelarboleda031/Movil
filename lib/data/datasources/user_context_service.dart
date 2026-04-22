@@ -3,11 +3,13 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/usuario.dart';
 import 'auth_service.dart';
-import 'auxiliar_service.dart';
+import 'cliente_service.dart';
+import 'barbero_service.dart';
 
 class UserContextService {
   final AuthService _authService = AuthService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final ClienteService _clienteService = ClienteService();
+  final BarberoService _barberoService = BarberoService();
 
   Usuario? _cachedUsuario;
   Cliente? _cachedCliente;
@@ -30,7 +32,7 @@ class UserContextService {
 
     final usuario = await _ensureUsuario();
     final clientes =
-        clientesCache ?? await _auxiliarService.obtenerClientes();
+        clientesCache ?? await _clienteService.obtenerClientes();
 
     final cliente = _matchCliente(clientes, usuario);
     if (cliente != null) {
@@ -44,7 +46,7 @@ class UserContextService {
 
     final usuario = await _ensureUsuario();
     final barberos =
-        barberosCache ?? await _auxiliarService.obtenerBarberos();
+        barberosCache ?? await _barberoService.obtenerBarberos();
 
     final barbero = _matchBarbero(barberos, usuario);
     if (barbero != null) {

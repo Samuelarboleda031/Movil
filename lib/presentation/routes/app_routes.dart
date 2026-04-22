@@ -8,7 +8,8 @@ import 'package:parte_movil/presentation/blocs/agendamientos/agendamientos_event
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 
 import 'package:parte_movil/presentation/pages/home_screen.dart';
@@ -34,7 +35,8 @@ class AppRoutes {
       '/ventas': (context) => BlocProvider(
             create: (context) => VentasBloc(
               ventaService: VentaService(),
-              auxiliarService: AuxiliarService(),
+              clienteService: ClienteService(),
+              barberoService: BarberoService(),
               authService: AuthService(),
             )..add(const LoadVentasRequested(page: 1)),
             child: const VentasScreen(role: AppRole.admin),
@@ -47,7 +49,6 @@ class AppRoutes {
                   emailJsService: EmailJsService(),
                   authService: AuthService(),
                   userContextService: UserContextService(),
-                  auxiliarService: AuxiliarService(),
                 )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
                 child: const AgendamientosScreen(role: AppRole.admin),
           ),

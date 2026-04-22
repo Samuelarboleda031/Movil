@@ -9,9 +9,13 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
+import 'package:parte_movil/data/datasources/paquete_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
@@ -70,7 +74,10 @@ class VentaFormScreen extends StatefulWidget {
 class _VentaFormScreenState extends State<VentaFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final VentaService _ventaService = VentaService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final ClienteService _clienteService = ClienteService();
+  final BarberoService _barberoService = BarberoService();
+  final ServicioService _servicioService = ServicioService();
+  final PaqueteService _paqueteService = PaqueteService();
   final AuthService _authService = AuthService();
   final UserContextService _userContextService = UserContextService();
 
@@ -143,11 +150,11 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
   Future<void> _cargarDatos() async {
     try {
       // 1. Cargar todas las listas de referencia de la API
-      final clientes = await _auxiliarService.obtenerClientes();
-      final barberos = await _auxiliarService.obtenerBarberos();
-      final productos = await _auxiliarService.obtenerProductos();
-      final servicios = await _auxiliarService.obtenerServicios();
-      final paquetes = await _auxiliarService.obtenerPaquetes();
+      final clientes = await _clienteService.obtenerClientes();
+      final barberos = await _barberoService.obtenerBarberos();
+      final productos = await ProductoService().getProductos(pageSize: 1000);
+      final servicios = await _servicioService.obtenerServicios();
+      final paquetes = await _paqueteService.obtenerPaquetes();
 
       // 1.1 Obtener usuario actual para asociar barbero por defecto
       final usuarioActual =

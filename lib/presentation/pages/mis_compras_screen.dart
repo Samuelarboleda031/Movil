@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:parte_movil/data/models/venta.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
-import 'package:parte_movil/data/datasources/usuario_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
+import 'package:parte_movil/data/datasources/paquete_service.dart';
+import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
@@ -25,8 +28,10 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   final TextEditingController _searchController = TextEditingController();
   final VentaService _ventaService = VentaService();
   final UserContextService _userContextService = UserContextService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
-  final UsuarioService _usuarioService = UsuarioService();
+  final AuthService _authService = AuthService();
+  final BarberoService _barberoService = BarberoService();
+  final ServicioService _servicioService = ServicioService();
+  final PaqueteService _paqueteService = PaqueteService();
   
   List<Venta> _ventas = [];
   bool _isLoading = true;
@@ -56,7 +61,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
       final paginacion = await _ventaService.obtenerVentas(page: 1, pageSize: 5000);
       final misVentas = paginacion.items.where((v) => v.clienteId == cliente.id).toList();
 
-      final barberos = await _auxiliarService.obtenerBarberos();
+      final barberos = await _barberoService.obtenerBarberos();
       for (var b in barberos) {
         if (b.id != null) {
           _nombresBarberos[b.id!] = b.nombreCompleto;
@@ -64,7 +69,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
       }
 
       try {
-        final usuarios = await _usuarioService.obtenerUsuarios();
+        final usuarios = await _authService.obtenerUsuarios();
         for (var u in usuarios) {
           if (u.id != null) {
             _nombresUsuarios[u.id!] = u.nombreCompleto;
@@ -75,17 +80,17 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
       }
 
       try {
-        final productos = await _auxiliarService.obtenerProductos();
+        final productos = await ProductoService().getProductos(pageSize: 1000);
         for (var p in productos) {
           if (p.id != null) _nombresProductos[p.id!] = p.nombre;
         }
         
-        final servicios = await _auxiliarService.obtenerServicios();
+        final servicios = await _servicioService.obtenerServicios();
         for (var s in servicios) {
           if (s.id != null) _nombresServicios[s.id!] = s.nombre;
         }
 
-        final paquetes = await _auxiliarService.obtenerPaquetes();
+        final paquetes = await _paqueteService.obtenerPaquetes();
         for (var p in paquetes) {
           if (p.id != null) _nombresPaquetes[p.id!] = p.nombre;
         }
@@ -166,25 +171,27 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
                               final currentPageItems = _ventasFiltradas.sublist(startIndex, endIndex);
 
                               return ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                                itemCount: currentPageItems.length + 1,
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                                itemCount: currentPageItems.length,
                                 itemBuilder: (context, index) {
-                                  if (index == currentPageItems.length) {
-                                     if (totalPages > 1) {
-                                       return Padding(
-                                         padding: const EdgeInsets.symmetric(vertical: 20),
-                                         child: _buildPaginationControls(totalPages),
-                                       );
-                                     }
-                                     return const SizedBox(height: 80);
-                                  }
                                   return _buildCompraCard(currentPageItems[index]);
                                 },
                               );
                             }
                           ),
                         ),
+                        ),
+            if (!_isLoading) Builder(
+              builder: (context) {
+                final totalItems = _ventasFiltradas.length;
+                final totalPages = (totalItems / _pageSize).ceil();
+                if (totalPages > 1) {
+                  return _buildPaginationControls(totalPages);
+                }
+                return const SizedBox.shrink();
+              }
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),

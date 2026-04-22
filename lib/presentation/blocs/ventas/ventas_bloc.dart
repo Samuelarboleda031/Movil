@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 
 import 'package:parte_movil/data/datasources/auth_service.dart';
@@ -12,17 +13,20 @@ import 'ventas_state.dart';
 
 class VentasBloc extends Bloc<VentasEvent, VentasState> {
   final VentaService _ventaService;
-  final AuxiliarService _auxiliarService;
+  final ClienteService _clienteService;
+  final BarberoService _barberoService;
   final AuthService _authService;
 
   Map<int, Cliente> _catalogoClientes = {};
 
   VentasBloc({
     required VentaService ventaService,
-    required AuxiliarService auxiliarService,
+    required ClienteService clienteService,
+    required BarberoService barberoService,
     required AuthService authService,
   })  : _ventaService = ventaService,
-        _auxiliarService = auxiliarService,
+        _clienteService = clienteService,
+        _barberoService = barberoService,
         _authService = authService,
         super(VentasInitial()) {
     on<LoadVentasRequested>(_onLoadVentas);
@@ -32,7 +36,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
   Future<void> _loadCatalogo() async {
     if (_catalogoClientes.isNotEmpty) return;
     try {
-      final clientes = await _auxiliarService.obtenerClientes();
+      final clientes = await _clienteService.obtenerClientes();
       final Map<int, Cliente> mapa = {};
       for (var c in clientes) {
         if (c.id != null) mapa[c.id!] = c;
@@ -55,7 +59,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
       final role = roleForRolId(user?.rolId);
 
       if (role == AppRole.barber) {
-        final barberos = await _auxiliarService.obtenerBarberos();
+        final barberos = await _barberoService.obtenerBarberos();
         final emailBuscado = user?.correo ?? fbUser?.email ?? '';
         final barberoLocal = barberos.firstWhere(
           (b) => (b.email ?? '').toLowerCase() == emailBuscado.toLowerCase(),

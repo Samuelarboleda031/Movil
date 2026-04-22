@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/datasources/dashboard_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
@@ -18,7 +18,7 @@ class DashboardGananciasWidget extends StatefulWidget {
 class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
   final DashboardService _dashboardService = DashboardService();
   final AuthService _authService = AuthService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final BarberoService _barberoService = BarberoService();
 
   bool _isLoading = true;
   String? _error;
@@ -43,7 +43,7 @@ class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
     try {
       final user = await _authService.getCurrentUser();
       final fbUser = _authService.currentUser;
-      final barberos = await _auxiliarService.obtenerBarberos();
+      final barberos = await _barberoService.obtenerBarberos();
       final emailBuscado = user?.correo ?? fbUser?.email ?? '';
 
       if (widget.role == AppRole.barber) {

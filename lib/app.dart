@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:parte_movil/core/themes/app_theme.dart';
 import 'package:parte_movil/presentation/routes/app_routes.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/repositories/auth_repository_impl.dart';
 import 'package:parte_movil/domain/usecases/login_usecase.dart';
 import 'package:parte_movil/domain/usecases/google_login_usecase.dart';
@@ -49,7 +50,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Inyección de Dependencias Manual (idealmente esto va en un archivo get_it)
     final authRepository = AuthRepositoryImpl(
       authService: _authService,
-      auxiliarService: AuxiliarService(),
+      clienteService: ClienteService(),
+      barberoService: BarberoService(),
     );
 
     return MultiBlocProvider(

@@ -16,7 +16,7 @@ import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'package:parte_movil/data/datasources/dashboard_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/servicio.dart';
@@ -136,23 +136,18 @@ class _VentasScreenState extends State<VentasScreen> {
                                 context.read<VentasBloc>().add(const LoadVentasRequested(page: 1));
                               },
                               child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                                itemCount: ventasFiltradas.length + 1,
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                                itemCount: ventasFiltradas.length,
                                 itemBuilder: (context, index) {
-                                  if (index == ventasFiltradas.length) {
-                                    if (paginacion != null && paginacion.totalPages > 1) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 20, bottom: 40),
-                                        child: _buildPaginationControls(paginacion.totalPages, currentPage),
-                                      );
-                                    }
-                                    return const SizedBox(height: 80);
-                                  }
-                                  return _buildVentaCard(ventasFiltradas[index], catalogo);
+                                  final venta = ventasFiltradas[index];
+                                  return _buildVentaCard(venta, catalogo);
                                 },
                               ),
                             ),
                 ),
+                if (paginacion != null && paginacion.totalPages > 1 && !isLoading)
+                   _buildPaginationControls(paginacion.totalPages, currentPage),
+                const SizedBox(height: 80), // Espacio para el FAB
               ],
             ),
           );
@@ -276,7 +271,7 @@ class _MiniGananciaPill extends StatefulWidget {
 class _MiniGananciaPillState extends State<_MiniGananciaPill> {
   final DashboardService _dashboardService = DashboardService();
   final AuthService _authService = AuthService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final BarberoService _barberoService = BarberoService();
   
   bool _isLoading = true;
   double _ganancia = 0;
@@ -313,7 +308,7 @@ class _MiniGananciaPillState extends State<_MiniGananciaPill> {
     try {
       final user = await _authService.getCurrentUser();
       final fbUser = _authService.currentUser;
-      final barberos = await _auxiliarService.obtenerBarberos();
+      final barberos = await _barberoService.obtenerBarberos();
       final emailBuscado = user?.correo ?? fbUser?.email ?? '';
 
       if (widget.role == AppRole.barber) {

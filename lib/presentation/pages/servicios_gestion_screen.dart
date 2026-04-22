@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'servicio_form_screen.dart';
@@ -20,7 +20,7 @@ class ServiciosGestionScreen extends StatefulWidget {
 
 class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final AuxiliarService _servicioData = AuxiliarService();
+  final ServicioService _servicioService = ServicioService();
   List<Servicio> _servicios = [];
   Paginacion<Servicio>? _ultimaPaginacion;
   bool _isLoading = true;
@@ -41,8 +41,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
       _currentPage = page;
     });
     try {
-      // Nota: Si el backend no soporta paginación real en servicios, enviamos pageSize grande
-      final data = await _servicioData.obtenerServicios(page: page, pageSize: _pageSize);
+      final data = await _servicioService.obtenerServicios(page: page, pageSize: _pageSize);
       
       // Simulación de paginación si el backend devuelve lista plana
       // (ajustar cuando el backend devuelva Paginacion real para servicios)
@@ -102,7 +101,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
 
     if (confirm == true) {
       try {
-        await _servicioData.eliminarServicio(servicio.id!);
+        await _servicioService.eliminarServicio(servicio.id!);
         _cargarServicios(_currentPage);
       } catch (e) {
         if (mounted) {
@@ -155,15 +154,9 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                   : RefreshIndicator(
                       onRefresh: () => _cargarServicios(1),
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 120),
-                        itemCount: _serviciosFiltrados.length + 1,
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+                        itemCount: _serviciosFiltrados.length,
                         itemBuilder: (context, index) {
-                          if (index == _serviciosFiltrados.length) {
-                             if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1) {
-                               return Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: _buildPaginationControls());
-                             }
-                             return const SizedBox(height: 80);
-                          }
                           final s = _serviciosFiltrados[index];
                           final activo = s.estado ?? true;
 
@@ -198,7 +191,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                                   Switch(
                                     value: activo,
                                     onChanged: (val) async {
-                                      await _servicioData.cambiarEstadoServicio(s.id!, val);
+                                      await _servicioService.cambiarEstadoServicio(s.id!, val);
                                       _cargarServicios(_currentPage);
                                     },
                                   ),
@@ -223,6 +216,9 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                       ),
                     ),
             ),
+            if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1 && !_isLoading)
+               _buildPaginationControls(),
+            const SizedBox(height: 80), // Espacio para el FAB
           ],
         ),
       ),

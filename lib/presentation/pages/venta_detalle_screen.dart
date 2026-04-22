@@ -7,7 +7,9 @@ import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
+import 'package:parte_movil/data/datasources/paquete_service.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_bloc.dart';
@@ -33,7 +35,8 @@ class VentaDetalleScreen extends StatefulWidget {
 
 class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   final VentaService _ventaService = VentaService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final ServicioService _servicioService = ServicioService();
+  final PaqueteService _paqueteService = PaqueteService();
   
   bool _isLoading = true;
   Venta? _ventaCompleta;
@@ -51,9 +54,9 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     try {
       final results = await Future.wait([
         _ventaService.obtenerVentaPorId(widget.ventaSummary.id!),
-        _auxiliarService.obtenerProductos(),
-        _auxiliarService.obtenerServicios(),
-        _auxiliarService.obtenerPaquetes(),
+        ProductoService().getProductos(pageSize: 1000),
+        _servicioService.obtenerServicios(),
+        _paqueteService.obtenerPaquetes(),
       ]);
 
       if (mounted) {

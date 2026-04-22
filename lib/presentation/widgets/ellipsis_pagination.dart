@@ -17,21 +17,24 @@ class EllipsisPagination extends StatelessWidget {
   Widget build(BuildContext context) {
     if (totalPages <= 1) return const SizedBox.shrink();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildPageButton(
-          icon: Icons.chevron_left,
-          onTap: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
-        ),
-        const SizedBox(width: 8),
-        ..._buildPageNumbers(),
-        const SizedBox(width: 8),
-        _buildPageButton(
-          icon: Icons.chevron_right,
-          onTap: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildArrowButton(
+            icon: Icons.chevron_left_rounded,
+            onTap: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+          ),
+          const SizedBox(width: 12),
+          ..._buildPageNumbers(),
+          const SizedBox(width: 12),
+          _buildArrowButton(
+            icon: Icons.chevron_right_rounded,
+            onTap: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+          ),
+        ],
+      ),
     );
   }
 
@@ -68,39 +71,57 @@ class EllipsisPagination extends StatelessWidget {
     final isSelected = page == currentPage;
     return GestureDetector(
       onTap: isSelected ? null : () => onPageChanged(page),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.gold : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected ? null : Border.all(color: AppColors.divider),
+          color: isSelected ? AppColors.gold : AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.gold : AppColors.divider.withOpacity(0.5),
+            width: 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: AppColors.gold.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            )
+          ] : null,
         ),
         child: Text(
           page.toString(),
           style: TextStyle(
             color: isSelected ? Colors.black : AppColors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 15,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPageButton({required IconData icon, VoidCallback? onTap}) {
+  Widget _buildArrowButton({required IconData icon, VoidCallback? onTap}) {
+    final bool enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.divider.withOpacity(0.5),
+            width: 1,
+          ),
         ),
         child: Icon(
           icon,
-          color: onTap == null ? AppColors.grey : AppColors.white,
-          size: 20,
+          color: enabled ? AppColors.white : AppColors.grey.withOpacity(0.5),
+          size: 22,
         ),
       ),
     );
@@ -112,9 +133,19 @@ class _EllipsisDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4),
-      child: Text('...', style: TextStyle(color: AppColors.grey, fontSize: 16)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      width: 30,
+      alignment: Alignment.center,
+      child: Text(
+        '...',
+        style: TextStyle(
+          color: AppColors.grey.withOpacity(0.7),
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
+      ),
     );
   }
 }

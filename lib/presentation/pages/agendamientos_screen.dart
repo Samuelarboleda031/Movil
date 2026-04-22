@@ -10,7 +10,8 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/data/models/barbero.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
@@ -28,7 +29,7 @@ class AgendamientosScreen extends StatefulWidget {
 
 class _AgendamientosScreenState extends State<AgendamientosScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final BarberoService _barberoService = BarberoService();
   String _searchQuery = '';
 
   List<Agendamiento> _agendamientosFiltrados(List<Agendamiento> agendamientos) {
@@ -82,7 +83,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 
   Future<void> _cancelarAgendas() async {
     Barbero? barberoSeleccionado;
-    final barberosRaw = await _auxiliarService.obtenerBarberos();
+    final barberosRaw = await _barberoService.obtenerBarberos();
     
     final List<Barbero> opcionesBarberos = [
       Barbero(id: -1, nombre: 'Todos los barberos', apellido: '', documento: '', telefono: '', email: '', direccion: '', estado: true),
@@ -249,55 +250,9 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                     context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: 1, estaSemana: isWeeklyMode));
                                   },
                                   child: ListView.builder(
-                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                                    itemCount: filtrados.length + 1,
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                                    itemCount: filtrados.length,
                                     itemBuilder: (context, index) {
-                                      if (index == filtrados.length) {
-                                        if (isWeeklyMode) {
-                                          return Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 20),
-                                            child: Center(
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-                                                },
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                                  decoration: BoxDecoration(
-                                                    gradient: const LinearGradient(
-                                                      colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                                                      begin: Alignment.topLeft,
-                                                      end: Alignment.bottomRight,
-                                                    ),
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: const Color(0xFFC9A96E).withOpacity(0.35),
-                                                        blurRadius: 12,
-                                                        offset: const Offset(0, 4),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: const Text(
-                                                    'Ver historial completo',
-                                                    style: TextStyle(
-                                                      color: Color(0xFF111111),
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        } else if (paginacion != null && paginacion.totalPages > 1) {
-                                          return Padding(
-                                            padding: const EdgeInsets.only(top: 20, bottom: 40),
-                                            child: _buildPaginationControls(paginacion.totalPages, currentPage),
-                                          );
-                                        }
-                                        return const SizedBox(height: 80);
-                                      }
                                       final ag = filtrados[index];
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
@@ -324,6 +279,49 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                           }
                         ),
                 ),
+                if (isWeeklyMode && !isLoading)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () {
+                          context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFC9A96E).withOpacity(0.35),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Text(
+                            'Ver historial completo',
+                            style: TextStyle(
+                              color: Color(0xFF111111),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (!isWeeklyMode && paginacion != null && paginacion.totalPages > 1 && !isLoading)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                  ),
+                const SizedBox(height: 80), // Espacio para el FAB
               ],
             );
           },

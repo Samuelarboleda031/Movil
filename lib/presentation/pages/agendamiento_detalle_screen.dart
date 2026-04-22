@@ -5,9 +5,10 @@ import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/producto.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
@@ -41,11 +42,10 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
     try {
-      final aux = AuxiliarService();
       final results = await Future.wait([
         AgendamientoService().obtenerAgendamientoPorId(_currentAg.id!),
-        aux.obtenerServicios(),
-        aux.obtenerProductos(),
+        ServicioService().obtenerServicios(),
+        ProductoService().getProductos(pageSize: 1000),
       ]);
 
       setState(() {

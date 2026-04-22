@@ -9,9 +9,14 @@ import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
+import 'package:parte_movil/data/datasources/paquete_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
+import 'package:parte_movil/data/models/horario_barbero.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
@@ -47,48 +52,7 @@ String _nombreDia(DateTime d) {
   return dias[d.weekday - 1];
 }
 
-// ─── Modelo mínimo de horario ─────────────────────────────────────────────────
-class _HorarioBarbero {
-  final int barberoId;
-  final int diaSemana;
-  final String horaInicio;
-  final String horaFin;
-  final bool estado;
-
-  _HorarioBarbero({
-    required this.barberoId,
-    required this.diaSemana,
-    required this.horaInicio,
-    required this.horaFin,
-    required this.estado,
-  });
-
-  factory _HorarioBarbero.fromJson(Map<String, dynamic> j) {
-    int dia = 0;
-    final rawDia = j['diaSemana'] ?? j['DiaSemana'] ?? j['dia'] ?? j['Dia'];
-    if (rawDia is int) {
-      dia = rawDia;
-    } else if (rawDia is String) {
-      const nombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-      dia = nombres.indexOf(rawDia);
-      if (dia < 0) dia = 0;
-    }
-
-    String parseHora(dynamic val) {
-      if (val == null) return '09:00';
-      final s = val.toString();
-      return s.length >= 5 ? s.substring(0, 5) : s;
-    }
-
-    return _HorarioBarbero(
-      barberoId: j['barberoId'] ?? j['BarberoId'] ?? 0,
-      diaSemana: dia,
-      horaInicio: parseHora(j['horaInicio'] ?? j['HoraInicio']),
-      horaFin: parseHora(j['horaFin'] ?? j['HoraFin']),
-      estado: j['estado'] ?? j['Estado'] ?? true,
-    );
-  }
-}
+// HorarioBarbero model is now global.
 
 // ─── Widget Principal ─────────────────────────────────────────────────────────
 class AgendamientoFormScreen extends StatefulWidget {
@@ -108,7 +72,10 @@ class AgendamientoFormScreen extends StatefulWidget {
 class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final AgendamientoService _agendamientoService = AgendamientoService();
-  final AuxiliarService _auxiliarService = AuxiliarService();
+  final ClienteService _clienteService = ClienteService();
+  final BarberoService _barberoService = BarberoService();
+  final ServicioService _servicioService = ServicioService();
+  final PaqueteService _paqueteService = PaqueteService();
   final AuthService _authService = AuthService();
   final UserContextService _userContextService = UserContextService();
 
@@ -119,7 +86,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   List<Paquete> _paquetes = [];
   List<Producto> _productos = [];
   List<Agendamiento> _todasLasCitas = [];
-  List<_HorarioBarbero> _todosLosHorarios = [];
+  List<HorarioBarbero> _todosLosHorarios = [];
 
   // Selecciones
   Cliente? _clienteSeleccionado;
@@ -169,13 +136,13 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       };
 
       final results = await Future.wait([
-        _auxiliarService.obtenerClientes(),
-        _auxiliarService.obtenerBarberos(),
-        _auxiliarService.obtenerServicios(),
-        _auxiliarService.obtenerPaquetes(),
-        _auxiliarService.obtenerProductos(),
+        _clienteService.obtenerClientes(),
+        _barberoService.obtenerBarberos(),
+        _servicioService.obtenerServicios(),
+        _paqueteService.obtenerPaquetes(),
+        ProductoService().getProductos(pageSize: 1000),
         _agendamientoService.obtenerAgendamientos(),
-        _fetchHorarios(headers),
+        _barberoService.obtenerHorariosBarberos(),
       ]);
 
       if (!mounted) return;
@@ -190,7 +157,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         _paquetes = results[3] as List<Paquete>;
         _productos = results[4] as List<Producto>;
         _todasLasCitas = (results[5] as Paginacion<Agendamiento>).items;
-        _todosLosHorarios = results[6] as List<_HorarioBarbero>;
+        _todosLosHorarios = results[6] as List<HorarioBarbero>;
         
         _isLoadingData = false;
       });
@@ -219,32 +186,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     }
   }
 
-  Future<List<_HorarioBarbero>> _fetchHorarios(Map<String, String> headers) async {
-    try {
-      final resp = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/HorariosBarberos?pageSize=1000'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 20));
-      if (resp.statusCode == 200) {
-        final raw = jsonDecode(resp.body);
-        List<dynamic> lista;
-        if (raw is List) {
-          lista = raw;
-        } else if (raw is Map && raw.containsKey('items')) {
-          lista = raw['items'];
-        } else if (raw is Map && raw.containsKey('data')) {
-          lista = raw['data'];
-        } else {
-          lista = [];
-        }
-        return lista
-            .map((j) => _HorarioBarbero.fromJson(j as Map<String, dynamic>))
-            .where((h) => h.estado)
-            .toList();
-      }
-    } catch (_) {}
-    return [];
-  }
+  // _fetchHorarios logic moved to BarberoService
 
   // ─── Rellenar si edit ─────────────────────────────────────────────────────
   void _calcularTotal() {

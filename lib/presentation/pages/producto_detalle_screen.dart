@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/network/api_config.dart';
+import 'package:parte_movil/data/models/app_role.dart';
 import 'producto_form_screen.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
@@ -11,7 +12,8 @@ import 'package:parte_movil/core/themes/app_colors.dart';
 
 class ProductoDetalleScreen extends StatefulWidget {
   final Producto producto;
-  const ProductoDetalleScreen({super.key, required this.producto});
+  final AppRole role;
+  const ProductoDetalleScreen({super.key, required this.producto, required this.role});
 
   @override
   State<ProductoDetalleScreen> createState() => _ProductoDetalleScreenState();
@@ -44,6 +46,8 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
 
   @override
   Widget build(BuildContext context) {
+    final bool isAdmin = widget.role == AppRole.admin || widget.role == AppRole.manager;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Stack(
@@ -51,23 +55,32 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildSliverAppBar(context),
+              _buildSliverAppBar(context, isAdmin),
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnim,
                   child: SlideTransition(
                     position: _slideAnim,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, isAdmin ? 120 : 160),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 20),
-                          _buildTitleSection(),
+                          _buildTitleSection(isAdmin),
                           const SizedBox(height: 20),
-                          _buildInventoryCard(),
-                          const SizedBox(height: 14),
-                          _buildFinancesCard(),
+                          
+                          // Disponibilidad para clientes o Inventario para admin
+                          if (!isAdmin)
+                            _buildAvailabilityCard()
+                          else
+                            _buildInventoryCard(),
+
+                          if (isAdmin) ...[
+                            const SizedBox(height: 14),
+                            _buildFinancesCard(),
+                          ],
+
                           const SizedBox(height: 14),
                           if (widget.producto.descripcion != null && widget.producto.descripcion!.isNotEmpty)
                             _buildDescriptionCard(),
@@ -83,14 +96,14 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
             bottom: 0,
             left: 0,
             right: 0,
-            child: _buildActionBar(context),
+            child: isAdmin ? _buildAdminActionBar(context) : _buildClientActionBar(context),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context) {
+  Widget _buildSliverAppBar(BuildContext context, bool isAdmin) {
     String? imageUrl;
     if (widget.producto.imagenProduc != null && widget.producto.imagenProduc!.isNotEmpty) {
       if (widget.producto.imagenProduc!.startsWith('http')) {
@@ -117,9 +130,9 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
           child: const Icon(Icons.arrow_back, color: AppColors.white, size: 20),
         ),
       ),
-      title: const Text(
-        'Detalle del Producto',
-        style: TextStyle(
+      title: Text(
+        isAdmin ? 'Detalle del Producto' : widget.producto.nombre,
+        style: const TextStyle(
           color: AppColors.white,
           fontWeight: FontWeight.bold,
           fontSize: 17,
@@ -127,24 +140,25 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
       ),
       centerTitle: true,
       actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white24),
+        if (isAdmin)
+          Container(
+            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white24),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppColors.gold, size: 18),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ProductoFormScreen(producto: widget.producto)),
+                ).then((_) => setState(() {}));
+              },
+              padding: EdgeInsets.zero,
+            ),
           ),
-          child: IconButton(
-            icon: const Icon(Icons.edit_outlined, color: AppColors.gold, size: 18),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => ProductoFormScreen(producto: widget.producto)),
-              ).then((_) => setState(() {}));
-            },
-            padding: EdgeInsets.zero,
-          ),
-        ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
@@ -194,7 +208,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
     );
   }
 
-  Widget _buildTitleSection() {
+  Widget _buildTitleSection(bool isAdmin) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -210,12 +224,23 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
         const SizedBox(height: 10),
         Row(
           children: [
-            _categoryChip(widget.producto.categoria?.nombre ?? 'Sin Categoría'),
-            const SizedBox(width: 8),
-            _statusChip(
-              widget.producto.activo ? 'Activo' : 'Inactivo',
-              widget.producto.activo ? AppColors.green : AppColors.red
+            Text(
+              AppFormat.cop(widget.producto.precioVenta),
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            if (isAdmin) ...[
+              const SizedBox(width: 12),
+              _categoryChip(widget.producto.categoria?.nombre ?? 'Sin Categoría'),
+              const SizedBox(width: 8),
+              _statusChip(
+                widget.producto.activo ? 'Activo' : 'Inactivo',
+                widget.producto.activo ? AppColors.green : AppColors.red
+              ),
+            ],
           ],
         ),
       ],
@@ -268,6 +293,28 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
     );
   }
 
+  Widget _buildAvailabilityCard() {
+    final totalStock = widget.producto.stockVentas;
+    return _gradientCard(
+      iconData: Icons.check_circle_outline,
+      title: 'Disponibilidad',
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Unidades disponibles', style: TextStyle(color: AppColors.grey, fontSize: 15)),
+          Text(
+            totalStock > 0 ? '$totalStock' : 'Agotado',
+            style: TextStyle(
+              color: totalStock > 0 ? AppColors.green : AppColors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInventoryCard() {
     final totalStock = widget.producto.stockVentas + widget.producto.stockInsumos;
     final useLabel = widget.producto.usoProducto == 'solo_venta' ? 'Solo Venta' : 'Venta e Insumos';
@@ -284,32 +331,6 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
           _infoRow('Stock Insumos', widget.producto.stockInsumos.toString()),
           _divider(),
           _infoRow('Uso',           useLabel),
-          const SizedBox(height: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Disponibilidad', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                  Text(
-                    '$totalStock / $totalStock',
-                    style: const TextStyle(color: AppColors.greyLight, fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: 1.0,
-                  minHeight: 8,
-                  backgroundColor: AppColors.divider,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -485,7 +506,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
 
   Widget _divider() => Container(height: 1, color: AppColors.divider.withOpacity(0.6));
 
-  Widget _buildActionBar(BuildContext context) {
+  Widget _buildAdminActionBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
       decoration: BoxDecoration(
@@ -559,6 +580,48 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
     );
   }
 
+  Widget _buildClientActionBar(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).padding.bottom + 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.bg.withOpacity(0), AppColors.bg, AppColors.bg],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.gold,
+          foregroundColor: Colors.black,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 4,
+          shadowColor: AppColors.gold.withOpacity(0.4),
+        ),
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Funcionalidad de compra próximamente!'),
+              backgroundColor: AppColors.gold,
+            ),
+          );
+        },
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shopping_cart_outlined),
+            SizedBox(width: 10),
+            Text(
+              "Comprar ahora",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showDeleteDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -617,7 +680,6 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        // Aquí iría la lógica de eliminar real de la API si existiera en este controlador
                         Navigator.pop(context);
                         Navigator.pop(context); // Volver a la lista
                         ScaffoldMessenger.of(context).showSnackBar(

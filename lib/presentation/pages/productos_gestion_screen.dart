@@ -153,15 +153,9 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                   : RefreshIndicator(
                       onRefresh: () => _cargarProductos(1),
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                        itemCount: _productosFiltrados.length + 1,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                        itemCount: _productosFiltrados.length,
                         itemBuilder: (context, index) {
-                          if (index == _productosFiltrados.length) {
-                             if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1) {
-                               return Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: _buildPaginationControls());
-                             }
-                             return const SizedBox(height: 80);
-                          }
                           final p = _productosFiltrados[index];
                           final activo = p.activo;
                           final useLabel = p.usoProducto == 'solo_venta' ? 'Venta' : 'Venta e Insumo';
@@ -173,7 +167,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => ProductoDetalleScreen(producto: p)),
+                                  MaterialPageRoute(builder: (context) => ProductoDetalleScreen(producto: p, role: AppRole.admin)),
                                 ).then((_) => _cargarProductos(_currentPage));
                               },
                               leading: p.imagenProduc != null && p.imagenProduc!.isNotEmpty 
@@ -212,7 +206,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                                         if (val == 'details') {
                                           Navigator.push(
                                             context,
-                                            MaterialPageRoute(builder: (context) => ProductoDetalleScreen(producto: p)),
+                                            MaterialPageRoute(builder: (context) => ProductoDetalleScreen(producto: p, role: AppRole.admin)),
                                           ).then((_) => _cargarProductos(_currentPage));
                                         } else if (val == 'edit') {
                                           Navigator.push(
@@ -232,6 +226,9 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                       ),
                     ),
             ),
+            if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1 && !_isLoading)
+               _buildPaginationControls(),
+            const SizedBox(height: 80), // Espacio para el FAB
           ],
         ),
       ),

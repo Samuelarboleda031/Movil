@@ -3,11 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/auxiliar_service.dart';
+import 'package:parte_movil/data/datasources/servicio_service.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
@@ -15,7 +16,6 @@ import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/presentation/pages/producto_detalle_screen.dart';
-import 'package:parte_movil/presentation/pages/producto_detalle_cliente_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
@@ -57,8 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadClientData() async {
     try {
-      final servicios = await AuxiliarService().obtenerServicios();
-      final productos = await AuxiliarService().obtenerProductos();
+      final servicios = await ServicioService().obtenerServicios();
+      final productos = await ProductoService().getProductos(pageSize: 1000);
       
       final userContext = UserContextService();
       final cliente = await userContext.obtenerClienteActual();
@@ -755,7 +755,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ProductoDetalleClienteScreen(producto: producto)),
+          MaterialPageRoute(builder: (_) => ProductoDetalleScreen(producto: producto, role: widget.role)),
         );
       },
       child: Container(
