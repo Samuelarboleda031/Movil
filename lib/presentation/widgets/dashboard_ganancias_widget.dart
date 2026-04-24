@@ -6,6 +6,7 @@ import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class DashboardGananciasWidget extends StatefulWidget {
   final AppRole role;
@@ -112,17 +113,27 @@ class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
       );
     }
 
+    // Si es barbero, mostrar solo sus ganancias
+    if (widget.role == AppRole.barber) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildFiltrosBarbero(),
+          const SizedBox(height: 16),
+          _buildTarjetaBarbero('Tus Ganancias', _gananciasBarberos, Icons.content_cut),
+        ],
+      );
+    }
+    
+    // Admin/Manager - mostrar ambas tarjetas
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.role != AppRole.barber) _buildFiltrosAdmin(),
-        if (widget.role == AppRole.barber) _buildFiltrosBarbero(),
+        _buildFiltrosAdmin(),
         const SizedBox(height: 16),
         _buildTarjeta('Ganancias Barberos (60%)', _gananciasBarberos, Icons.content_cut, false),
-        if (widget.role != AppRole.barber) ...[
-          const SizedBox(height: 16),
-          _buildTarjeta('Ganancia Barbería (40%)', _gananciaBarberia, Icons.attach_money, true),
-        ],
+        const SizedBox(height: 16),
+        _buildTarjeta('Ganancia Barbería (40%)', _gananciaBarberia, Icons.attach_money, true),
       ],
     );
   }
@@ -240,6 +251,61 @@ class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
                 Text(
                   isGold ? 'Solo en servicios' : (_selectedBarberoId == 'Todos' ? 'Todos los barberos' : (_currentBarberoUser?.nombreCompleto ?? 'Un barbero')),
                   style: TextStyle(fontSize: 12, color: isGold ? const Color(0xFFD8B081) : Colors.greenAccent),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tarjeta especial para barbero (estilo dorado premium)
+  Widget _buildTarjetaBarbero(String titulo, double valor, IconData icono) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withOpacity(0.5)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.card,
+            AppColors.card.withOpacity(0.9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(color: AppColors.gold.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icono, size: 28, color: AppColors.bg),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titulo, style: const TextStyle(color: AppColors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(AppFormat.cop(valor), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.white)),
+                const SizedBox(height: 4),
+                Text(
+                  '60% de tus servicios',
+                  style: TextStyle(fontSize: 12, color: AppColors.gold.withOpacity(0.9)),
                 ),
               ],
             ),

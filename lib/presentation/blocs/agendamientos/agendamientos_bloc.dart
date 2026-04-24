@@ -98,17 +98,21 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         if (barberoLocal == null) throw Exception('No se encontró el perfil de barbero.');
 
         final bool isWeekly = event.estaSemana ?? false;
+        
+        // Traer TODAS las citas sin filtro de fecha para el historial completo del barbero
+        print('🔍 [AgendamientosBloc] Cargando TODAS las citas para barbero: ${barberoLocal.id}');
         final paginacion = await _agendamientoService.obtenerAgendamientos(
           page: 1, 
-          pageSize: 2000,
-          estaSemana: event.estaSemana,
+          pageSize: 5000, // Aumentado para traer más citas
+          estaSemana: isWeekly ? true : null, // Solo filtrar por semana si es necesario
         );
+        
         final propios = paginacion.items.where((a) => 
            a.barberoId == barberoLocal.id || 
            (a.barbero?.email?.toLowerCase() == barberoLocal.email?.toLowerCase())
         ).toList();
         
-        // Eliminado el fallback automático.
+        print('✅ [AgendamientosBloc] Encontradas ${propios.length} citas para el barbero');
 
         emit(AgendamientosLoaded(
           agendamientos: propios,

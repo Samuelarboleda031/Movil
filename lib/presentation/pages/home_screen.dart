@@ -19,6 +19,9 @@ import 'package:parte_movil/presentation/pages/producto_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
+import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/models/barbero.dart';
+import 'package:parte_movil/data/models/paginacion.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 import 'package:parte_movil/core/themes/app_colors.dart';
@@ -46,12 +49,19 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Agendamiento> _cortesPasados = [];
   bool _isLoadingData = true;
   int _productsPageSize = 10; // Para paginación vertical de productos
+  
+  // Datos para vista de barbero
+  List<Agendamiento> _citasHoy = [];
+  bool _isLoadingCitas = true;
+  Barbero? _barberoActual;
 
   @override
   void initState() {
     super.initState();
     if (widget.role == AppRole.client) {
       _loadClientData();
+    } else if (widget.role == AppRole.barber) {
+      _loadBarberoData();
     }
   }
 
@@ -87,6 +97,63 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadBarberoData() async {
+    try {
+      final userContext = UserContextService();
+      final barbero = await userContext.obtenerBarberoActual();
+      
+      if (barbero != null && barbero.id != null) {
+        _barberoActual = barbero;
+        
+        // Obtener fecha actual en formato yyyy-MM-dd
+        final hoy = DateTime.now();
+        final fechaStr = '${hoy.year}-${hoy.month.toString().padLeft(2, '0')}-${hoy.day.toString().padLeft(2, '0')}';
+        
+        print('🔍 Cargando citas para barbero ${barbero.id} en fecha $fechaStr');
+        
+        // Obtener todas las citas y filtrar localmente (mismo patrón que AgendamientosBloc)
+        final paginacion = await AgendamientoService().obtenerAgendamientos(
+          page: 1, 
+          pageSize: 2000,
+        );
+        
+        // Filtrar citas del barbero para hoy
+        final citasBarberoHoy = paginacion.items.where((a) {
+          final esDeBarbero = a.barberoId == barbero.id || 
+                             (a.barbero?.email?.toLowerCase() == barbero.email?.toLowerCase());
+          final esHoy = a.fechaCita == fechaStr;
+          return esDeBarbero && esHoy;
+        }).toList();
+        
+        // Ordenar por hora
+        citasBarberoHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
+        
+        print('✅ Encontradas ${citasBarberoHoy.length} citas para hoy');
+        
+        if (mounted) {
+          setState(() {
+            _citasHoy = citasBarberoHoy;
+            _isLoadingCitas = false;
+          });
+        }
+      } else {
+        print('⚠️ No se encontró barbero actual');
+        if (mounted) {
+          setState(() {
+            _isLoadingCitas = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Error cargando citas del barbero: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCitas = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -105,6 +172,335 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _logout,
         ),
       ],
+    );
+  }
+
+  // ── HEADER PARA BARBERO ────────────────────────────────────────────────
+  Widget _buildBarberoHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Título y subtítulo
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Mi Barbería',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Bienvenido, Barbero',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.grey,
+                ),
+              ),
+            ],
+          ),
+          // Avatar del barbero - clickable para abrir menú
+          GestureDetector(
+            onTap: () {
+              print('👆 Avatar tocado, _showDropdown: $_showDropdown');
+              setState(() => _showDropdown = !_showDropdown);
+            },
+            child: ClipOval(
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: (_barberoActual?.fotoPerfil == null || _barberoActual!.fotoPerfil!.isEmpty)
+                      ? const LinearGradient(
+                          colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.gold.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: (_barberoActual?.fotoPerfil == null || _barberoActual!.fotoPerfil!.isEmpty)
+                    ? const Center(
+                        child: Icon(
+                          Icons.person,
+                          color: AppColors.bg,
+                          size: 24,
+                        ),
+                      )
+                    : Image.network(
+                        _barberoActual!.fotoPerfil!.startsWith('http')
+                            ? _barberoActual!.fotoPerfil!
+                            : '${ApiConfig.baseUrl.replaceAll('/api', '')}/${_barberoActual!.fotoPerfil!.replaceFirst('/', '')}',
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('❌ Error cargando imagen: $error');
+                          return Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.person,
+                                color: AppColors.bg,
+                                size: 24,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SECCIÓN CITAS DE HOY ───────────────────────────────────────────────
+  Widget _buildCitasHoySection() {
+    final hoy = DateTime.now();
+    final fechaFormateada = DateFormat('EEEE, d MMMM yyyy', 'es').format(hoy);
+    final capitalizedFecha = fechaFormateada.substring(0, 1).toUpperCase() + fechaFormateada.substring(1);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Título de sección con fecha
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Citas de hoy',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
+              ),
+              // Icono de calendario
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Icon(
+                  Icons.calendar_today_outlined,
+                  color: AppColors.gold,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Fecha actual
+          Text(
+            capitalizedFecha,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.grey,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Lista de citas
+          _citasHoy.isEmpty
+              ? _buildEmptyCitasMessage()
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _citasHoy.length,
+                  itemBuilder: (context, index) {
+                    return _buildCitaCard(_citasHoy[index]);
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyCitasMessage() {
+    return Container(
+      margin: const EdgeInsets.only(top: 40),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.event_busy,
+            size: 48,
+            color: AppColors.gold.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No tienes citas programadas para hoy',
+            style: TextStyle(
+              color: AppColors.grey,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCitaCard(Agendamiento cita) {
+    // Formatear hora
+    String horaFormateada = '';
+    String amPm = '';
+    if (cita.horaInicio != null && cita.horaInicio!.isNotEmpty) {
+      try {
+        final parts = cita.horaInicio!.split(':');
+        final hora = int.parse(parts[0]);
+        final minutos = parts[1];
+        amPm = hora >= 12 ? 'PM' : 'AM';
+        final hora12 = hora > 12 ? hora - 12 : (hora == 0 ? 12 : hora);
+        horaFormateada = '${hora12.toString().padLeft(2, '0')}:$minutos';
+      } catch (e) {
+        horaFormateada = cita.horaInicio!;
+        amPm = '';
+      }
+    }
+
+    // Obtener nombre del cliente
+    final nombreCliente = cita.clienteNombre ?? 
+                         cita.cliente?.nombre ?? 
+                         'Cliente';
+
+    // Obtener nombre del servicio
+    String servicio = '';
+    if (cita.serviciosNombres.isNotEmpty) {
+      servicio = cita.serviciosNombres.join(' + ');
+    } else if (cita.servicio?.nombre != null) {
+      servicio = cita.servicio!.nombre;
+    } else {
+      servicio = 'Servicio';
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AgendamientoDetalleScreen(
+              agendamiento: cita,
+              role: widget.role,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Columna de hora
+            SizedBox(
+              width: 50,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    horaFormateada,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    amPm,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Divisor vertical
+            Container(
+              width: 1,
+              height: 40,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: AppColors.divider,
+            ),
+            // Información del cliente y servicio
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nombreCliente,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    servicio,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.grey,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Flecha
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.gold,
+              size: 24,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -132,11 +528,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.role != AppRole.client) {
-      // VISTA DE ADMIN / BARBERO (DASHBOARD)
+    if (widget.role == AppRole.barber) {
+      // VISTA DE BARBERO - NUEVO DISEÑO CON CITAS DE HOY
+      return SessionGuard(
+        allowedRoles: const [AppRole.barber],
+        child: Scaffold(
+          backgroundColor: AppColors.bg,
+          body: SafeArea(
+            child: _isLoadingCitas
+                ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+                : GestureDetector(
+                    onTap: () {
+                      if (_showDropdown) setState(() => _showDropdown = false);
+                    },
+                    child: Stack(
+                      children: [
+                        RefreshIndicator(
+                          onRefresh: _loadBarberoData,
+                          color: AppColors.gold,
+                          backgroundColor: AppColors.card,
+                          child: CustomScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            slivers: [
+                              SliverToBoxAdapter(
+                                child: _buildBarberoHeader(),
+                              ),
+                              SliverToBoxAdapter(
+                                child: _buildCitasHoySection(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Dropdown overlay para barbero
+                        if (_showDropdown) _buildDropdownOverlay(),
+                      ],
+                    ),
+                  ),
+          ),
+        ),
+      );
+    }
+    
+    if (widget.role == AppRole.admin || widget.role == AppRole.manager) {
+      // VISTA DE ADMIN / MANAGER (DASHBOARD ORIGINAL)
       final user = _authService.currentUser;
       return SessionGuard(
-        allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber],
+        allowedRoles: const [AppRole.admin, AppRole.manager],
         child: Scaffold(
           backgroundColor: AppColors.bg,
           appBar: _buildAdminAppBar(),
@@ -146,10 +583,10 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 32),
-                Icon(widget.role == AppRole.barber ? Icons.content_cut : Icons.admin_panel_settings, size: 60, color: AppColors.gold),
+                Icon(Icons.admin_panel_settings, size: 60, color: AppColors.gold),
                 const SizedBox(height: 16),
                 Text(
-                  'Bienvenido, ${widget.role == AppRole.barber ? 'Barbero' : 'Administrador'}', 
+                  'Bienvenido, Administrador', 
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white), 
                   textAlign: TextAlign.center
                 ),
@@ -269,11 +706,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── DROPDOWN (CLIENTE) ────────────────────────────────────────────────────
+  // ── DROPDOWN MENU ────────────────────────────────────────────────────────
   Widget _buildDropdownOverlay() {
     return Positioned(
-      top: 80,
-      right: 20,
+      top: 70,
+      right: 16,
       child: Material(
         color: Colors.transparent,
         child: Container(
@@ -296,11 +733,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(role: widget.role)));
               }),
               _dropDivider(),
-              _dropItem(Icons.calendar_today_outlined, 'Mis Citas', onTap: () {}),
+              _dropItem(Icons.calendar_today_outlined, 'Mis Citas', onTap: () {
+                // Navegar a Mis Citas (index 1 del bottom nav)
+                Navigator.pushNamed(context, '/home');
+              }),
               _dropDivider(),
-              _dropItem(Icons.shopping_bag_outlined, 'Mis Compras', onTap: () {}),
-              _dropDivider(),
-              _dropItem(Icons.settings_outlined, 'Configuración', onTap: () {}),
+              _dropItem(Icons.shopping_cart_outlined, 'Mis Ventas', onTap: () {
+                // Navegar a Mis Ventas (index 2 del bottom nav para barbero)
+                Navigator.pushNamed(context, '/home');
+              }),
               _dropDivider(),
               _dropItem(
                 Icons.logout, 

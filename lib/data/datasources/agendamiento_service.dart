@@ -236,4 +236,52 @@ class AgendamientoService {
       rethrow;
     }
   }
+
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 50}) async {
+    try {
+      final headers = await _getHeaders();
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/barbero/$barberoId?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+      
+      print('🔍 [AgendamientoService] Obteniendo citas para el barbero: $barberoId en fecha: $fecha');
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 30),
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic rawData = jsonDecode(response.body);
+        List<Agendamiento> citas = [];
+        
+        if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
+          citas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
+        } else if (rawData is List) {
+          citas = rawData.map((j) => Agendamiento.fromJson(j)).toList();
+        }
+        
+        // Filtrar solo las citas de la fecha especificada y ordenar por hora
+        final citasHoy = citas.where((c) => c.fechaCita == fecha).toList();
+        citasHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
+        
+        print('✅ [AgendamientoService] Encontradas ${citasHoy.length} citas para hoy');
+        
+        return Paginacion<Agendamiento>(
+          items: citasHoy,
+          totalCount: citasHoy.length,
+          pageSize: citasHoy.length,
+          currentPage: 1,
+          totalPages: 1,
+          hasPreviousPage: false,
+          hasNextPage: false,
+        );
+      } else {
+        throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error al obtener citas del barbero: $e');
+      rethrow;
+    }
+  }
 }
