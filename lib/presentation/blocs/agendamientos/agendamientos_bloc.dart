@@ -3,10 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/app_role.dart';
-import 'package:parte_movil/data/models/barbero.dart';
-import 'package:parte_movil/data/models/paginacion.dart';
 
 import 'agendamientos_event.dart';
 import 'agendamientos_state.dart';
@@ -16,6 +16,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
   final EmailJsService _emailJsService;
   final AuthService _authService;
   final UserContextService _userContextService;
+  final ClienteService _clienteService = ClienteService();
 
   AgendamientosBloc({
     required AgendamientoService agendamientoService,
@@ -158,6 +159,14 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
 
     emit(AgendamientosActionLoading());
     try {
+      if (_isPastAppointment(event.agendamiento)) {
+        emit(const AgendamientosActionSuccess(
+          'No se puede cancelar una cita pasada.',
+        ));
+        add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
+        return;
+      }
+
       await _agendamientoService.cancelarAgendamiento(event.agendamiento.id!);
       
       if (event.agendamiento.cliente?.email != null) {
@@ -191,73 +200,143 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
 
     emit(AgendamientosActionLoading());
     try {
-      final user = await _authService.getCurrentUser();
-      if (user == null || user.id == null) {
-        throw Exception('No se pudo identificar al usuario para realizar la acción.');
+      if (event.fechas.isEmpty) {
+        throw Exception('No se recibieron fechas para procesar la cancelación.');
       }
 
-      if (event.horaInicio != null && event.horaFin != null && event.fechas.isNotEmpty) {
-        // MODO POR HORA
-        final allApps = await _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 5000);
-        final targetDateStr = DateFormat('yyyy-MM-dd').format(event.fechas.first);
-        
-        int parseMinutes(String t) {
-          final parts = t.split(':');
-          if (parts.length < 2) return 0;
-          return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+      final allApps = await _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 5000);
+      final fechasObjetivo = event.fechas.map((d) => DateFormat('yyyy-MM-dd').format(d)).toSet();
+      final bool modoHora = event.horaInicio != null && event.horaFin != null;
+      final int startMin = modoHora ? _parseMinutes(event.horaInicio!) : 0;
+      final int endMin = modoHora ? _parseMinutes(event.horaFin!) : 0;
+
+      int canceladas = 0;
+      int omitidasPasadas = 0;
+      final String motivo = event.motivo.isNotEmpty
+          ? event.motivo
+          : 'Cancelación de horario especial';
+
+      for (final cita in allApps.items) {
+        final fechaCita = cita.fechaCita ?? '';
+        if (!fechasObjetivo.contains(fechaCita)) continue;
+        if (event.barberoId != -1 && cita.barberoId != event.barberoId) continue;
+        if (!_isCancelableStatus(cita.estadoCita)) continue;
+        if (cita.id == null) continue;
+        if (_isPastAppointment(cita)) {
+          omitidasPasadas++;
+          continue;
         }
-        
-        final startMin = parseMinutes(event.horaInicio!);
-        final endMin = parseMinutes(event.horaFin!);
-        
-        int canceladas = 0;
-        for (var cita in allApps.items) {
-           if (cita.fechaCita != targetDateStr) continue;
-           if (event.barberoId != -1 && cita.barberoId != event.barberoId) continue;
-           final status = (cita.estadoCita ?? '').toLowerCase();
-           if (status == 'cancelada' || status == 'cancelado' || status == 'completada' || status == 'finalizado') continue;
-           
-           final citaMin = parseMinutes(cita.horaInicio ?? '00:00');
-           if (citaMin >= startMin && citaMin < endMin) {
-               await _agendamientoService.cancelarAgendamiento(cita.id!);
-               canceladas++;
-               if (cita.cliente?.email != null) {
-                 await _emailJsService.notificarCancelacion(
-                   clienteEmail: cita.cliente!.email!,
-                   clienteNombre: cita.cliente!.nombreCompleto,
-                   barberoNombre: cita.barbero?.nombreCompleto ?? 'Tu barbero',
-                   fechaOriginal: '${cita.fechaCita} a las ${cita.horaInicio}',
-                   motivo: event.motivo.isNotEmpty ? event.motivo : 'Cancelación de horario especial',
-                 );
-               }
-           }
+
+        if (modoHora) {
+          final citaMin = _parseMinutes(_getHoraCita(cita));
+          if (citaMin < startMin || citaMin >= endMin) continue;
         }
-        emit(AgendamientosActionSuccess('Se cancelaron $canceladas cita(s) en ese rango horario.'));
-      } else {
-        // MODO DÍAS
-        for (var d in event.fechas) {
-          final fechaStr = DateFormat('yyyy-MM-dd').format(d);
-          if (event.barberoId == -1) { // Global
-            await _agendamientoService.cancelarDiaCompleto(
-              fechaStr,
-              motivo: event.motivo.isNotEmpty ? event.motivo : 'El local cerrará este día por motivos administrativos.'
-            );
-          } else {
-            await _agendamientoService.cancelarDiaBarbero(
-              barberoId: event.barberoId,
-              fecha: fechaStr,
-              usuarioSolicitanteId: user.id!,
-              motivo: event.motivo.isNotEmpty ? event.motivo : 'Cancelado por Administrador desde App Móvil',
-            );
-          }
-        }
-        emit(const AgendamientosActionSuccess('Días cancelados exitosamente'));
+
+        await _agendamientoService.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
+        canceladas++;
+        await _sendCancellationEmail(cita, motivo);
       }
+
+      final String msg = modoHora
+          ? 'Se cancelaron $canceladas cita(s) en ese rango horario. '
+              'Se omitieron $omitidasPasadas cita(s) pasadas.'
+          : 'Se cancelaron $canceladas cita(s) para las fechas seleccionadas. '
+              'Se omitieron $omitidasPasadas cita(s) pasadas.';
+      emit(AgendamientosActionSuccess(msg));
       
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
       emit(AgendamientosError('Error al cancelar días: $e'));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
+    }
+  }
+
+  bool _isCancelableStatus(String? statusRaw) {
+    final status = (statusRaw ?? '').toLowerCase().trim();
+    return status != 'cancelada' &&
+        status != 'cancelado' &&
+        status != 'completada' &&
+        status != 'finalizado';
+  }
+
+  int _parseMinutes(String? time) {
+    if (time == null || time.isEmpty) return 0;
+    final parts = time.split(':');
+    if (parts.length < 2) return 0;
+    final hh = int.tryParse(parts[0]) ?? 0;
+    final mm = int.tryParse(parts[1]) ?? 0;
+    return hh * 60 + mm;
+  }
+
+  String _getHoraCita(Agendamiento cita) {
+    final horaInicio = cita.horaInicio?.toString() ?? '';
+    if (horaInicio.isNotEmpty) return horaInicio;
+    final fechaHora = cita.fechaHora?.toString() ?? '';
+    if (fechaHora.contains('T') && fechaHora.length >= 16) {
+      return fechaHora.substring(11, 16);
+    }
+    return '00:00';
+  }
+
+  bool _isPastAppointment(Agendamiento cita) {
+    final now = DateTime.now();
+    final dateTime = _resolveAppointmentDateTime(cita);
+    if (dateTime == null) return false;
+    return dateTime.isBefore(now);
+  }
+
+  DateTime? _resolveAppointmentDateTime(Agendamiento cita) {
+    final fechaHoraRaw = cita.fechaHora?.toString();
+    if (fechaHoraRaw != null && fechaHoraRaw.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(fechaHoraRaw);
+      if (parsed != null) return parsed;
+    }
+
+    final fechaRaw = cita.fechaCita?.toString() ?? '';
+    final horaRaw = _getHoraCita(cita);
+    if (fechaRaw.isEmpty || horaRaw.isEmpty) return null;
+    return DateTime.tryParse('${fechaRaw}T$horaRaw:00');
+  }
+
+  Future<void> _sendCancellationEmail(Agendamiento cita, String motivo) async {
+    try {
+      String? clienteEmail = cita.cliente?.email;
+      String clienteNombre = cita.cliente?.nombreCompleto ??
+          cita.clienteNombre?.toString() ??
+          'Cliente';
+
+      if ((clienteEmail == null || clienteEmail.trim().isEmpty) && cita.clienteId > 0) {
+        final cliente = await _clienteService.obtenerClientePorId(cita.clienteId);
+        if (cliente != null) {
+          clienteEmail = cliente.email;
+          if (clienteNombre == 'Cliente') {
+            clienteNombre = cliente.nombreCompleto.trim().isNotEmpty
+                ? cliente.nombreCompleto
+                : clienteNombre;
+          }
+        }
+      }
+
+      if (clienteEmail == null || clienteEmail.trim().isEmpty) return;
+
+      final barberoNombre = cita.barbero?.nombreCompleto ??
+          cita.barberoNombre?.toString() ??
+          'Tu barbero';
+      final hora = _getHoraCita(cita);
+      final fecha = cita.fechaCita?.toString() ?? '';
+      final fechaOriginal = (fecha.isNotEmpty && hora.isNotEmpty)
+          ? '${fecha}T$hora:00'
+          : (cita.fechaHora?.toString() ?? fecha);
+
+      await _emailJsService.notificarCancelacion(
+        clienteEmail: clienteEmail,
+        clienteNombre: clienteNombre,
+        barberoNombre: barberoNombre,
+        fechaOriginal: fechaOriginal,
+        motivo: motivo,
+      );
+    } catch (_) {
+      // No bloquear la cancelación por fallas al enviar correo.
     }
   }
 }

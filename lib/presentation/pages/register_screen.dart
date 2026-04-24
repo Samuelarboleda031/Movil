@@ -25,6 +25,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _auth = AuthService();
   final _clienteService = ClienteService();
   bool _loading = false;
+  bool _obscurePass = true;
+  bool _obscurePassConfirm = true;
   final AppRole _selectedRole = AppRole.client; // Todos los registros de la app móvil son Clientes por defecto
 
   @override
@@ -61,6 +63,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showMessage('Complete todos los campos obligatorios');
       return;
     }
+    if (emailConf.isEmpty) {
+      _showMessage('Confirma tu correo electrónico');
+      return;
+    }
+    if (passConf.isEmpty) {
+      _showMessage('Confirma tu contraseña');
+      return;
+    }
+    if (pass.length < 6) {
+      _showMessage('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
     if (email != emailConf) {
       _showMessage('Los correos no coinciden');
       return;
@@ -79,29 +93,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
         rolId: rolIdForRole(_selectedRole),
         contrasena: pass,
       );
-      
-      if (usuarioApi != null && usuarioApi.id != null) {
-        // Crear registro de cliente con los datos reales
-        final cliente = Cliente(
-          documento: documento,
-          nombre: nombre,
-          apellido: apellido,
-          email: email,
-          usuarioId: usuarioApi.id,
-          estado: true,
-        );
-        await _clienteService.crearCliente(cliente);
+
+      if (usuarioApi == null || usuarioApi.id == null) {
+        throw Exception('Se creó la cuenta, pero no se pudo sincronizar el perfil. Intenta iniciar sesión y completa tu perfil.');
       }
+
+      // Crear registro de cliente con los datos reales
+      final cliente = Cliente(
+        documento: documento,
+        nombre: nombre,
+        apellido: apellido,
+        email: email,
+        usuarioId: usuarioApi.id,
+        estado: true,
+      );
+      await _clienteService.crearCliente(cliente);
       
       await _auth.sendEmailVerification();
       _showMessage('Cuenta creada. Revise su correo para verificar la cuenta.', isError: false);
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      _showMessage(e.message ?? 'Error al registrar');
+      _showMessage(_firebaseErrorMessage(e));
     } catch (e) {
       _showMessage('Error inesperado: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _firebaseErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'Este correo ya está registrado. Intenta iniciar sesión.';
+      case 'invalid-email':
+        return 'El correo electrónico no es válido.';
+      case 'weak-password':
+        return 'La contraseña es muy débil. Usa al menos 6 caracteres.';
+      case 'network-request-failed':
+        return 'Sin conexión a internet. Verifica tu red e inténtalo de nuevo.';
+      default:
+        return e.message ?? 'No se pudo completar el registro.';
     }
   }
 
@@ -200,21 +231,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _passCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Contraseña *',
-                prefixIcon: Icon(Icons.lock_outline),
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePass ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() => _obscurePass = !_obscurePass);
+                  },
+                ),
               ),
-              obscureText: true,
+              obscureText: _obscurePass,
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _passConfirmCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Confirmar Contraseña',
-                prefixIcon: Icon(Icons.lock_reset_outlined),
+                prefixIcon: const Icon(Icons.lock_reset_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassConfirm ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() => _obscurePassConfirm = !_obscurePassConfirm);
+                  },
+                ),
               ),
-              obscureText: true,
+              obscureText: _obscurePassConfirm,
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 32),

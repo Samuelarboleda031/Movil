@@ -115,4 +115,34 @@ class ClienteService {
       return null;
     }
   }
+
+  Future<Cliente?> obtenerClientePorId(int clienteId) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}/$clienteId';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 30),
+      );
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final raw = jsonDecode(response.body);
+        if (raw is Map<String, dynamic>) {
+          return Cliente.fromJson(raw);
+        }
+      }
+
+      // Fallback por compatibilidad cuando el endpoint de detalle no está disponible.
+      final clientes = await obtenerClientes(page: 1, pageSize: 1000);
+      for (final c in clientes) {
+        if (c.id == clienteId) return c;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

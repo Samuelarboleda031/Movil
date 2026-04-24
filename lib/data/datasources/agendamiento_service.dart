@@ -4,11 +4,9 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
-import 'package:parte_movil/data/datasources/emailjs_service.dart';
 
 class AgendamientoService {
   final AuthService _authService = AuthService();
-  final EmailJsService _emailJsService = EmailJsService();
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();
@@ -144,6 +142,23 @@ class AgendamientoService {
 
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al cancelar: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<void> actualizarEstadoAgendamiento(int id, String estado) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id/estado'),
+        headers: headers,
+        body: jsonEncode({'estado': estado}),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al actualizar estado: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');

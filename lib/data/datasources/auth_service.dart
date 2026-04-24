@@ -160,7 +160,13 @@ class AuthService {
   }
 
   Future<String?> getToken() async {
-    return null;
+    final user = _auth.currentUser;
+    if (user == null) return null;
+    try {
+      return await user.getIdToken();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Usuario?> getCurrentUser() async {
@@ -173,7 +179,9 @@ class AuthService {
   }
 
   Future<bool> isLoggedIn() async {
-    return false;
+    if (_auth.currentUser != null) return true;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userKey) != null;
   }
 
   User? get currentUser => _auth.currentUser;
