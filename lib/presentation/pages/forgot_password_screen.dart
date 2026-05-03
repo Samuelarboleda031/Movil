@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/data/datasources/password_reset_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -12,6 +13,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _authService = AuthService();
+  final _passwordResetService = PasswordResetService();
   bool _isLoading = false;
   bool _emailSent = false;
 
@@ -28,22 +30,53 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
       try {
-        final success = await _authService.resetPassword(
-          _emailController.text.trim(),
+        final email = _emailController.text.trim();
+
+        // Intentar obtener el nombre del usuario para personalizar el email
+        String nombre = 'Usuario';
+        final usuario = await _authService.obtenerUsuarioPorCorreo(email);
+        if (usuario != null) {
+          nombre = '${usuario.nombre} ${usuario.apellido}';
+        }
+
+        // Enviar email con link de Vercel que puede abrir la app móvil o web
+        final success = await _passwordResetService.sendPasswordResetEmail(
+          email: email,
+          nombre: nombre,
         );
+
+        // Fallback: si el backend no tiene el endpoint, usar Firebase
+        if (!success) {
+          final fallbackSuccess = await _passwordResetService.sendFirebasePasswordReset(email);
+          if (fallbackSuccess) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _emailSent = true;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Correo de recuperación enviado. Revise su bandeja (también spam).'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+            return;
+          }
+        }
 
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
-          
+
           if (success) {
             setState(() {
               _emailSent = true;
             });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Correo de recuperación enviado. Revise su bandeja.'),
+                content: Text('Correo de recuperación enviado. Revise su bandeja (también spam).'),
                 backgroundColor: Colors.green,
               ),
             );

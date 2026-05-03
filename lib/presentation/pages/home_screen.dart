@@ -21,6 +21,7 @@ import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart'
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
+import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
@@ -55,6 +56,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingCitas = true;
   Barbero? _barberoActual;
 
+  // Datos para foto de perfil del cliente
+  Cliente? _clienteActual;
+
+  // URL de foto de perfil resuelta
+  String? _userPhotoUrl;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +70,14 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (widget.role == AppRole.barber) {
       _loadBarberoData();
     }
+  }
+
+  String? _resolvePhotoUrl(String? foto) {
+    if (foto == null || foto.isEmpty) return null;
+    if (foto.startsWith('http')) return foto;
+    final rootUrl = ApiConfig.baseUrl.replaceAll('/api', '');
+    final separator = foto.startsWith('/') ? '' : '/';
+    return '$rootUrl$separator$foto';
   }
 
   Future<void> _loadClientData() async {
@@ -85,6 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _serviciosApi = servicios.where((s) => s.estado == true).toList();
           _productosApi = productos.where((p) => p.activo == true).toList();
           _cortesPasados = pasados;
+          _clienteActual = cliente;
+          _userPhotoUrl = _resolvePhotoUrl(cliente?.fotoPerfil);
           _isLoadingData = false;
         });
       }
@@ -163,13 +180,54 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── APPBAR PARA ADMIN/BARBERO ───────────────────────────────────────────
   PreferredSizeWidget _buildAdminAppBar() {
     String title = widget.role == AppRole.barber ? 'Panel Barbero' : 'MANITO BARBERSHOP';
+    final photoUrl = _authService.currentUser?.photoURL;
     return AppBar(
       title: Text(title),
       backgroundColor: AppColors.card,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.logout, color: Colors.redAccent),
-          onPressed: _logout,
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: PopupMenuButton<String>(
+            offset: const Offset(0, 48),
+            color: AppColors.card,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 1.5),
+                image: photoUrl != null
+                    ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                    : null,
+                gradient: photoUrl == null
+                    ? const LinearGradient(
+                        colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+              ),
+              child: photoUrl == null
+                  ? const Icon(Icons.person, color: AppColors.bg, size: 20)
+                  : null,
+            ),
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                    SizedBox(width: 12),
+                    Text('Cerrar sesión', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (val) {
+              if (val == 'logout') _logout();
+            },
+          ),
         ),
       ],
     );
@@ -195,9 +253,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Bienvenido, Barbero',
-                style: TextStyle(
+              Text(
+                'Bienvenido, ${_barberoActual?.nombre ?? 'Barbero'}',
+                style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.grey,
                 ),
@@ -586,7 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Icon(Icons.admin_panel_settings, size: 60, color: AppColors.gold),
                 const SizedBox(height: 16),
                 Text(
-                  'Bienvenido, Administrador', 
+                  'Bienvenido, ${user?.displayName ?? user?.email?.split('@').first ?? 'Administrador'}', 
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white), 
                   textAlign: TextAlign.center
                 ),
@@ -621,7 +679,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeader(),
-                      _buildHeroBanner(),
                       const SizedBox(height: 16),
                       _buildTabBar(),
                       const SizedBox(height: 16),
@@ -664,13 +721,13 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 22, color: AppColors.white),
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 22, color: AppColors.white),
                     children: [
-                      TextSpan(text: 'Bienvenido, '),
+                      const TextSpan(text: 'Bienvenido, '),
                       TextSpan(
-                        text: 'Cliente',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        text: _clienteActual?.nombre ?? 'Cliente',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -689,11 +746,22 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.card,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.divider),
+                border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 1.5),
+                image: _userPhotoUrl != null
+                    ? DecorationImage(image: NetworkImage(_userPhotoUrl!), fit: BoxFit.cover)
+                    : null,
+                gradient: _userPhotoUrl == null
+                    ? const LinearGradient(
+                        colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
               ),
-              child: const Icon(Icons.person, color: AppColors.white, size: 22),
+              child: _userPhotoUrl == null
+                  ? const Icon(Icons.person, color: AppColors.bg, size: 22)
+                  : null,
             ),
           ),
           const SizedBox(width: 4),
@@ -729,20 +797,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Column(
             children: [
-              _dropItem(Icons.person_outline, 'Mi Perfil', onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(role: widget.role)));
-              }),
-              _dropDivider(),
-              _dropItem(Icons.calendar_today_outlined, 'Mis Citas', onTap: () {
-                // Navegar a Mis Citas (index 1 del bottom nav)
-                Navigator.pushNamed(context, '/home');
-              }),
-              _dropDivider(),
-              _dropItem(Icons.shopping_cart_outlined, 'Mis Ventas', onTap: () {
-                // Navegar a Mis Ventas (index 2 del bottom nav para barbero)
-                Navigator.pushNamed(context, '/home');
-              }),
-              _dropDivider(),
               _dropItem(
                 Icons.logout, 
                 'Cerrar sesión', 
@@ -1003,14 +1057,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── FREQUENT SERVICES (CAROUSEL) ──────────────────────────────────────────
+  // ── CORTES PASADOS (CAROUSEL) ──────────────────────────────────────────
   Widget _buildFrequentServices() {
-    if (_serviciosApi.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: Text('No hay servicios disponibles en este momento.', style: TextStyle(color: AppColors.grey)),
-      );
-    }
+    if (_cortesPasados.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
@@ -1019,10 +1068,10 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Text('🔥', style: TextStyle(fontSize: 16)),
+              const Icon(Icons.history, color: AppColors.gold, size: 18),
               const SizedBox(width: 6),
               const Text(
-                'Servicios frecuentes',
+                'Cortes pasados',
                 style: TextStyle(
                   color: AppColors.white,
                   fontWeight: FontWeight.bold,
@@ -1030,39 +1079,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const Spacer(),
-              GestureDetector(
-                onTap: () {},
-                child: const Row(
-                  children: [
-                    Text('Ver todos', style: TextStyle(color: AppColors.gold, fontSize: 13)),
-                    SizedBox(width: 2),
-                    Icon(Icons.chevron_right, color: AppColors.gold, size: 16),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         // Horizontal scroll cards
         SizedBox(
-          height: 220,
+          height: 165,
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (i) => setState(() => _carouselPage = i),
-            itemCount: (_serviciosApi.length / 2).ceil(),
+            itemCount: (_cortesPasados.length / 2).ceil(),
             itemBuilder: (ctx, pageIdx) {
               final start = pageIdx * 2;
-              final end = (start + 2).clamp(0, _serviciosApi.length);
-              final pageItems = _serviciosApi.sublist(start, end);
+              final end = (start + 2).clamp(0, _cortesPasados.length);
+              final pageItems = _cortesPasados.sublist(start, end);
+              final colors = [
+                const Color(0xFF2B1A10),
+                const Color(0xFF101A2B),
+                const Color(0xFF0F2B1A),
+                const Color(0xFF2B0F1A),
+              ];
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
-                  children: pageItems.map((s) {
+                  children: pageItems.asMap().entries.map((entry) {
+                    final i = entry.key + start;
+                    final agendamiento = entry.value;
                     return Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(right: 10),
-                        child: _serviceCard(s),
+                        child: _pastCutCard(agendamiento, colors[i % colors.length]),
                       ),
                     );
                   }).toList(),
@@ -1073,10 +1120,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 10),
         // Dots
-        if (_serviciosApi.length > 2)
+        if (_cortesPasados.length > 2)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate((_serviciosApi.length / 2).ceil(), (i) {
+            children: List.generate((_cortesPasados.length / 2).ceil(), (i) {
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -1268,9 +1315,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── PAST CUTS (REAL API DATA) ─────────────────────────────────────────────
+  // ── SERVICIOS DISPONIBLES (LIST) ──────────────────────────────────────────
   Widget _buildPastCuts() {
-    if (_cortesPasados.isEmpty) return const SizedBox.shrink();
+    if (_serviciosApi.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
@@ -1278,48 +1325,34 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Icon(Icons.history, color: AppColors.gold, size: 18),
+              const Text('🔥', style: TextStyle(fontSize: 16)),
               const SizedBox(width: 6),
               const Text(
-                'Cortes pasados',
+                'Servicios disponibles',
                 style: TextStyle(
                   color: AppColors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {},
-                child: const Row(
-                  children: [
-                    Text('Ver historial', style: TextStyle(color: AppColors.gold, fontSize: 13)),
-                    SizedBox(width: 2),
-                    Icon(Icons.chevron_right, color: AppColors.gold, size: 16),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 155,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _cortesPasados.length,
-            itemBuilder: (ctx, i) {
-              final colors = [
-                const Color(0xFF2B1A10),
-                const Color(0xFF101A2B),
-                const Color(0xFF0F2B1A),
-                const Color(0xFF2B0F1A),
-              ];
-              return _pastCutCard(_cortesPasados[i], colors[i % colors.length]);
-            },
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 220,
           ),
+          itemCount: _serviciosApi.length,
+          itemBuilder: (ctx, i) {
+            return _serviceCard(_serviciosApi[i]);
+          },
         ),
       ],
     );
@@ -1346,7 +1379,8 @@ class _HomeScreenState extends State<HomeScreen> {
           if (apiServ.imagen!.startsWith('http')) {
             imageUrl = apiServ.imagen!;
           } else {
-            imageUrl = '${ApiConfig.baseUrl}${apiServ.imagen}';
+            final rootUrl = ApiConfig.baseUrl.replaceAll('/api', '');
+            imageUrl = '$rootUrl${apiServ.imagen}';
           }
         }
       } catch (_) {}
@@ -1360,7 +1394,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Container(
-        width: 115,
         margin: const EdgeInsets.only(right: 10),
         decoration: BoxDecoration(
           color: AppColors.card,

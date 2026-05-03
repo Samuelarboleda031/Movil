@@ -222,6 +222,18 @@ class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
   }
 
   Widget _buildTarjeta(String titulo, double valor, IconData icono, bool isGold) {
+    String subtitle = 'Un barbero';
+    if (isGold) {
+      subtitle = 'Solo en servicios';
+    } else {
+      if (_selectedBarberoId == 'Todos') {
+        subtitle = 'Todos los barberos';
+      } else {
+        final selecteB = _barberosCat.where((b) => b.id.toString() == _selectedBarberoId).firstOrNull;
+        subtitle = selecteB?.nombreCompleto ?? _currentBarberoUser?.nombreCompleto ?? 'Un barbero';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -249,7 +261,7 @@ class _DashboardGananciasWidgetState extends State<DashboardGananciasWidget> {
                 Text(AppFormat.cop(valor), style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isGold ? const Color(0xFFD8B081) : Colors.white)),
                 const SizedBox(height: 4),
                 Text(
-                  isGold ? 'Solo en servicios' : (_selectedBarberoId == 'Todos' ? 'Todos los barberos' : (_currentBarberoUser?.nombreCompleto ?? 'Un barbero')),
+                  subtitle,
                   style: TextStyle(fontSize: 12, color: isGold ? const Color(0xFFD8B081) : Colors.greenAccent),
                 ),
               ],

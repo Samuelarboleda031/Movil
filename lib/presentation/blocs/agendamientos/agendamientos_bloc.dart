@@ -7,6 +7,7 @@ import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/app_role.dart';
+import 'package:parte_movil/data/models/paginacion.dart';
 
 import 'agendamientos_event.dart';
 import 'agendamientos_state.dart';
@@ -100,24 +101,49 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
 
         final bool isWeekly = event.estaSemana ?? false;
         
-        // Traer TODAS las citas sin filtro de fecha para el historial completo del barbero
-        print('🔍 [AgendamientosBloc] Cargando TODAS las citas para barbero: ${barberoLocal.id}');
-        final paginacion = await _agendamientoService.obtenerAgendamientos(
+        // Traer TODAS las citas sin filtro de semana para el historial completo
+        print('🔍 [AgendamientosBloc] Cargando TODAS las citas para barbero: ${barberoLocal.id} (nombre: ${barberoLocal.nombre}, email: ${barberoLocal.email})');
+        final totalAgendas = await _agendamientoService.obtenerAgendamientos(
           page: 1, 
-          pageSize: 5000, // Aumentado para traer más citas
-          estaSemana: isWeekly ? true : null, // Solo filtrar por semana si es necesario
+          pageSize: 5000,
         );
         
-        final propios = paginacion.items.where((a) => 
-           a.barberoId == barberoLocal.id || 
-           (a.barbero?.email?.toLowerCase() == barberoLocal.email?.toLowerCase())
-        ).toList();
+        print('📦 [AgendamientosBloc] API devolvió ${totalAgendas.items.length} citas totales');
         
-        print('✅ [AgendamientosBloc] Encontradas ${propios.length} citas para el barbero');
+        // Mostrar los primeros 5 para debug
+        for (var a in totalAgendas.items.take(5)) {
+          print('  📋 ID:${a.id} BarberoID:${a.barberoId} BarberoNombre:${a.barberoNombre} BarberoEmail:${a.barbero?.email} Estado:${a.estadoCita}');
+        }
+        
+        final propios = totalAgendas.items.where((a) {
+           final bool matchId = a.barberoId == barberoLocal.id;
+           final bool matchEmail = barberoLocal.email != null && 
+                                   barberoLocal.email!.isNotEmpty &&
+                                   a.barbero?.email != null &&
+                                   a.barbero!.email!.toLowerCase() == barberoLocal.email!.toLowerCase();
+           final bool matchNombre = a.barberoNombre != null && 
+                                    barberoLocal.nombre.isNotEmpty &&
+                                    a.barberoNombre!.toLowerCase() == barberoLocal.nombre.toLowerCase();
+           
+           return matchId || matchEmail || matchNombre;
+        }).toList();
+        
+        print('✅ [AgendamientosBloc] ${propios.length} citas coinciden con barbero ID:${barberoLocal.id}');
+
+        // Emitir TODAS las citas del barbero (sin paginación local)
+        final paginacionSimulada = Paginacion<Agendamiento>(
+          items: propios,
+          totalCount: propios.length,
+          pageSize: propios.length > 0 ? propios.length : 10,
+          currentPage: 1,
+          totalPages: 1,
+          hasPreviousPage: false,
+          hasNextPage: false,
+        );
 
         emit(AgendamientosLoaded(
           agendamientos: propios,
-          paginacion: null,
+          paginacion: paginacionSimulada,
           currentPage: 1,
           isWeeklyMode: isWeekly,
         ));

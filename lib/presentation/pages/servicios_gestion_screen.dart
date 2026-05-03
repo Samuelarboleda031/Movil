@@ -155,8 +155,11 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                       onRefresh: () => _cargarServicios(1),
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-                        itemCount: _serviciosFiltrados.length,
+                        itemCount: _serviciosFiltrados.length + ((_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1) ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index == _serviciosFiltrados.length) {
+                             return _buildPaginationControls();
+                          }
                           final s = _serviciosFiltrados[index];
                           final activo = s.estado ?? true;
 
@@ -216,9 +219,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                       ),
                     ),
             ),
-            if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1 && !_isLoading)
-               _buildPaginationControls(),
-            const SizedBox(height: 80), // Espacio para el FAB
+
           ],
         ),
       ),

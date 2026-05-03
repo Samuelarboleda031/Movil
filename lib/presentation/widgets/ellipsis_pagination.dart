@@ -19,21 +19,28 @@ class EllipsisPagination extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildArrowButton(
-            icon: Icons.chevron_left_rounded,
-            onTap: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+      width: double.infinity,
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildArrowButton(
+                icon: Icons.chevron_left_rounded,
+                onTap: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+              ),
+              const SizedBox(width: 8),
+              ..._buildPageNumbers(),
+              const SizedBox(width: 8),
+              _buildArrowButton(
+                icon: Icons.chevron_right_rounded,
+                onTap: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          ..._buildPageNumbers(),
-          const SizedBox(width: 12),
-          _buildArrowButton(
-            icon: Icons.chevron_right_rounded,
-            onTap: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -74,7 +81,7 @@ class EllipsisPagination extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.symmetric(horizontal: 4),
-        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.gold : AppColors.surface,
@@ -96,7 +103,7 @@ class EllipsisPagination extends StatelessWidget {
           style: TextStyle(
             color: isSelected ? Colors.black : AppColors.white,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            fontSize: 15,
+            fontSize: 14,
           ),
         ),
       ),
@@ -109,7 +116,7 @@ class EllipsisPagination extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(10),

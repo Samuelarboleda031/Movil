@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:app_links/app_links.dart';
 import 'package:parte_movil/core/themes/app_theme.dart';
 import 'package:parte_movil/presentation/routes/app_routes.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
@@ -9,6 +10,7 @@ import 'package:parte_movil/data/repositories/auth_repository_impl.dart';
 import 'package:parte_movil/domain/usecases/login_usecase.dart';
 import 'package:parte_movil/domain/usecases/google_login_usecase.dart';
 import 'package:parte_movil/domain/usecases/logout_usecase.dart';
+import 'package:parte_movil/presentation/pages/reset_password_screen.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,12 +25,61 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
+  final AppLinks _appLinks = AppLinks();
   bool _sessionClosedOnExit = false;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initDeepLinks();
+  }
+
+  /// Inicializa el manejo de deep links para App Links (Android) y Universal Links (iOS)
+  void _initDeepLinks() async {
+    // Escuchar links entrantes mientras la app está corriendo
+    _appLinks.uriLinkStream.listen((Uri? uri) {
+      if (uri != null) {
+        _handleDeepLink(uri);
+      }
+    });
+
+    // Obtener el link que abrió la app (si fue abierta desde un link)
+    try {
+      final Uri? initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        _handleDeepLink(initialUri);
+      }
+    } catch (e) {
+      print('Error obteniendo link inicial: $e');
+    }
+  }
+
+  /// Maneja el deep link entrante
+  void _handleDeepLink(Uri uri) {
+    print('Deep link recibido: $uri');
+
+    // Manejar reset de contraseña
+    // Formato: https://manitobarbershop.vercel.app/reset-password?code=xxx&email=xxx
+    // Firebase usa: ?oobCode=xxx&mode=resetPassword
+    if (uri.path == '/reset-password' || uri.path.contains('/reset-password')) {
+      // Soporte para ambos: 'code' (nuestro sistema) y 'oobCode' (Firebase)
+      final code = uri.queryParameters['code'] ?? uri.queryParameters['oobCode'];
+      final email = uri.queryParameters['email'];
+
+      if (code != null) {
+        // Navegar a la pantalla de reset de contraseña
+        _navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => ResetPasswordScreen(
+              email: email ?? '', // Email puede ser null si viene de Firebase
+              code: code,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -65,12 +116,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
       ],
       child: MaterialApp(
-
+        navigatorKey: _navigatorKey,
         title: 'MANITO BARBERSHOP',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      initialRoute: AppRoutes.initialRoute,
-      routes: AppRoutes.routes,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        initialRoute: AppRoutes.initialRoute,
+        routes: AppRoutes.routes,
 
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

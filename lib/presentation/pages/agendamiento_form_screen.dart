@@ -273,11 +273,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     }
 
     final dartDow = _fechaSeleccionada.weekday; 
-    final apiDow = dartDow - 1; 
+    final apiDow = dartDow % 7; 
 
     final horariosBarbero = _todosLosHorarios.where((h) {
       if (h.barberoId != (_barberoSeleccionado!.id ?? 0)) return false;
-      return h.diaSemana == apiDow || h.diaSemana == dartDow;
+      return h.diaSemana == apiDow || (dartDow == 7 && h.diaSemana == 7);
     }).toList();
 
     if (horariosBarbero.isEmpty) {
@@ -387,8 +387,12 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   Widget _buildDaySelector() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final startOfCurrentWeek = today.subtract(Duration(days: today.weekday - 1));
+    final startOfNextWeek = startOfCurrentWeek.add(const Duration(days: 7));
     
-    // Si queremos habilitar el cambio de semana como en el diálogo de barbero:
+    // Convert _fechaSeleccionada to midnight for accurate comparisons
+    final fechaSelDate = DateTime(_fechaSeleccionada.year, _fechaSeleccionada.month, _fechaSeleccionada.day);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -401,7 +405,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<int>(
-              value: _fechaSeleccionada.isBefore(now.subtract(Duration(days: now.weekday - 1)).add(const Duration(days: 7))) ? 0 : 1,
+              value: fechaSelDate.isBefore(startOfNextWeek) ? 0 : 1,
               dropdownColor: const Color(0xFF1E1E1E),
               icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
               items: const [
@@ -411,8 +415,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
               onChanged: (val) {
                 if (val == null) return;
                 setState(() {
-                  DateTime base = now.subtract(Duration(days: now.weekday - 1));
-                  if (val == 1) base = base.add(const Duration(days: 7));
+                  DateTime base = startOfCurrentWeek;
+                  if (val == 1) base = startOfNextWeek;
                   // Ajustar al mismo día de la semana pero en la nueva semana
                   _fechaSeleccionada = base.add(Duration(days: _fechaSeleccionada.weekday - 1));
                   _horaInicioSeleccionada = null;
@@ -428,14 +432,13 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
           spacing: 8,
           runSpacing: 8,
           children: List.generate(7, (i) {
-            DateTime base = now.subtract(Duration(days: now.weekday - 1));
-            // Detectar en qué semana estamos actualmente
-            if (!_fechaSeleccionada.isBefore(base.add(const Duration(days: 7)))) {
-              base = base.add(const Duration(days: 7));
+            DateTime base = startOfCurrentWeek;
+            if (!fechaSelDate.isBefore(startOfNextWeek)) {
+              base = startOfNextWeek;
             }
             final date = base.add(Duration(days: i));
             final isPast = date.isBefore(today);
-            final isSelected = _fechaSeleccionada.year == date.year && _fechaSeleccionada.month == date.month && _fechaSeleccionada.day == date.day;
+            final isSelected = fechaSelDate.year == date.year && fechaSelDate.month == date.month && fechaSelDate.day == date.day;
             
             final name = DateFormat('EEEE', 'es_ES').format(date);
             final label = name[0].toUpperCase() + name.substring(1);
@@ -692,15 +695,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                         : SearchableSelector<Barbero>(
                             label: 'Barbero *',
                             hint: 'Selecciona un barbero...',
-                            items: _barberos.where((b) {
-                              if (_todosLosHorarios.isEmpty) return true;
-                              final apiDow = _fechaSeleccionada.weekday - 1;
-                              return _todosLosHorarios.any((h) => 
-                                h.barberoId == b.id && 
-                                h.diaSemana == apiDow && 
-                                h.estado == true
-                              );
-                            }).toList(),
+                            items: _barberos,
                             selectedItem: _barberoSeleccionado,
                             displayText: (b) => b.nombreCompleto,
                             searchText: (b) => b.nombreCompleto,

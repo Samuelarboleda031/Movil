@@ -252,6 +252,48 @@ class AgendamientoService {
     }
   }
 
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarbero(int barberoId, {int page = 1, int pageSize = 10, bool? estaSemana}) async {
+    try {
+      final headers = await _getHeaders();
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/barbero/$barberoId?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+      if (estaSemana != null) {
+        url += '&estaSemana=$estaSemana';
+      }
+           
+      print('🔍 [AgendamientoService] Obteniendo citas para el barbero: $barberoId');
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 30),
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic rawData = jsonDecode(response.body);
+        if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
+          return Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
+        } else {
+          final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
+          return Paginacion<Agendamiento>(
+            items: list.map((j) => Agendamiento.fromJson(j)).toList(),
+            totalCount: list.length,
+            pageSize: list.length,
+            currentPage: 1,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
+        }
+      } else {
+        throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error al obtener citas del barbero: $e');
+      rethrow;
+    }
+  }
+
   Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 50}) async {
     try {
       final headers = await _getHeaders();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_bloc.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_event.dart';
@@ -87,19 +88,61 @@ class _VentasScreenState extends State<VentasScreen> {
 
           final ventasFiltradas = _getVentasFiltradas(ventas, catalogo);
 
-          List<Widget>? appBarAcciones;
+          // ── Barbero: diseño oscuro premium ──
           if (widget.role == AppRole.barber) {
-             appBarAcciones = [_MiniGananciaPill(
-               role: widget.role,
-               salesHash: ventas.hashCode,
-             )];
+            return Scaffold(
+              backgroundColor: AppColors.bg,
+              body: SafeArea(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          context.read<VentasBloc>().add(const LoadVentasRequested(page: 1));
+                        },
+                        color: AppColors.gold,
+                        backgroundColor: AppColors.card,
+                        child: CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: [
+                            // Header
+                            SliverToBoxAdapter(child: _buildVentasHeader()),
+                            // Banner de ganancia
+                            SliverToBoxAdapter(
+                              child: _MiniGananciaPill(role: widget.role, salesHash: ventas.hashCode),
+                            ),
+                            const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                            // Buscador
+                            SliverToBoxAdapter(child: _buildVentasBuscador()),
+                            // Lista
+                            ventasFiltradas.isEmpty
+                                ? SliverToBoxAdapter(child: _buildEmptyStateDark())
+                                : SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) => _buildVentaCardDark(ventasFiltradas[index], catalogo),
+                                      childCount: ventasFiltradas.length,
+                                    ),
+                                  ),
+                            // Paginación
+                            if (paginacion != null && paginacion.totalPages > 1)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 20),
+                                  child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                                ),
+                              ),
+                            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                          ],
+                        ),
+                      ),
+              ),
+            );
           }
 
+          // ── Admin/Manager: diseño original ──
           return Scaffold(
             appBar: AppBar(
-              title: Text(widget.role == AppRole.barber ? 'Mis Ventas' : 'Panel de Ventas', style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text('Panel de Ventas', style: TextStyle(fontWeight: FontWeight.bold)),
               elevation: 0,
-              actions: appBarAcciones,
             ),
             body: Column(
               children: [
@@ -137,17 +180,16 @@ class _VentasScreenState extends State<VentasScreen> {
                               },
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                                itemCount: ventasFiltradas.length,
+                                itemCount: ventasFiltradas.length + ((paginacion != null && paginacion.totalPages > 1) ? 1 : 0),
                                 itemBuilder: (context, index) {
-                                  final venta = ventasFiltradas[index];
-                                  return _buildVentaCard(venta, catalogo);
+                                  if (index == ventasFiltradas.length) {
+                                    return _buildPaginationControls(paginacion!.totalPages, currentPage);
+                                  }
+                                  return _buildVentaCard(ventasFiltradas[index], catalogo);
                                 },
                               ),
                             ),
                 ),
-                if (paginacion != null && paginacion.totalPages > 1 && !isLoading)
-                   _buildPaginationControls(paginacion.totalPages, currentPage),
-                const SizedBox(height: 80), // Espacio para el FAB
               ],
             ),
           );
@@ -169,6 +211,195 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DISEÑO OSCURO PREMIUM PARA BARBERO (mismo estilo que Citas)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildVentasHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mis Ventas',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Resumen de tu actividad',
+            style: TextStyle(fontSize: 14, color: AppColors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVentasBuscador() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 14),
+            const Icon(Icons.search, color: AppColors.grey, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: AppColors.white, fontSize: 15),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar venta o cliente...',
+                  hintStyle: TextStyle(color: AppColors.grey, fontSize: 14),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 16),
+                ),
+                onChanged: (val) => setState(() => _searchQuery = val),
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.clear, size: 20, color: AppColors.grey),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVentaCardDark(Venta venta, Map<int, Cliente> catalogo) {
+    final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
+    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#${venta.id}';
+    final String labelCliente = _getNombreMostrar(venta, catalogo);
+    final String labelPrecio = AppFormat.cop(venta.total);
+
+    String fechaFormateada = '';
+    try {
+      if (venta.fechaRegistro != null && venta.fechaRegistro!.isNotEmpty) {
+        final fecha = DateTime.parse(venta.fechaRegistro!);
+        fechaFormateada = '${fecha.day}/${fecha.month}/${fecha.year}';
+      }
+    } catch (_) {
+      fechaFormateada = venta.fechaRegistro?.split('T')[0] ?? '';
+    }
+
+    return GestureDetector(
+      onTap: () => _verDetallesVenta(venta, catalogo),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            // Icono
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: isAnulada ? AppColors.red.withOpacity(0.15) : AppColors.gold.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isAnulada ? Icons.close : Icons.shopping_bag_outlined,
+                color: isAnulada ? AppColors.red : AppColors.gold,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Venta $labelNumero',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    labelCliente,
+                    style: TextStyle(fontSize: 12, color: AppColors.grey.withOpacity(0.9)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (fechaFormateada.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      fechaFormateada,
+                      style: TextStyle(fontSize: 10, color: AppColors.grey.withOpacity(0.7)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // Precio y flecha
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  labelPrecio,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isAnulada ? AppColors.red : AppColors.green,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyStateDark() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.gold.withOpacity(0.5)),
+          const SizedBox(height: 16),
+          Text(
+            _searchQuery.isNotEmpty
+                ? 'No hay ventas que coincidan con tu búsqueda'
+                : 'No tienes ventas registradas',
+            style: const TextStyle(color: AppColors.grey, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DISEÑO ADMIN/MANAGER (original)
+  // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildEmptyState() {
     return Center(
@@ -398,45 +629,88 @@ class _MiniGananciaPillState extends State<_MiniGananciaPill> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _mostrarSelectorPeriodo,
-      child: Container(
-        margin: const EdgeInsets.only(right: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFD8B081).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFFD8B081).withOpacity(0.4)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'MI GANANCIA (${_getNombrePeriodo()})', 
-                  style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.keyboard_arrow_down, size: 14, color: Colors.grey),
-              ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: GestureDetector(
+        onTap: _mostrarSelectorPeriodo,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-            const SizedBox(height: 2),
-            if (_isLoading)
-               const SizedBox(
-                 height: 14, 
-                 width: 14, 
-                 child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD8B081))
-               )
-            else
-               Text(
-                 AppFormat.cop(_ganancia),
-                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD8B081)),
-               ),
-          ],
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFD8B081).withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: Color(0xFF1A1A2E),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'MI GANANCIA (${_getNombrePeriodo()})',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1A1A2E),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 16,
+                          color: const Color(0xFF1A1A2E).withOpacity(0.7),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (_isLoading)
+                      const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      )
+                    else
+                      Text(
+                        AppFormat.cop(_ganancia),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

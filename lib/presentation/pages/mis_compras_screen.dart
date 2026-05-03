@@ -172,8 +172,11 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
 
                               return ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                                itemCount: currentPageItems.length,
+                                itemCount: currentPageItems.length + (totalPages > 1 ? 1 : 0),
                                 itemBuilder: (context, index) {
+                                  if (index == currentPageItems.length) {
+                                    return _buildPaginationControls(totalPages);
+                                  }
                                   return _buildCompraCard(currentPageItems[index]);
                                 },
                               );
@@ -181,16 +184,6 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
                           ),
                         ),
                         ),
-            if (!_isLoading) Builder(
-              builder: (context) {
-                final totalItems = _ventasFiltradas.length;
-                final totalPages = (totalItems / _pageSize).ceil();
-                if (totalPages > 1) {
-                  return _buildPaginationControls(totalPages);
-                }
-                return const SizedBox.shrink();
-              }
-            ),
             const SizedBox(height: 20),
           ],
         ),

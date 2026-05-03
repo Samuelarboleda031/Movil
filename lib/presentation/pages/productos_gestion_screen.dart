@@ -154,8 +154,11 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                       onRefresh: () => _cargarProductos(1),
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                        itemCount: _productosFiltrados.length,
+                        itemCount: _productosFiltrados.length + ((_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1) ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index == _productosFiltrados.length) {
+                             return _buildPaginationControls();
+                          }
                           final p = _productosFiltrados[index];
                           final activo = p.activo;
                           final useLabel = p.usoProducto == 'solo_venta' ? 'Venta' : 'Venta e Insumo';
@@ -226,9 +229,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                       ),
                     ),
             ),
-            if (_ultimaPaginacion != null && _ultimaPaginacion!.totalPages > 1 && !_isLoading)
-               _buildPaginationControls(),
-            const SizedBox(height: 80), // Espacio para el FAB
+
           ],
         ),
       ),

@@ -24,6 +24,11 @@ import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_form_screen.dart';
 import 'package:parte_movil/presentation/pages/producto_form_screen.dart';
+import 'package:parte_movil/presentation/pages/horarios_gestion_screen.dart';
+import 'package:parte_movil/presentation/pages/horario_form_screen.dart';
+import 'package:parte_movil/presentation/blocs/horarios/horarios_bloc.dart';
+import 'package:parte_movil/presentation/blocs/horarios/horarios_event.dart';
+import 'package:parte_movil/data/datasources/horario_barbero_service.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
 class MainLayout extends StatefulWidget {
@@ -36,12 +41,10 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
-  late List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    _screens = _getScreens();
   }
 
   List<Widget> _getScreens() {
@@ -56,7 +59,7 @@ class _MainLayoutState extends State<MainLayout> {
               emailJsService: EmailJsService(),
               authService: AuthService(),
               userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
             child: AgendamientosScreen(role: widget.role),
           ),
 
@@ -72,6 +75,16 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           const ServiciosGestionScreen(),
           const ProductosGestionScreen(),
+          BlocProvider(
+            create: (context) => HorariosBloc(
+              horarioService: HorarioBarberoService(),
+              barberoService: BarberoService(),
+              authService: AuthService(),
+              userContextService: UserContextService(),
+              role: widget.role,
+            )..add(LoadHorariosRequested()),
+            child: HorariosGestionScreen(role: widget.role),
+          ),
         ];
 
       case AppRole.barber:
@@ -83,7 +96,7 @@ class _MainLayoutState extends State<MainLayout> {
               emailJsService: EmailJsService(),
               authService: AuthService(),
               userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
           BlocProvider(
@@ -94,6 +107,16 @@ class _MainLayoutState extends State<MainLayout> {
               authService: AuthService(),
             )..add(const LoadVentasRequested(page: 1)),
             child: VentasScreen(role: widget.role), // Reutilizamos aquí
+          ),
+          BlocProvider(
+            create: (context) => HorariosBloc(
+              horarioService: HorarioBarberoService(),
+              barberoService: BarberoService(),
+              authService: AuthService(),
+              userContextService: UserContextService(),
+              role: widget.role,
+            )..add(LoadHorariosRequested()),
+            child: HorariosGestionScreen(role: widget.role),
           ),
           ProfileScreen(role: widget.role),
         ];
@@ -106,7 +129,7 @@ class _MainLayoutState extends State<MainLayout> {
               emailJsService: EmailJsService(),
               authService: AuthService(),
               userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: true)),
+            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
           const MisComprasScreen(),
@@ -126,12 +149,14 @@ class _MainLayoutState extends State<MainLayout> {
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Ventas'),
           BottomNavigationBarItem(icon: Icon(Icons.content_cut), label: 'Servicios'),
           BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Productos'),
+          BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Horarios'),
         ];
       case AppRole.barber:
         return const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Mis Citas'),
           BottomNavigationBarItem(icon: Icon(Icons.payments), label: 'Mis Ventas'),
+          BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Horarios'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ];
       case AppRole.client:
@@ -146,7 +171,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = _screens;
+    final screens = _getScreens();
     
     // Configuración del FAB según el rol y la pantalla actual
     Widget? floatingActionButton;
@@ -200,6 +225,17 @@ class _MainLayoutState extends State<MainLayout> {
           child: const Icon(Icons.add, color: Color(0xFF111111)),
         ),
       );
+    } else if (_currentIndex == 5 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
+      floatingActionButton = FloatingActionButton(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider(create: (_) => HorariosBloc(horarioService: HorarioBarberoService(), barberoService: BarberoService(), authService: AuthService(), userContextService: UserContextService(), role: widget.role), child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
+      );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
@@ -222,9 +258,24 @@ class _MainLayoutState extends State<MainLayout> {
           child: const Icon(Icons.add, color: Color(0xFF111111)),
         ),
       );
+    } else if (_currentIndex == 3 && widget.role == AppRole.barber) {
+      floatingActionButton = FloatingActionButton(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider(create: (_) => HorariosBloc(horarioService: HorarioBarberoService(), barberoService: BarberoService(), authService: AuthService(), userContextService: UserContextService(), role: widget.role), child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
+          child: const Icon(Icons.add, color: Color(0xFF111111)),
+        ),
+      );
     }
 
     final List<BottomNavigationBarItem> items = _getNavBarItems();
+
+    List<Widget> _buildBottomNavRow(List<BottomNavigationBarItem> items) {
+      return items.asMap().entries.map((entry) => Expanded(child: _buildNavItem(entry.key, entry.value.icon, entry.value.label!))).toList();
+    }
 
     return Scaffold(
       body: IndexedStack(
@@ -232,21 +283,14 @@ class _MainLayoutState extends State<MainLayout> {
         children: screens,
       ),
       floatingActionButton: floatingActionButton,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
         color: AppColors.bg,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(0, items[0].icon, items[0].label!),
-            _buildNavItem(1, items[1].icon, items[1].label!),
-            if (items.length == 5) _buildNavItem(2, items[2].icon, items[2].label!),
-            const SizedBox(width: 40), // Espacio para el FAB
-            _buildNavItem(items.length == 5 ? 3 : 2, items[items.length == 5 ? 3 : 2].icon, items[items.length == 5 ? 3 : 2].label!),
-            _buildNavItem(items.length == 5 ? 4 : 3, items[items.length == 5 ? 4 : 3].icon, items[items.length == 5 ? 4 : 3].label!),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            children: _buildBottomNavRow(items),
+          ),
         ),
       ),
     );

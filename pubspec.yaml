@@ -55,6 +55,8 @@ dependencies:
   fluttertoast: ^9.0.0
   flutter_bloc: ^9.1.1
   equatable: ^2.0.8
+  app_links: ^6.4.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

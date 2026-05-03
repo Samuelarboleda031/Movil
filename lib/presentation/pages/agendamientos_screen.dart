@@ -140,20 +140,10 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     }
   }
 
-  // Filtrar citas para el historial (todas excepto canceladas y no asistió)
+  // Devolver todas las citas sin filtrar por estado
   List<Agendamiento> _getCitasFinalizadas(List<Agendamiento> agendamientos) {
-    print('🔍 Filtrando ${agendamientos.length} citas totales');
-    final resultado = agendamientos.where((a) {
-      final estado = (a.estadoCita ?? '').toLowerCase().trim();
-      print('  - Cita ID:${a.id} Estado:"$estado" Cliente:${a.clienteNombre ?? a.cliente?.nombreCompleto}');
-      // Mostrar todas excepto: cancelado, no asistió, cancelada
-      return estado != 'cancelado' && 
-             estado != 'no asistio' && 
-             estado != 'cancelada' &&
-             estado != 'no_asistio';
-    }).toList();
-    print('✅ ${resultado.length} citas filtradas para mostrar');
-    return resultado;
+    print('🔍 Total de citas recibidas: ${agendamientos.length}');
+    return agendamientos;
   }
 
   // Calcular ganancias aplicando filtros de fecha seleccionados
@@ -325,7 +315,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                         ),
                       ),
                     if (esBarberoRol) const SizedBox(height: 16),
-                    _DaySelectorWidget(
+                    DaySelectorWidget(
                       isGlobal: esGlobal,
                       onConfirm: (dates, motivo, {horaInicio, horaFin}) {
                          if (barberoSeleccionado != null && dates.isNotEmpty) {
@@ -395,15 +385,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Citas'),
-          actions: [
-            if (widget.role != AppRole.client) ...[
-               IconButton(
-                 icon: const Icon(Icons.event_busy, color: Colors.orange), 
-                 onPressed: _cancelarAgendas, 
-                 tooltip: 'Cancelar Citas / Días'
-               ),
-            ]
-          ],
+          actions: const [],
         ),
 
         body: BlocConsumer<AgendamientosBloc, AgendamientosState>(
@@ -460,43 +442,35 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : filtrados.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text('No hay agendamientos para esta semana', style: TextStyle(color: AppColors.grey)),
-                                  const SizedBox(height: 16),
-                                  if (isWeeklyMode)
-                                    _buildFullHistoryButton(context),
-                                ],
-                              ),
+                          ? const Center(
+                              child: Text('No hay agendamientos registrados', style: TextStyle(color: AppColors.grey)),
                             )
                           : Builder(
                               builder: (context) {
                                 return RefreshIndicator(
                                   onRefresh: () async {
-                                    context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: 1, estaSemana: isWeeklyMode));
+                                    context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
                                   },
                                   child: ListView.builder(
                                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                                    itemCount: filtrados.length,
+                                    itemCount: filtrados.length + ((paginacion != null && paginacion.totalPages > 1) ? 1 : 0),
                                     itemBuilder: (context, index) {
+                                      if (index == filtrados.length) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                                          child: _buildPaginationControls(paginacion!.totalPages, currentPage),
+                                        );
+                                      }
                                       final ag = filtrados[index];
                                       return _buildAdminCitaCard(ag);
-                                },
-                              ),
-                            );
-                          }
-                        ),
-                ),
-                if (isWeeklyMode && !isLoading)
-                  _buildFullHistoryButton(context),
-                if (!isWeeklyMode && paginacion != null && paginacion.totalPages > 1 && !isLoading)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildPaginationControls(paginacion.totalPages, currentPage),
-                  ),
-                const SizedBox(height: 80), // Espacio para el FAB
+                                    },
+                                  ),
+                                );
+                              }
+                            ),
+                    ),
+
+
               ],
             );
           },
@@ -707,44 +681,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     }
   }
 
-  Widget _buildFullHistoryButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: GestureDetector(
-          onTap: () {
-            context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFC9A96E).withOpacity(0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: const Text(
-              'Ver historial completo',
-              style: TextStyle(
-                color: Color(0xFF111111),
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildPaginationControls(int totalPages, int currentPage) {
     return Padding(
@@ -779,22 +716,18 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           builder: (context, state) {
             bool isLoading = state is AgendamientosInitial || state is AgendamientosLoading;
             List<Agendamiento> agendamientos = [];
+            Paginacion<Agendamiento>? paginacion;
+            int currentPage = 1;
 
             if (state is AgendamientosLoaded) {
               agendamientos = state.agendamientos;
-              print('📦 [Historial] ${agendamientos.length} citas recibidas del Bloc');
-              for (var a in agendamientos.take(5)) {
-                print('  - ID:${a.id} Estado:"${a.estadoCita}" Fecha:${a.fechaCita} Cliente:${a.clienteNombre ?? a.cliente?.nombreCompleto}');
-              }
+              paginacion = state.paginacion;
+              currentPage = state.currentPage;
             }
 
-            // Obtener solo citas finalizadas para el historial
-            final citasFinalizadas = _getCitasFinalizadas(agendamientos);
-            print('🔍 [Historial] ${citasFinalizadas.length} citas después de filtro de estado');
+            // Mostrar todas las citas sin filtro de estado
+            final citasFiltradas = _agendamientosFiltrados(agendamientos);
             
-            final citasFiltradas = _agendamientosFiltrados(citasFinalizadas);
-            print('✅ [Historial] ${citasFiltradas.length} citas después de todos los filtros');
-            final gananciasPeriodo = _calcularGananciasFiltradas(agendamientos);
             // Ganancia total del historial filtrado
             final gananciasTotal = citasFiltradas.fold(0.0, (sum, a) => sum + (a.monto ?? a.precio ?? 0));
 
@@ -814,13 +747,6 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                           SliverToBoxAdapter(
                             child: _buildHistorialHeader(),
                           ),
-                          // Mini Dashboard Ganancia 60%
-                          SliverToBoxAdapter(
-                            child: _buildMiniGananciaPill(),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: SizedBox(height: 8),
-                          ),
                           // Título de servicios pasados con buscador
                           SliverToBoxAdapter(
                             child: _buildServiciosPasadosHeader(),
@@ -838,6 +764,14 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                     childCount: citasFiltradas.length,
                                   ),
                                 ),
+                          // Paginación
+                          if (paginacion != null && paginacion.totalPages > 1)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 20),
+                                child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                              ),
+                            ),
                           const SliverToBoxAdapter(
                             child: SizedBox(height: 100),
                           ),
@@ -915,40 +849,6 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 ],
               ),
             ],
-          ),
-          // Logo circular dorado - clickable para cancelar horario
-          GestureDetector(
-            onTap: () {
-              if (widget.role == AppRole.barber) {
-                _cancelarAgendas();
-              }
-            },
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.gold.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.content_cut,
-                  color: AppColors.bg,
-                  size: 24,
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -1113,6 +1013,8 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                       hintText: 'Buscar cliente o servicio...',
                       hintStyle: TextStyle(color: AppColors.grey, fontSize: 14),
                       border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 16),
                     ),
                     onChanged: (val) => setState(() => _searchQuery = val),
@@ -1687,17 +1589,17 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 
 }
 
-class _DaySelectorWidget extends StatefulWidget {
+class DaySelectorWidget extends StatefulWidget {
   final Function(List<DateTime>, String, {String? horaInicio, String? horaFin}) onConfirm;
   final bool isGlobal;
 
-  const _DaySelectorWidget({required this.onConfirm, required this.isGlobal});
+  const DaySelectorWidget({super.key, required this.onConfirm, required this.isGlobal});
 
   @override
-  State<_DaySelectorWidget> createState() => __DaySelectorWidgetState();
+  State<DaySelectorWidget> createState() => _DaySelectorWidgetState();
 }
 
-class __DaySelectorWidgetState extends State<_DaySelectorWidget> {
+class _DaySelectorWidgetState extends State<DaySelectorWidget> {
   int _currentTab = 0; // 0: Hora, 1: Día, 2: Días, 3: Semanal
   
   // Para Días y Semanal
