@@ -17,6 +17,8 @@ import 'package:parte_movil/presentation/pages/agendamientos_screen.dart' show D
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'dart:math' as math;
 import 'horario_form_screen.dart';
+import 'solicitudes_cambio_horario_screen.dart';
+import 'citas_por_dia_screen.dart';
 
 // ─── COLORES GLOBALES ────────────────────────────────────────────────────────
 const kBg        = AppColors.bg;
@@ -369,6 +371,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
                       child: Column(
                         children: [
                           _buildBotonCancelarDias(),
+                          _buildBotonSolicitudes(),
                           Expanded(
                             child: RefreshIndicator(
                               color: kGold,
@@ -508,6 +511,46 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBotonSolicitudes() {
+    final esBarbero = _currentRole == AppRole.barber;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SolicitudesCambioHorarioScreen(role: _currentRole),
+          ),
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF3A5A8A).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF3A5A8A).withOpacity(0.35), width: 1),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.swap_horiz, color: Color(0xFF7EB5F4), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                esBarbero ? 'MIS SOLICITUDES DE HORARIO' : 'SOLICITUDES DE CAMBIO DE HORARIO',
+                style: const TextStyle(
+                  color: Color(0xFF7EB5F4),
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
                 ),
@@ -705,6 +748,21 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                       dia: widget.obtenerDiaSemana(t.diaSemana),
                       onEdit: () => widget.onEdit(t),
                       onDelete: () => widget.onDelete(t),
+                      onTap: () {
+                        Navigator.push(
+                          ctx,
+                          MaterialPageRoute(
+                            builder: (_) => CitasPorDiaScreen(
+                              barberoId: g.barbero.id ?? t.barberoId,
+                              barberoNombre: g.barbero.nombreCompleto,
+                              diaSemana: t.diaSemana,
+                              horaInicio: t.horaInicio.length >= 5 ? t.horaInicio.substring(0, 5) : t.horaInicio,
+                              horaFin: t.horaFin.length >= 5 ? t.horaFin.substring(0, 5) : t.horaFin,
+                              accentColor: g.color,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -723,19 +781,26 @@ class _TurnoRow extends StatelessWidget {
   final String dia;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
 
   const _TurnoRow({
     required this.turno,
     required this.dia,
     required this.onEdit,
     required this.onDelete,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: AnimatedContainer(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: kSurface2,
@@ -819,6 +884,8 @@ class _TurnoRow extends StatelessWidget {
               },
             ),
           ],
+        ),
+          ),
         ),
       ),
     );

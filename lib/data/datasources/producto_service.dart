@@ -160,19 +160,27 @@ class ProductoService {
       final headers = await _getHeaders();
       final producto = await getProductoById(id);
       if (producto == null) throw Exception('Producto no encontrado');
-      
+
       final nuevoEstado = !producto.activo;
-      
+
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.productos}/$id/estado'),
         headers: headers,
-        body: jsonEncode({"Estado": nuevoEstado, "Activo": nuevoEstado}),
+        body: jsonEncode({"estado": nuevoEstado}),
       );
 
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        return (await getProductoById(id))!;
+      if (response.statusCode == 200) {
+        try {
+          final data = jsonDecode(response.body);
+          if (data['entidad'] != null) {
+            return Producto.fromJson(data['entidad']);
+          }
+        } catch (_) {}
+        return producto.copyWith(activo: nuevoEstado);
+      } else if (response.statusCode == 204) {
+        return producto.copyWith(activo: nuevoEstado);
       } else {
-        throw Exception('Error al cambiar estado del producto: ${response.statusCode}');
+        throw Exception('Error al cambiar estado del producto: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       throw Exception('Error al cambiar estado: $e');

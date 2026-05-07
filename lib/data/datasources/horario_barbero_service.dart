@@ -116,33 +116,42 @@ class HorarioBarberoService {
     }
   }
 
-  Future<HorarioBarbero> cambiarEstado(int id) async {
+  Future<HorarioBarbero> cambiarEstado(int id, {int usuarioSolicitanteId = 0}) async {
     try {
       final headers = await _getHeaders();
-      
-      // Primero obtener el horario actual para saber a qué estado cambiar
+
       final getUrl = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id';
       final getResp = await http.get(Uri.parse(getUrl), headers: headers);
-      
+
       if (getResp.statusCode != 200) {
         throw Exception('No se encontró el horario para cambiar estado');
       }
-      
+
       final horario = HorarioBarbero.fromJson(jsonDecode(getResp.body));
       final nuevoEstado = !horario.estado;
 
-      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id/estado';
-      final payload = jsonEncode({ 'estado': nuevoEstado });
-      
-      var response = await http.post(
-        Uri.parse(url),
-        headers: headers,
-        body: payload,
-      );
+      int resolvedUserId = usuarioSolicitanteId;
+      if (resolvedUserId <= 0) {
+        final user = await _authService.getCurrentUser();
+        resolvedUserId = user?.id ?? 0;
+      }
 
-      if (response.statusCode == 404 || response.statusCode == 405) {
-        // Fallback
-        final updatedHorario = HorarioBarbero(
+      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id/estado';
+      final payload = jsonEncode({
+        'estado': nuevoEstado,
+        'usuarioSolicitanteId': resolvedUserId,
+      });
+
+      final response = await http.post(Uri.parse(url), headers: headers, body: payload);
+
+      if (response.statusCode == 200) {
+        try {
+          final data = jsonDecode(response.body);
+          if (data['entidad'] != null) {
+            return HorarioBarbero.fromJson(data['entidad']);
+          }
+        } catch (_) {}
+        return HorarioBarbero(
           id: horario.id,
           barberoId: horario.barberoId,
           diaSemana: horario.diaSemana,
@@ -150,18 +159,17 @@ class HorarioBarberoService {
           horaFin: horario.horaFin,
           estado: nuevoEstado,
         );
-        return actualizarHorario(updatedHorario);
-      } else if (response.statusCode == 200 || response.statusCode == 204) {
-        // En caso de que sí devuelva algo el PATCH/POST
-        if (response.body.isNotEmpty) {
-          return HorarioBarbero.fromJson(jsonDecode(response.body));
-        } else {
-          // No podemos devolver el horario actualizado si el response.body está vacío.
-          // Solo devolvemos un mock asumiendo que se guardó.
-           throw Exception('El endpoint de estado devolvió 204 sin contenido. Se requiere recargar.');
-        }
+      } else if (response.statusCode == 204) {
+        return HorarioBarbero(
+          id: horario.id,
+          barberoId: horario.barberoId,
+          diaSemana: horario.diaSemana,
+          horaInicio: horario.horaInicio,
+          horaFin: horario.horaFin,
+          estado: nuevoEstado,
+        );
       } else {
-         throw Exception('Error al cambiar estado: ${response.statusCode} - ${response.body}');
+        throw Exception('Error al cambiar estado: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       throw Exception('Error al cambiar estado del horario: $e');

@@ -192,8 +192,13 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                                     value: activo,
                                     onChanged: (val) async {
                                       try {
-                                        await _productoService.toggleProductoActivo(p.id!);
-                                        _cargarProductos(_currentPage);
+                                        final updated = await _productoService.toggleProductoActivo(p.id!);
+                                        if (mounted) {
+                                          setState(() {
+                                            final idx = _productos.indexWhere((x) => x.id == p.id);
+                                            if (idx != -1) _productos[idx] = updated;
+                                          });
+                                        }
                                       } catch (e) {
                                         if (context.mounted) AppToast.showError(context, 'Error: $e');
                                       }

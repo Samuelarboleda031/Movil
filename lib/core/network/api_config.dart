@@ -21,5 +21,6 @@ class ApiConfig {
   static const String paquetes = '/Paquetes';
   static const String detallePaquetes = '/DetallePaquetes';
   static const String productos = '/Productos';
+  static const String solicitudesCambioHorario = '/SolicitudesCambioHorario';
 }
 

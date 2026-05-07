@@ -106,6 +106,29 @@ class Producto {
     );
   }
 
+  Producto copyWith({bool? activo}) {
+    return Producto(
+      id: id,
+      nombre: nombre,
+      descripcion: descripcion,
+      categoria: categoria,
+      categoriaId: categoriaId,
+      tipo: tipo,
+      precioBase: precioBase,
+      precio: precio,
+      precioVenta: precioVenta,
+      precioCompra: precioCompra,
+      stockVentas: stockVentas,
+      stockInsumos: stockInsumos,
+      cantidad: cantidad,
+      minCantidad: minCantidad,
+      marca: marca,
+      imagenProduc: imagenProduc,
+      activo: activo ?? this.activo,
+      usoProducto: usoProducto,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       if (id != null && id != 0) 'Id': id,

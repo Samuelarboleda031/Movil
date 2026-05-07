@@ -47,9 +47,14 @@ class HorarioBarbero {
       'id': id,
       'barberoId': barberoId,
       'diaSemana': diaSemana,
-      'horaInicio': horaInicio,
-      'horaFin': horaFin,
+      'horaInicio': _toTimeSpan(horaInicio),
+      'horaFin': _toTimeSpan(horaFin),
       'estado': estado,
     };
+  }
+
+  static String _toTimeSpan(String t) {
+    if (t.length == 5) return '$t:00';
+    return t;
   }
 }
