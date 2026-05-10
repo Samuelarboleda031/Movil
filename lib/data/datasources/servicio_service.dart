@@ -127,20 +127,18 @@ class ServicioService {
 
   Future<void> cambiarEstadoServicio(int id, bool estado) async {
     try {
-      final servicios = await obtenerServicios();
-      final actual = servicios.firstWhere((s) => s.id == id);
-      
-      final actualizado = Servicio(
-        id: actual.id,
-        nombre: actual.nombre,
-        descripcion: actual.descripcion,
-        precio: actual.precio,
-        duracionMinutos: actual.duracionMinutos,
-        estado: estado,
-        imagen: actual.imagen,
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}/$id/estado';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: jsonEncode({'estado': estado}),
       );
 
-      await actualizarServicio(actualizado);
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al cambiar estado: ${response.statusCode} - ${response.body}');
+      }
     } catch (e) {
       throw Exception('Error al cambiar estado del servicio: $e');
     }

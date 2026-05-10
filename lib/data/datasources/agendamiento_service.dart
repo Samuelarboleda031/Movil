@@ -165,40 +165,21 @@ class AgendamientoService {
     }
   }
 
-  Future<void> cancelarDiaCompleto(String fecha, {String? motivo}) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cancelar-dia?fecha=$fecha&motivo=${motivo ?? ""}'),
-        headers: headers,
-      );
-
-      if (response.statusCode != 200 && response.statusCode != 204) {
-        throw Exception('Error al cancelar día: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
   Future<void> cancelarDiaBarbero({
     required int barberoId,
-    required String fecha,
     required int usuarioSolicitanteId,
     String? motivo,
   }) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/cancelar-dia-barbero';
-      
+      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/barbero/$barberoId/cancelar-dia';
+
       final response = await http.post(
         Uri.parse(url),
         headers: headers,
         body: jsonEncode({
-          'barberoId': barberoId,
-          'fecha': fecha,
+          'estado': false,
           'usuarioSolicitanteId': usuarioSolicitanteId,
-          'motivo': motivo ?? 'Cancelación administrativa'
         }),
       );
 
@@ -252,78 +233,72 @@ class AgendamientoService {
     }
   }
 
-  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarbero(int barberoId, {int page = 1, int pageSize = 10, bool? estaSemana}) async {
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarbero(int barberoId, {int page = 1, int pageSize = 100, bool? estaSemana}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/barbero/$barberoId?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
       if (estaSemana != null) {
         url += '&estaSemana=$estaSemana';
       }
-           
-      print('🔍 [AgendamientoService] Obteniendo citas para el barbero: $barberoId');
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: headers,
-      ).timeout(
-        const Duration(seconds: 30),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final dynamic rawData = jsonDecode(response.body);
+        List<Agendamiento> todas = [];
+
         if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
-          return Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
-        } else {
-          final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
-          return Paginacion<Agendamiento>(
-            items: list.map((j) => Agendamiento.fromJson(j)).toList(),
-            totalCount: list.length,
-            pageSize: list.length,
-            currentPage: 1,
-            totalPages: 1,
-            hasPreviousPage: false,
-            hasNextPage: false,
-          );
+          todas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
+        } else if (rawData is List) {
+          todas = rawData.map((j) => Agendamiento.fromJson(j as Map<String, dynamic>)).toList();
         }
+
+        final filtradas = todas.where((a) => a.barberoId == barberoId).toList();
+        return Paginacion<Agendamiento>(
+          items: filtradas,
+          totalCount: filtradas.length,
+          pageSize: filtradas.length,
+          currentPage: 1,
+          totalPages: 1,
+          hasPreviousPage: false,
+          hasNextPage: false,
+        );
       } else {
         throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error al obtener citas del barbero: $e');
       rethrow;
     }
   }
 
-  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 50}) async {
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 100}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}/barbero/$barberoId?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
-      
-      print('🔍 [AgendamientoService] Obteniendo citas para el barbero: $barberoId en fecha: $fecha');
-      
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+
       final response = await http.get(
         Uri.parse(url),
         headers: headers,
-      ).timeout(
-        const Duration(seconds: 30),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final dynamic rawData = jsonDecode(response.body);
-        List<Agendamiento> citas = [];
-        
+        List<Agendamiento> todas = [];
+
         if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
-          citas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
+          todas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
         } else if (rawData is List) {
-          citas = rawData.map((j) => Agendamiento.fromJson(j)).toList();
+          todas = rawData.map((j) => Agendamiento.fromJson(j as Map<String, dynamic>)).toList();
         }
-        
-        // Filtrar solo las citas de la fecha especificada y ordenar por hora
-        final citasHoy = citas.where((c) => c.fechaCita == fecha).toList();
+
+        final citasHoy = todas
+            .where((c) => c.barberoId == barberoId && c.fechaCita == fecha)
+            .toList();
         citasHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
-        
-        print('✅ [AgendamientoService] Encontradas ${citasHoy.length} citas para hoy');
-        
+
         return Paginacion<Agendamiento>(
           items: citasHoy,
           totalCount: citasHoy.length,
@@ -337,7 +312,6 @@ class AgendamientoService {
         throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error al obtener citas del barbero: $e');
       rethrow;
     }
   }

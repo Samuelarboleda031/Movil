@@ -25,20 +25,18 @@ class Usuario extends UsuarioEntity {
       apellido: json['apellido'] ?? json['Apellido'],
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       contrasena: json['contrasena'] ?? json['Contrasena'],
-      rolId: _parseInt(json['rolId'] ?? json['RolID']),
+      rolId: _parseInt(json['rolId'] ?? json['RolId'] ?? json['RolID']),
       estado: _parseBool(json['estado'] ?? json['Estado']),
     );
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'usuario': correo,
       'Nombre': nombre ?? '',
       'Apellido': apellido ?? '',
       'Correo': correo,
       'Contrasena': contrasena ?? '',
       'RolId': rolId,
-      'RolID': rolId, // doble compatibilidad
       'FotoPerfil': fotoPerfil,
       'Estado': estado ?? true,
     };

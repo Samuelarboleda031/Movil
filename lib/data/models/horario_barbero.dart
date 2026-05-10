@@ -43,14 +43,17 @@ class HorarioBarbero {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'barberoId': barberoId,
-      'diaSemana': diaSemana,
-      'horaInicio': _toTimeSpan(horaInicio),
-      'horaFin': _toTimeSpan(horaFin),
-      'estado': estado,
+    final data = <String, dynamic>{
+      'BarberoId': barberoId,
+      'DiaSemana': diaSemana,
+      'HoraInicio': _toTimeSpan(horaInicio),
+      'HoraFin': _toTimeSpan(horaFin),
+      'Estado': estado,
     };
+    if (id != null && id != 0) {
+      data['Id'] = id;
+    }
+    return data;
   }
 
   static String _toTimeSpan(String t) {

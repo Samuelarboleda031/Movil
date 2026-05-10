@@ -174,14 +174,14 @@ class Agendamiento {
       'Precio': precio > 0 ? precio : (monto ?? 0.0),
     };
 
-    // Solo incluir IDs opcionales si tienen valor válido
     if (servicioId != null) result['ServicioId'] = servicioId;
     if (servicioIds.isNotEmpty) result['ServicioIds'] = servicioIds;
     if (paqueteId != null) result['PaqueteId'] = paqueteId;
-    if (productoIds.isNotEmpty) result['ProductoIds'] = productoIds;
+    if (productoIds.isNotEmpty) {
+      result['Productos'] = productoIds.map((pid) => {'ProductoId': pid, 'Cantidad': 1}).toList();
+    }
     if (observaciones != null && observaciones!.isNotEmpty) result['Notas'] = observaciones;
     if (id != null && id != 0) result['Id'] = id;
-    if (estadoCita != null) result['EstadoCita'] = estadoCita;
 
     return result;
   }

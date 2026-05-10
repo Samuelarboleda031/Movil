@@ -40,11 +40,29 @@ class AuthService {
   }
 
   Future<Usuario?> obtenerUsuarioPorCorreo(String correo) async {
-    final usuarios = await obtenerUsuarios();
+    final url = '${ApiConfig.baseUrl}${ApiConfig.usuarios}?q=${Uri.encodeComponent(correo)}&pageSize=10';
     try {
-      return usuarios.firstWhere(
-        (u) => u.correo.toLowerCase() == correo.toLowerCase(),
-      );
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final dynamic rawData = jsonDecode(response.body);
+        List<dynamic> data;
+        if (rawData is List) {
+          data = rawData;
+        } else if (rawData is Map && rawData.containsKey('items')) {
+          data = rawData['items'];
+        } else {
+          data = [];
+        }
+        final usuarios = data.map((json) => Usuario.fromJson(json)).toList();
+        try {
+          return usuarios.firstWhere(
+            (u) => u.correo.toLowerCase() == correo.toLowerCase(),
+          );
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (_) {
       return null;
     }

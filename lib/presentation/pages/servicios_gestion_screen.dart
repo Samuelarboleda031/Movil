@@ -27,6 +27,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
   int _currentPage = 1;
   static const int _pageSize = 5;
   String _searchQuery = '';
+  String _filtroEstado = 'Todos';
 
   @override
   void initState() {
@@ -75,11 +76,60 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
   }
 
   List<Servicio> get _serviciosFiltrados {
-    if (_searchQuery.isEmpty) return _servicios;
-    return _servicios.where((s) {
-      return s.nombre.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (s.descripcion?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
-    }).toList();
+    var resultado = _servicios;
+
+    if (_filtroEstado != 'Todos') {
+      final activo = _filtroEstado == 'Activo';
+      resultado = resultado.where((s) => (s.estado ?? true) == activo).toList();
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      resultado = resultado.where((s) {
+        return s.nombre.toLowerCase().contains(q) ||
+            (s.descripcion?.toLowerCase().contains(q) ?? false);
+      }).toList();
+    }
+
+    return resultado;
+  }
+
+  Widget _buildFiltrosServicios() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          ...['Todos', 'Activo', 'Inactivo'].map((e) {
+            final sel = _filtroEstado == e;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(e, style: TextStyle(color: sel ? AppColors.bg : AppColors.greyLight, fontSize: 12, fontWeight: FontWeight.w600)),
+                selected: sel,
+                onSelected: (_) => setState(() => _filtroEstado = e),
+                selectedColor: AppColors.gold,
+                backgroundColor: AppColors.card,
+                side: BorderSide(color: sel ? AppColors.gold : AppColors.divider),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                showCheckmark: false,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            );
+          }),
+          const Spacer(),
+          if (_filtroEstado != 'Todos' || _searchQuery.isNotEmpty)
+            GestureDetector(
+              onTap: () { _searchController.clear(); setState(() { _searchQuery = ''; _filtroEstado = 'Todos'; }); },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.divider)),
+                child: const Icon(Icons.filter_alt_off, size: 18, color: AppColors.gold),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _eliminarServicio(Servicio servicio) async {
@@ -124,30 +174,44 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
     return SessionGuard(
       allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
-        appBar: AppBar(title: const Text('Gestión de Servicios')),
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(
+          title: const Text('Gestión de Servicios', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.bg,
+          elevation: 0,
+        ),
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: TextField(
                 controller: _searchController,
+                style: const TextStyle(color: AppColors.white),
                 decoration: InputDecoration(
                   hintText: 'Buscar en esta página...',
-                  prefixIcon: const Icon(Icons.search),
+                  hintStyle: const TextStyle(color: AppColors.grey),
+                  prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                  filled: true,
+                  fillColor: AppColors.card,
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, size: 20),
+                          icon: const Icon(Icons.clear, size: 20, color: AppColors.grey),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _searchQuery = '');
                           },
                         )
                       : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
+            _buildFiltrosServicios(),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -163,9 +227,15 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                           final s = _serviciosFiltrados[index];
                           final activo = s.estado ?? true;
 
-                          return Card(
+                          return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: ListTile(
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.divider.withOpacity(0.5)),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
                               onTap: () async {
                                 final auth = AuthService();
                                 final user = await auth.getCurrentUser();
@@ -183,35 +253,91 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                                   ).then((_) => _cargarServicios(_currentPage));
                                 }
                               },
-                              leading: s.imagen != null && s.imagen!.isNotEmpty 
-                                ? CircleAvatar(backgroundImage: NetworkImage(s.imagen!))
-                                : const CircleAvatar(child: Icon(Icons.content_cut)),
-                              title: Text(s.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('${s.duracionMinutos} min | ${AppFormat.cop(s.precio)}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Switch(
-                                    value: activo,
-                                    onChanged: (val) async {
-                                      await _servicioService.cambiarEstadoServicio(s.id!, val);
-                                      _cargarServicios(_currentPage);
-                                    },
-                                  ),
-                                  PopupMenuButton(
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                                      const PopupMenuItem(value: 'delete', child: Text('Eliminar', style: TextStyle(color: Colors.red))),
-                                    ],
-                                    onSelected: (val) {
-                                      if (val == 'edit') {
-                                        Navigator.push(context, MaterialPageRoute(builder: (context) => ServicioFormScreen(servicio: s))).then((_) => _cargarServicios(_currentPage));
-                                      } else if (val == 'delete') {
-                                        _eliminarServicio(s);
-                                      }
-                                    },
-                                  ),
-                                ],
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    // Imagen/Icono
+                                    Container(
+                                      width: 65,
+                                      height: 65,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.bg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        image: s.imagen != null && s.imagen!.isNotEmpty
+                                            ? DecorationImage(
+                                                image: NetworkImage(s.imagen!),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: s.imagen == null || s.imagen!.isEmpty
+                                          ? const Icon(Icons.content_cut, color: AppColors.gold, size: 28)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    // Info
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            s.nombre,
+                                            style: const TextStyle(
+                                              color: AppColors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              _buildBadge('${s.duracionMinutos} min', AppColors.gold.withOpacity(0.15), AppColors.gold),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            AppFormat.cop(s.precio),
+                                            style: const TextStyle(
+                                              color: AppColors.gold,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Controles
+                                    Column(
+                                      children: [
+                                        Switch(
+                                          value: activo,
+                                          activeColor: AppColors.gold,
+                                          onChanged: (val) async {
+                                            await _servicioService.cambiarEstadoServicio(s.id!, val);
+                                            _cargarServicios(_currentPage);
+                                          },
+                                        ),
+                                        PopupMenuButton(
+                                          icon: const Icon(Icons.more_vert, color: AppColors.grey),
+                                          color: AppColors.surface,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(value: 'edit', child: Text('Editar', style: TextStyle(color: Colors.white))),
+                                            const PopupMenuItem(value: 'delete', child: Text('Eliminar', style: TextStyle(color: Colors.red))),
+                                          ],
+                                          onSelected: (val) {
+                                            if (val == 'edit') {
+                                              Navigator.push(context, MaterialPageRoute(builder: (context) => ServicioFormScreen(servicio: s))).then((_) => _cargarServicios(_currentPage));
+                                            } else if (val == 'delete') {
+                                              _eliminarServicio(s);
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -233,6 +359,20 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
         totalPages: _ultimaPaginacion!.totalPages,
         currentPage: _currentPage,
         onPageChanged: (page) => _cargarServicios(page),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String text, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }

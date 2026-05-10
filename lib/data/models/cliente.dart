@@ -43,16 +43,13 @@ class Cliente {
       'Documento': documento,
       'Nombre': nombre,
       'Apellido': apellido,
-      'UsuarioID': usuarioId,
+      'UsuarioId': usuarioId,
+      'Correo': email ?? '',
+      'Estado': estado ?? true,
     };
 
-    // Campos opcionales - solo incluir si tienen valor
     if (telefono != null && telefono!.isNotEmpty) {
       data['Telefono'] = telefono;
-    }
-    if (email != null && email!.isNotEmpty) {
-      data['Email'] = email;
-      data['Correo'] = email;
     }
     if (direccion != null && direccion!.isNotEmpty) {
       data['Direccion'] = direccion;
@@ -60,13 +57,8 @@ class Cliente {
     if (fotoPerfil != null && fotoPerfil!.isNotEmpty) {
       data['FotoPerfil'] = fotoPerfil;
     }
-    if (estado != null) {
-      data['Estado'] = estado;
-    }
-    
-    // Solo incluir ID si existe (para actualizaciones)
     if (id != null && id != 0) {
-      data['ID'] = id;
+      data['Id'] = id;
     }
 
     return data;

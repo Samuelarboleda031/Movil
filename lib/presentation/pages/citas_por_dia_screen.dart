@@ -4,6 +4,21 @@ import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 
+String _formatHora12(String time) {
+  if (time.isEmpty) return '--:--';
+  try {
+    final parts = time.split(':');
+    int hour = int.parse(parts[0]);
+    final minute = parts.length > 1 ? parts[1] : '00';
+    final period = hour >= 12 ? 'PM' : 'AM';
+    if (hour == 0) hour = 12;
+    if (hour > 12) hour -= 12;
+    return '${hour.toString().padLeft(2, '0')}:$minute $period';
+  } catch (_) {
+    return time;
+  }
+}
+
 class CitasPorDiaScreen extends StatefulWidget {
   final int barberoId;
   final String barberoNombre;
@@ -47,7 +62,8 @@ class _CitasPorDiaScreenState extends State<CitasPorDiaScreen> {
       final result = await AgendamientoService().obtenerAgendamientos(page: 1, pageSize: 5000);
       final hoy = DateTime.now();
       final hoyDate = DateTime(hoy.year, hoy.month, hoy.day);
-      final targetWeekday = _diaSemanaToWeekday(widget.diaSemana);
+      final dNorm = (widget.diaSemana == 7 || widget.diaSemana < 0 || widget.diaSemana > 6) ? 0 : widget.diaSemana;
+      final targetWeekday = _diaSemanaToWeekday(dNorm);
 
       final Map<DateTime, List<Agendamiento>> grouped = {};
       for (final cita in result.items) {
@@ -102,7 +118,8 @@ class _CitasPorDiaScreenState extends State<CitasPorDiaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final diaNombre = _nombresDias[widget.diaSemana];
+    final dIdx = (widget.diaSemana == 7 || widget.diaSemana < 0 || widget.diaSemana > 6) ? 0 : widget.diaSemana;
+    final diaNombre = _nombresDias[dIdx];
     final totalCitas = _citasPorFecha.values.fold<int>(0, (a, b) => a + b.length);
 
     return Scaffold(
@@ -111,7 +128,7 @@ class _CitasPorDiaScreenState extends State<CitasPorDiaScreen> {
         slivers: [
           // ── Hero header ──
           SliverAppBar(
-            expandedHeight: 220,
+            expandedHeight: 240,
             pinned: true,
             backgroundColor: AppColors.bg,
             iconTheme: IconThemeData(color: widget.accentColor),
@@ -171,11 +188,12 @@ class _CitasPorDiaScreenState extends State<CitasPorDiaScreen> {
                           widget.barberoNombre,
                           style: const TextStyle(fontSize: 14, color: AppColors.greyLight),
                         ),
-                        const SizedBox(height: 12),
-                        Row(
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
-                            _buildStat(Icons.access_time_filled, '${widget.horaInicio} – ${widget.horaFin}'),
-                            const SizedBox(width: 10),
+                            _buildStat(Icons.access_time_filled, '${_formatHora12(widget.horaInicio)} – ${_formatHora12(widget.horaFin)}'),
                             _buildStat(Icons.event_available, '$totalCitas citas'),
                           ],
                         ),
@@ -350,13 +368,13 @@ class _CitasPorDiaScreenState extends State<CitasPorDiaScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    hora,
+                    _formatHora12(c.horaInicio ?? ''),
                     style: TextStyle(fontFamily: 'monospace', fontSize: 16, fontWeight: FontWeight.w700, color: color),
                   ),
                   if ((c.horaFin ?? '').isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      c.horaFin!,
+                      _formatHora12(c.horaFin!),
                       style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: AppColors.grey),
                     ),
                   ],

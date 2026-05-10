@@ -418,14 +418,9 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => VentaFormScreen(venta: venta))).then((_) {
-                    context.read<VentasBloc>().add(const LoadVentasRequested(page: 1));
-                  });
-                },
+                onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  'Editar',
+                  'Cerrar',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -475,9 +470,10 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
           ),
           TextButton(
             onPressed: () {
+              final bloc = this.context.read<VentasBloc>();
               Navigator.pop(context); // popup
               Navigator.pop(this.context); // detalle view
-              context.read<VentasBloc>().add(DeleteVentaRequested(venta.id!));
+              bloc.add(DeleteVentaRequested(venta.id!));
             },
             child: const Text('Confirmar Anulación', style: TextStyle(color: Colors.red)),
           ),

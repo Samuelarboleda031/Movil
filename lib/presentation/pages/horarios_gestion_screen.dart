@@ -20,6 +20,22 @@ import 'horario_form_screen.dart';
 import 'solicitudes_cambio_horario_screen.dart';
 import 'citas_por_dia_screen.dart';
 
+// ─── HELPERS LOCALES ─────────────────────────────────────────────────────────
+String _formatHora12(String time) {
+  if (time.isEmpty) return '--:--';
+  try {
+    final parts = time.split(':');
+    int hour = int.parse(parts[0]);
+    final minute = parts.length > 1 ? parts[1] : '00';
+    final period = hour >= 12 ? 'PM' : 'AM';
+    if (hour == 0) hour = 12;
+    if (hour > 12) hour -= 12;
+    return '${hour.toString().padLeft(2, '0')}:$minute $period';
+  } catch (_) {
+    return time;
+  }
+}
+
 // ─── COLORES GLOBALES ────────────────────────────────────────────────────────
 const kBg        = AppColors.bg;
 const kSurface   = AppColors.card;
@@ -700,24 +716,6 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                     ),
                   ),
 
-                  // Badge de turnos
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: kGold.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: kGold.withOpacity(0.3), width: 0.5),
-                    ),
-                    child: Text(
-                      '${g.turnos.length} turnos',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: kGold,
-                      ),
-                    ),
-                  ),
                   const SizedBox(width: 8),
 
                   // Chevron animado
@@ -749,13 +747,17 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                       onEdit: () => widget.onEdit(t),
                       onDelete: () => widget.onDelete(t),
                       onTap: () {
+                        // Normalizar diaSemana al rango [0..6] (0=Dom..6=Sab)
+                        // El backend puede enviar 7 para Domingo (ISO) o 6 para Domingo (modelo Lunes-first).
+                        final rawDia = t.diaSemana;
+                        final diaNorm = (rawDia == 7) ? 0 : (rawDia < 0 || rawDia > 6) ? 0 : rawDia;
                         Navigator.push(
                           ctx,
                           MaterialPageRoute(
                             builder: (_) => CitasPorDiaScreen(
                               barberoId: g.barbero.id ?? t.barberoId,
                               barberoNombre: g.barbero.nombreCompleto,
-                              diaSemana: t.diaSemana,
+                              diaSemana: diaNorm,
                               horaInicio: t.horaInicio.length >= 5 ? t.horaInicio.substring(0, 5) : t.horaInicio,
                               horaFin: t.horaFin.length >= 5 ? t.horaFin.substring(0, 5) : t.horaFin,
                               accentColor: g.color,
@@ -853,7 +855,7 @@ class _TurnoRow extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    turno.horaInicio.substring(0, 5), // Limpiar milisegundos si los hay
+                    _formatHora12(turno.horaInicio),
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
                   ),
                   const Padding(
@@ -861,7 +863,7 @@ class _TurnoRow extends StatelessWidget {
                     child: Text('→', style: TextStyle(fontSize: 10, color: kTextDim)),
                   ),
                   Text(
-                    turno.horaFin.substring(0, 5),
+                    _formatHora12(turno.horaFin),
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
                   ),
                 ],

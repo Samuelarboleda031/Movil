@@ -38,6 +38,8 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   int _currentPage = 1;
   static const int _pageSize = 5;
   String _searchQuery = '';
+  DateTime? _fechaDesde;
+  DateTime? _fechaHasta;
   final Map<int, String> _nombresBarberos = {};
   final Map<int, String> _nombresUsuarios = {};
   final Map<int, String> _nombresProductos = {};
@@ -113,9 +115,38 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   }
 
   List<Venta> get _ventasFiltradas {
-    if (_searchQuery.isEmpty) return _ventas;
-    final q = _searchQuery.toLowerCase();
-    return _ventas.where((v) => v.numero.toLowerCase().contains(q)).toList();
+    var resultado = _ventas;
+
+    if (_fechaDesde != null || _fechaHasta != null) {
+      resultado = resultado.where((v) {
+        if (v.fechaRegistro == null || v.fechaRegistro!.isEmpty) return false;
+        try {
+          final fecha = DateTime.parse(v.fechaRegistro!);
+          if (_fechaDesde != null && fecha.isBefore(DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day))) return false;
+          if (_fechaHasta != null && fecha.isAfter(DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59))) return false;
+          return true;
+        } catch (_) { return false; }
+      }).toList();
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      resultado = resultado.where((v) => v.numero.toLowerCase().contains(q)).toList();
+    }
+
+    return resultado;
+  }
+
+  Future<void> _seleccionarFechasCompras() async {
+    final rango = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: _fechaDesde != null && _fechaHasta != null ? DateTimeRange(start: _fechaDesde!, end: _fechaHasta!) : null,
+    );
+    if (rango != null) {
+      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; _currentPage = 1; });
+    }
   }
 
   @override
@@ -153,6 +184,56 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _seleccionarFechasCompras,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _fechaDesde != null ? const Color(0xFFD8B081).withOpacity(0.15) : Colors.grey.shade800,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey.shade600),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 16, color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _fechaDesde != null && _fechaHasta != null
+                                    ? '${_fechaDesde!.day}/${_fechaDesde!.month} - ${_fechaHasta!.day}/${_fechaHasta!.month}'
+                                    : 'Filtrar por fecha',
+                                style: TextStyle(color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey, fontSize: 13),
+                              ),
+                            ),
+                            if (_fechaDesde != null)
+                              GestureDetector(
+                                onTap: () => setState(() { _fechaDesde = null; _fechaHasta = null; _currentPage = 1; }),
+                                child: const Icon(Icons.close, size: 16, color: Color(0xFFD8B081)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_fechaDesde != null || _searchQuery.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () { _searchController.clear(); setState(() { _searchQuery = ''; _fechaDesde = null; _fechaHasta = null; _currentPage = 1; }); },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.grey.shade800, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade600)),
+                        child: const Icon(Icons.filter_alt_off, size: 18, color: Color(0xFFD8B081)),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             Expanded(

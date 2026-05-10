@@ -78,24 +78,20 @@ class Venta {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'NumeroVenta': int.tryParse(numero.replaceAll(RegExp(r'[^0-9]'), '')) ?? DateTime.now().millisecondsSinceEpoch % 1000000,
-      'Fecha': fechaRegistro,
+      'NumeroRecibo': numero,
+      'UsuarioId': usuarioId,
       'ClienteId': clienteId,
       if (barberoId != null) 'BarberoId': barberoId,
-      'UsuarioId': usuarioId,
       'MetodoPago': metodoPago,
-      'Subtotal': subtotal,
       'Descuento': porcentajeDescuento,
-      'Total': total,
-      'Estado': estado ?? 'Completada',
       if (clienteNombre != null) 'ClienteNombre': clienteNombre,
       'Detalles': detalles?.map((d) => d.toJson()).toList() ?? [],
     };
-    
+
     if (id != null && id != 0) {
       data['Id'] = id;
     }
-    
+
     return data;
   }
 

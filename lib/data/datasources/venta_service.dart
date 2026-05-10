@@ -135,47 +135,16 @@ class VentaService {
     }
   }
 
-  Future<Venta> actualizarVenta(Venta venta) async {
-    try {
-      final headers = await _getHeaders();
-      final body = jsonEncode(venta.toJson());
-      final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/${venta.id}');
-
-      final response = await http.put(
-        url,
-        headers: headers,
-        body: body,
-      );
-      
-      print('Respuesta del servidor PUT: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200) {
-        return Venta.fromJson(jsonDecode(response.body));
-      } else if (response.statusCode == 204) {
-        return venta;
-      } else {
-        // Mejor manejo de error incluyendo el cuerpo de la respuesta
-        throw Exception('Error al actualizar venta ID ${venta.id}: ${response.statusCode} - ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión al actualizar venta: $e');
-    }
-  }
-
-  Future<void> eliminarVenta(int id) async {
+  Future<void> anularVenta(int id) async {
     try {
       final headers = await _getHeaders();
       final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$id/anular');
-      
-      print('📤 Enviando ANULAR a $url');
-      
-      final response = await http.put(
+
+      final response = await http.post(
         url,
         headers: headers,
       );
-      
-      print('Respuesta ANULAR servidor: ${response.statusCode} - ${response.body}');
-      
+
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al anular venta ID $id: ${response.statusCode} - ${response.body}');
       }
@@ -186,9 +155,7 @@ class VentaService {
   Future<List<DetalleVenta>> obtenerDetallesVenta(int ventaId) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.detalleVenta}?pageSize=5000'; // Muchos detalles posibles
-      
-      print('🔍 Consultando detalles en: $url');
+      final url = '${ApiConfig.baseUrl}${ApiConfig.detalleVenta}/venta/$ventaId';
 
       final response = await http.get(
         Uri.parse(url),
@@ -198,7 +165,7 @@ class VentaService {
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return [];
         final dynamic rawData = jsonDecode(response.body);
-        
+
         List<dynamic> data;
         if (rawData is List) {
           data = rawData;
@@ -208,18 +175,11 @@ class VentaService {
           data = [];
         }
 
-        final todosLosDetalles = data.map((json) => DetalleVenta.fromJson(json)).toList();
-        
-        // Filtrar por ventaId en el cliente
-        return todosLosDetalles.where((d) => d.ventaId == ventaId).toList();
+        return data.map((json) => DetalleVenta.fromJson(json)).toList();
       } else {
         throw Exception('Error al obtener detalles: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('❌ Error obteniendo detalles: $e');
-      // Retornar lista vacía en vez de error para no bloquear la UI principal, 
-      // pero idealmente deberíamos propagar el error o manejarlo en la UI.
-      // Por ahora propagamos para mostrar el snackbar.
       throw Exception('Error de conexión al obtener detalles: $e');
     }
   }

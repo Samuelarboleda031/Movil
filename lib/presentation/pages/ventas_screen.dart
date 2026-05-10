@@ -35,7 +35,10 @@ class VentasScreen extends StatefulWidget {
 class _VentasScreenState extends State<VentasScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  
+  String _filtroEstado = 'Todas';
+  DateTime? _fechaDesde;
+  DateTime? _fechaHasta;
+
   String _getNombreMostrar(Venta venta, Map<int, Cliente> catalogoClientes) {
     if (venta.cliente != null && venta.cliente!.nombre.isNotEmpty) return venta.cliente!.nombreCompleto;
     final clienteEnCatalogo = catalogoClientes[venta.clienteId];
@@ -45,13 +48,151 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   List<Venta> _getVentasFiltradas(List<Venta> ventas, Map<int, Cliente> catalogoClientes) {
-    if (_searchQuery.isEmpty) return ventas;
-    final query = _searchQuery.toLowerCase();
-    return ventas.where((venta) {
-      final matchesNumero = venta.numero.toLowerCase().contains(query);
-      final nombreMostrado = _getNombreMostrar(venta, catalogoClientes).toLowerCase();
-      return matchesNumero || nombreMostrado.contains(query);
-    }).toList();
+    var resultado = ventas;
+
+    if (_filtroEstado != 'Todas') {
+      resultado = resultado.where((v) {
+        final estado = (v.estado ?? '').toLowerCase();
+        return estado == _filtroEstado.toLowerCase();
+      }).toList();
+    }
+
+    if (_fechaDesde != null || _fechaHasta != null) {
+      resultado = resultado.where((v) {
+        if (v.fechaRegistro == null || v.fechaRegistro!.isEmpty) return false;
+        try {
+          final fecha = DateTime.parse(v.fechaRegistro!);
+          if (_fechaDesde != null && fecha.isBefore(DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day))) return false;
+          if (_fechaHasta != null && fecha.isAfter(DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59))) return false;
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }).toList();
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      resultado = resultado.where((venta) {
+        final matchesNumero = venta.numero.toLowerCase().contains(query);
+        final nombreMostrado = _getNombreMostrar(venta, catalogoClientes).toLowerCase();
+        return matchesNumero || nombreMostrado.contains(query);
+      }).toList();
+    }
+
+    return resultado;
+  }
+
+  bool get _hayFiltrosActivos => _filtroEstado != 'Todas' || _fechaDesde != null || _fechaHasta != null || _searchQuery.isNotEmpty;
+
+  void _limpiarFiltros() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _filtroEstado = 'Todas';
+      _fechaDesde = null;
+      _fechaHasta = null;
+    });
+  }
+
+  Future<void> _seleccionarRangoFechas() async {
+    final rango = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: _fechaDesde != null && _fechaHasta != null
+          ? DateTimeRange(start: _fechaDesde!, end: _fechaHasta!)
+          : null,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(primary: AppColors.gold, onPrimary: AppColors.bg, surface: AppColors.card, onSurface: AppColors.white),
+        ),
+        child: child!,
+      ),
+    );
+    if (rango != null) {
+      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; });
+    }
+  }
+
+  Widget _buildFiltrosVentas() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['Todas', 'Completada', 'Anulada'].map((estado) {
+                final selected = _filtroEstado == estado;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(estado, style: TextStyle(color: selected ? AppColors.bg : AppColors.greyLight, fontSize: 12, fontWeight: FontWeight.w600)),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _filtroEstado = estado),
+                    selectedColor: AppColors.gold,
+                    backgroundColor: AppColors.card,
+                    side: BorderSide(color: selected ? AppColors.gold : AppColors.divider),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _seleccionarRangoFechas,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: (_fechaDesde != null) ? AppColors.gold.withOpacity(0.15) : AppColors.card,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: (_fechaDesde != null) ? AppColors.gold : AppColors.divider),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 16, color: (_fechaDesde != null) ? AppColors.gold : AppColors.grey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _fechaDesde != null && _fechaHasta != null
+                                ? '${_fechaDesde!.day}/${_fechaDesde!.month} - ${_fechaHasta!.day}/${_fechaHasta!.month}'
+                                : 'Filtrar por fecha',
+                            style: TextStyle(color: (_fechaDesde != null) ? AppColors.gold : AppColors.grey, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_fechaDesde != null)
+                          GestureDetector(
+                            onTap: () => setState(() { _fechaDesde = null; _fechaHasta = null; }),
+                            child: const Icon(Icons.close, size: 16, color: AppColors.gold),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (_hayFiltrosActivos) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _limpiarFiltros,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.divider)),
+                    child: const Icon(Icons.filter_alt_off, size: 18, color: AppColors.gold),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -142,33 +283,42 @@ class _VentasScreenState extends State<VentasScreen> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('Panel de Ventas', style: TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor: AppColors.bg,
               elevation: 0,
             ),
+            backgroundColor: AppColors.bg,
             body: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: TextField(
                     controller: _searchController,
+                    style: const TextStyle(color: AppColors.white),
                     decoration: InputDecoration(
-                      hintText: 'Buscar en la página...',
-                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Buscar venta o cliente...',
+                      hintStyle: const TextStyle(color: AppColors.grey),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                      filled: true,
+                      fillColor: AppColors.card,
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear, size: 20),
+                              icon: const Icon(Icons.clear, size: 20, color: AppColors.grey),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() => _searchQuery = '');
                               },
                             )
                           : null,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
                     onChanged: (value) => setState(() => _searchQuery = value),
                   ),
                 ),
+                _buildFiltrosVentas(),
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -420,53 +570,102 @@ class _VentasScreenState extends State<VentasScreen> {
     final String labelCliente = _getNombreMostrar(venta, catalogo);
     final String labelPrecio = AppFormat.cop(venta.total);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      child: ListTile(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider.withOpacity(0.5)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: () => _verDetallesVenta(venta, catalogo),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: isAnulada ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-          child: Icon(isAnulada ? Icons.close : Icons.shopping_bag, color: isAnulada ? Colors.red : Colors.green),
-        ),
-        title: Row(
-          children: [
-            Expanded(child: Text('Venta $labelNumero', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
-            const SizedBox(width: 8),
-            Text(labelPrecio, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD8B081))),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Row(children: [
-              const Icon(Icons.person_outline, size: 14, color: Color(0xFFD8B081)),
-              const SizedBox(width: 4),
-              Expanded(child: Text(labelCliente, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text(venta.fechaRegistro?.split('T')[0] ?? 'Sin fecha', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ]),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isAnulada ? AppColors.red.withOpacity(0.12) : AppColors.gold.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isAnulada ? Icons.close : Icons.receipt_long_outlined,
+                  color: isAnulada ? AppColors.red : AppColors.gold,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Venta $labelNumero',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      labelCliente,
+                      style: const TextStyle(color: AppColors.greyLight, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined, size: 10, color: AppColors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          venta.fechaRegistro?.split('T')[0] ?? 'Sin fecha',
+                          style: const TextStyle(color: AppColors.grey, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    labelPrecio,
+                    style: TextStyle(
+                      color: isAnulada ? AppColors.red : AppColors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _verDetallesVenta(Venta summary, Map<int, Cliente> catalogo) {
+    final ventasBloc = context.read<VentasBloc>();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => VentaDetalleScreen(
-          ventaSummary: summary,
-          role: widget.role,
-          catalogoClientes: catalogo,
+        builder: (_) => BlocProvider.value(
+          value: ventasBloc,
+          child: VentaDetalleScreen(
+            ventaSummary: summary,
+            role: widget.role,
+            catalogoClientes: catalogo,
+          ),
         ),
       ),
     );

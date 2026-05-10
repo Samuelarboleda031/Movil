@@ -106,7 +106,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
 
     emit(VentasLoading());
     try {
-      await _ventaService.eliminarVenta(event.id);
+      await _ventaService.anularVenta(event.id);
       emit(const VentasActionSuccess('Venta anulada correctamente'));
       
       add(LoadVentasRequested(page: page));

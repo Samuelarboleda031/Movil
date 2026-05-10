@@ -1,26 +1,28 @@
 class ApiConfig {
   static const String baseUrl = 'https://barberiaapi-em5q.onrender.com/api';
-  
-  // Endpoints de Autenticación
-  static const String login = '/Usuarios/login';
+
+  // Usuarios
   static const String usuarios = '/Usuarios';
-  
-  // Endpoints de Ventas
+
+  // Ventas
   static const String ventas = '/Ventas';
   static const String detalleVenta = '/DetallesVenta';
-  
+
+  // Agendamientos
   static const String agendamientos = '/Agendamientos';
-  
-  // Endpoints de Horarios
+
+  // Horarios
   static const String horariosBarberos = '/HorariosBarberos';
-  
-  // Endpoints auxiliares
+
+  // Catálogos
   static const String clientes = '/Clientes';
   static const String barberos = '/Barberos';
   static const String servicios = '/Servicios';
   static const String paquetes = '/Paquetes';
   static const String detallePaquetes = '/DetallePaquetes';
   static const String productos = '/Productos';
+  static const String categorias = '/Categorias';
   static const String solicitudesCambioHorario = '/SolicitudesCambioHorario';
+  static const String dashboard = '/Dashboard';
 }
 

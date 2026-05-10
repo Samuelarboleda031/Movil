@@ -135,23 +135,15 @@ class Producto {
       'Nombre': nombre,
       if (descripcion != null) 'Descripcion': descripcion,
       'CategoriaId': categoriaId != 0 ? categoriaId : (categoria?.id ?? 0),
-      if (tipo != null) 'Tipo': tipo,
-      'PrecioBase': precioBase,
+      'Tipo': usoProducto,
       'PrecioVenta': precioVenta,
       'PrecioCompra': precioCompra,
       'StockVentas': stockVentas,
       'StockInsumos': stockInsumos,
-      'CantidadVentas': stockVentas,
-      'CantidadInsumos': stockInsumos,
       'StockTotal': cantidad,
-      'Cantidad': cantidad,
-      'StockMinimo': minCantidad,
       if (marca != null) 'Marca': marca,
       if (imagenProduc != null) 'ImagenProduc': imagenProduc,
       'Estado': activo,
-      'Activo': activo,
-      'UsoProducto': usoProducto,
-      'Tipo': usoProducto, // El servidor a veces usa Tipo como alias de UsoProducto
     };
   }
 }

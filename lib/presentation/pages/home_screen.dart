@@ -23,6 +23,7 @@ import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
+import 'package:parte_movil/core/utils/app_format.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 import 'package:parte_movil/core/themes/app_colors.dart';
@@ -430,20 +431,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCitaCard(Agendamiento cita) {
     // Formatear hora
-    String horaFormateada = '';
+    String horaFormateada = AppFormat.to12h(cita.horaInicio ?? '');
     String amPm = '';
-    if (cita.horaInicio != null && cita.horaInicio!.isNotEmpty) {
-      try {
-        final parts = cita.horaInicio!.split(':');
-        final hora = int.parse(parts[0]);
-        final minutos = parts[1];
-        amPm = hora >= 12 ? 'PM' : 'AM';
-        final hora12 = hora > 12 ? hora - 12 : (hora == 0 ? 12 : hora);
-        horaFormateada = '${hora12.toString().padLeft(2, '0')}:$minutos';
-      } catch (e) {
-        horaFormateada = cita.horaInicio!;
-        amPm = '';
-      }
+    
+    // Si queremos mantener la separación de AM/PM para el diseño:
+    if (horaFormateada.contains(' ')) {
+      final parts = horaFormateada.split(' ');
+      horaFormateada = parts[0];
+      amPm = parts[1];
     }
 
     // Obtener nombre del cliente

@@ -207,7 +207,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
           image: _currentAg.barbero?.fotoPerfil
         ),
         _buildInfoCard('Fecha', _currentAg.fechaCita ?? 'N/A', Icons.calendar_today),
-        _buildInfoCard('Horario', '${_currentAg.horaInicio} - ${_currentAg.horaFin}', Icons.access_time),
+        _buildInfoCard('Horario', '${AppFormat.to12h(_currentAg.horaInicio ?? '')} - ${AppFormat.to12h(_currentAg.horaFin ?? '')}', Icons.access_time),
       ],
     );
   }

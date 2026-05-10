@@ -34,18 +34,36 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   final TextEditingController _searchController = TextEditingController();
   final BarberoService _barberoService = BarberoService();
   String _searchQuery = '';
-  
+
   // Filtros de fecha para historial de barbero
   DateTime? _fechaDesde;
   DateTime? _fechaHasta;
   bool _filtroFechaActivo = false;
-  
+
+  // Filtros Admin
+  String _filtroEstadoAdmin = 'Todos';
+  int? _filtroBarberoId;
+  List<Barbero> _listaBarberos = [];
+
   // Período para el mini dashboard de ganancias
   String _periodoGanancia = 'mensual';
 
   List<Agendamiento> _agendamientosFiltrados(List<Agendamiento> agendamientos) {
     var resultado = agendamientos;
-    
+
+    // Filtro estado Admin
+    if (_filtroEstadoAdmin != 'Todos') {
+      resultado = resultado.where((a) {
+        final estado = (a.estadoCita ?? '').toLowerCase();
+        return estado == _filtroEstadoAdmin.toLowerCase();
+      }).toList();
+    }
+
+    // Filtro barbero Admin
+    if (_filtroBarberoId != null) {
+      resultado = resultado.where((a) => a.barberoId == _filtroBarberoId).toList();
+    }
+
     // Filtrar por texto de búsqueda
     final query = _searchQuery.toLowerCase();
     if (query.isNotEmpty) {
@@ -57,7 +75,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         return cliente.contains(query) || barbero.contains(query) || servicio.contains(query) || servicios.contains(query);
       }).toList();
     }
-    
+
     // Filtrar por rango de fechas
     if (_filtroFechaActivo && (_fechaDesde != null || _fechaHasta != null)) {
       resultado = resultado.where((a) {
@@ -78,8 +96,227 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         }
       }).toList();
     }
-    
+
     return resultado;
+  }
+
+  bool get _hayFiltrosAdminActivos => _filtroEstadoAdmin != 'Todos' || _filtroBarberoId != null || _fechaDesde != null || _searchQuery.isNotEmpty;
+
+  void _limpiarFiltrosAdmin() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _filtroEstadoAdmin = 'Todos';
+      _filtroBarberoId = null;
+      _fechaDesde = null;
+      _fechaHasta = null;
+      _filtroFechaActivo = false;
+    });
+  }
+
+  Future<void> _seleccionarFechasAdmin() async {
+    final rango = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      initialDateRange: _fechaDesde != null && _fechaHasta != null ? DateTimeRange(start: _fechaDesde!, end: _fechaHasta!) : null,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.gold, onPrimary: AppColors.bg, surface: AppColors.card, onSurface: AppColors.white)),
+        child: child!,
+      ),
+    );
+    if (rango != null) {
+      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; _filtroFechaActivo = true; });
+    }
+  }
+
+  String _periodoAdminActivo = '';
+
+  void _setFechaRapidaAdmin(String periodo) {
+    final hoy = DateTime.now();
+    setState(() {
+      _periodoAdminActivo = periodo;
+      _filtroFechaActivo = true;
+      switch (periodo) {
+        case 'hoy':
+          _fechaDesde = hoy;
+          _fechaHasta = hoy;
+          break;
+        case 'semanal':
+          _fechaDesde = hoy.subtract(Duration(days: hoy.weekday - 1));
+          _fechaHasta = hoy;
+          break;
+        case 'mensual':
+          _fechaDesde = DateTime(hoy.year, hoy.month, 1);
+          _fechaHasta = hoy;
+          break;
+      }
+    });
+  }
+
+  Widget _buildFiltrosAdmin() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        children: [
+          // Estado chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['Todos', 'Pendiente', 'Confirmado', 'En Proceso', 'Finalizado', 'No Asistio', 'Cancelado'].map((e) {
+                final sel = _filtroEstadoAdmin == e;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    label: Text(e, style: TextStyle(color: sel ? AppColors.bg : AppColors.greyLight, fontSize: 11, fontWeight: FontWeight.w600)),
+                    selected: sel,
+                    onSelected: (_) => setState(() => _filtroEstadoAdmin = e),
+                    selectedColor: AppColors.gold,
+                    backgroundColor: AppColors.card,
+                    side: BorderSide(color: sel ? AppColors.gold : AppColors.divider),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    showCheckmark: false,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Barbero dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: _filtroBarberoId != null ? AppColors.gold.withOpacity(0.15) : AppColors.card,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _filtroBarberoId != null ? AppColors.gold : AppColors.divider),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int?>(
+                value: _filtroBarberoId,
+                hint: const Text('Todos los barberos', style: TextStyle(color: AppColors.grey, fontSize: 13)),
+                isExpanded: true,
+                dropdownColor: AppColors.card,
+                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _filtroBarberoId != null ? AppColors.gold : AppColors.grey),
+                style: const TextStyle(color: AppColors.white, fontSize: 13),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Todos los barberos', style: TextStyle(color: AppColors.greyLight))),
+                  ..._listaBarberos.map((b) => DropdownMenuItem<int?>(value: b.id, child: Text(b.nombreCompleto, overflow: TextOverflow.ellipsis))),
+                ],
+                onChanged: (v) => setState(() => _filtroBarberoId = v),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Fecha: rango + botones rápidos
+          Row(
+            children: [
+              // Selector de rango
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _periodoAdminActivo = '';
+                    _seleccionarFechasAdmin();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _filtroFechaActivo && _periodoAdminActivo.isEmpty
+                          ? AppColors.gold.withOpacity(0.15)
+                          : AppColors.card,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _filtroFechaActivo && _periodoAdminActivo.isEmpty ? AppColors.gold : AppColors.divider,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 18,
+                          color: _filtroFechaActivo ? AppColors.gold : AppColors.grey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _filtroFechaActivo && _fechaDesde != null && _fechaHasta != null
+                                ? '${DateFormat('dd/MM/yy').format(_fechaDesde!)} - ${DateFormat('dd/MM/yy').format(_fechaHasta!)}'
+                                : 'Filtrar por fecha',
+                            style: TextStyle(
+                              color: _filtroFechaActivo ? AppColors.gold : AppColors.grey,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_filtroFechaActivo)
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _fechaDesde = null; _fechaHasta = null;
+                              _filtroFechaActivo = false; _periodoAdminActivo = '';
+                            }),
+                            child: Icon(Icons.close, size: 16, color: AppColors.gold.withOpacity(0.8)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Hoy
+              _buildQuickDateBtn('Hoy', 'hoy'),
+              const SizedBox(width: 8),
+              // Esta semana
+              _buildQuickDateBtn('Semana', 'semanal'),
+              const SizedBox(width: 8),
+              // Este mes
+              _buildQuickDateBtn('Mes', 'mensual'),
+            ],
+          ),
+          if (_hayFiltrosAdminActivos) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: _limpiarFiltrosAdmin,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.clear, size: 14, color: AppColors.gold),
+                      SizedBox(width: 4),
+                      Text('Limpiar filtros', style: TextStyle(fontSize: 12, color: AppColors.gold)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickDateBtn(String label, String periodo) {
+    final sel = _periodoAdminActivo == periodo && _filtroFechaActivo;
+    return GestureDetector(
+      onTap: () => _setFechaRapidaAdmin(periodo),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.gold.withOpacity(0.2) : AppColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: sel ? AppColors.gold : AppColors.divider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: sel ? AppColors.gold : AppColors.grey, fontSize: 12),
+        ),
+      ),
+    );
   }
   
   void _limpiarFiltrosFecha() {
@@ -359,12 +596,19 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   @override
   void initState() {
     super.initState();
-    // Reiniciar filtros al cargar la pantalla
     _searchController.clear();
     _searchQuery = '';
     _fechaDesde = null;
     _fechaHasta = null;
     _filtroFechaActivo = false;
+    if (widget.role != AppRole.barber) _cargarBarberos();
+  }
+
+  Future<void> _cargarBarberos() async {
+    try {
+      final barberos = await _barberoService.obtenerBarberos();
+      if (mounted) setState(() => _listaBarberos = barberos);
+    } catch (_) {}
   }
 
   @override
@@ -437,7 +681,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                     onChanged: (val) => setState(() => _searchQuery = val),
                   ),
                 ),
-
+                _buildFiltrosAdmin(),
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -482,20 +726,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   // ── TARJETA DE CITA PARA ADMIN ─────────────────────────────────────────
   Widget _buildAdminCitaCard(Agendamiento cita) {
     // Formatear hora a 12h
-    String horaFormateada = '';
+    String horaFormateada = AppFormat.to12h(cita.horaInicio ?? '');
     String amPm = '';
-    if (cita.horaInicio != null && cita.horaInicio!.isNotEmpty) {
-      try {
-        final parts = cita.horaInicio!.split(':');
-        final hora = int.parse(parts[0]);
-        final minutos = parts[1];
-        amPm = hora >= 12 ? 'PM' : 'AM';
-        final hora12 = hora > 12 ? hora - 12 : (hora == 0 ? 12 : hora);
-        horaFormateada = '${hora12.toString().padLeft(2, '0')}:$minutos';
-      } catch (e) {
-        horaFormateada = cita.horaInicio!;
-        amPm = '';
-      }
+    if (horaFormateada.contains(' ')) {
+      final parts = horaFormateada.split(' ');
+      horaFormateada = parts[0];
+      amPm = parts[1];
     }
 
     // Formatear fecha
@@ -1202,19 +1438,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
 
   Widget _buildHistorialCard(Agendamiento cita) {
     // Formatear hora a 12h
-    String horaFormateada = '';
+    String horaFormateada = AppFormat.to12h(cita.horaInicio ?? '');
     String amPm = '';
-    if (cita.horaInicio != null && cita.horaInicio!.isNotEmpty) {
-      try {
-        final parts = cita.horaInicio!.split(':');
-        final hora = int.parse(parts[0]);
-        final minutos = parts[1];
-        amPm = hora >= 12 ? 'PM' : 'AM';
-        final hora12 = hora > 12 ? hora - 12 : (hora == 0 ? 12 : hora);
-        horaFormateada = '${hora12.toString().padLeft(2, '0')}:$minutos';
-      } catch (e) {
-        horaFormateada = cita.horaInicio!;
-      }
+    if (horaFormateada.contains(' ')) {
+      final parts = horaFormateada.split(' ');
+      horaFormateada = parts[0];
+      amPm = parts[1];
     }
 
     // Formatear fecha
@@ -1646,7 +1875,6 @@ class _DaySelectorWidgetState extends State<DaySelectorWidget> {
               _buildTab(0, '⏰ Por Hora'),
               _buildTab(1, '📅 Un Día'),
               _buildTab(2, '🗓 Varios Días'),
-              _buildTab(3, '📆 Semana'),
             ],
           ),
         ),
@@ -1675,11 +1903,6 @@ class _DaySelectorWidgetState extends State<DaySelectorWidget> {
           _buildWeekDropdown(),
           const SizedBox(height: 12),
           _buildChips(weekDays, today),
-        ] else if (_currentTab == 3) ...[
-          // SEMANAL
-          Text('Cancela todos los días de una semana.', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 12),
-          _buildWeekDropdown(),
         ],
 
         const SizedBox(height: 20),
@@ -1716,10 +1939,6 @@ class _DaySelectorWidgetState extends State<DaySelectorWidget> {
             } else if (_currentTab == 2) { // Varios Días
               if (_selectedDates.isEmpty) return;
               widget.onConfirm(_selectedDates, _motivoController.text.trim());
-            } else if (_currentTab == 3) { // Semanal
-              final datesToProcess = weekDays.where((d) => _selectedWeek == 'Siguiente semana' || d.isAfter(DateTime.now().subtract(const Duration(days: 1)))).toList();
-              if (datesToProcess.isEmpty) return;
-              widget.onConfirm(datesToProcess, _motivoController.text.trim());
             } else { // Por Hora
               if (_fechaHora == null || _horaInicio == null || _horaFin == null) return;
               

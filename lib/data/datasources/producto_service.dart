@@ -20,7 +20,7 @@ class ProductoService {
   Future<List<Categoria>> getCategorias({int page = 1, int pageSize = 1000}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/Categorias?page=$page&pageSize=$pageSize';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.categorias}?page=$page&pageSize=$pageSize';
       
       final response = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 30));
 

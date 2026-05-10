@@ -39,7 +39,9 @@ class _SessionGuardState extends State<SessionGuard> {
     print('[SessionGuard] Validando sesión para $email');
 
     var usuarioApi = await _auth.getCurrentUser();
-    usuarioApi ??= await _auth.fetchUsuarioDesdeApi();
+    if (usuarioApi == null || usuarioApi.rolId == null) {
+      usuarioApi = await _auth.fetchUsuarioDesdeApi();
+    }
 
     if (!mounted) return;
 

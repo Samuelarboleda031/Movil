@@ -464,11 +464,7 @@ class _VentaFormScreenState extends State<VentaFormScreen> {
       final currentContext = context;
       final navigator = Navigator.of(currentContext);
 
-      if (widget.venta == null) {
-        await _ventaService.crearVenta(venta);
-      } else {
-        await _ventaService.actualizarVenta(venta);
-      }
+      await _ventaService.crearVenta(venta);
 
       if (mounted) {
         AppToast.showSuccess(context, widget.venta == null 

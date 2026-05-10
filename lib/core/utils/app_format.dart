@@ -15,4 +15,20 @@ class AppFormat {
 
   /// Alias más corto si prefieres
   static String cop(double amount) => formatCurrency(amount);
+
+  /// Convierte una hora militar "HH:mm" o "HH:mm:ss" a formato 12h "hh:mm AM/PM"
+  static String to12h(String time) {
+    if (time.isEmpty) return '--:--';
+    try {
+      final parts = time.split(':');
+      int hour = int.parse(parts[0]);
+      final minute = parts[1];
+      final period = hour >= 12 ? 'PM' : 'AM';
+      if (hour == 0) hour = 12;
+      if (hour > 12) hour -= 12;
+      return '${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (_) {
+      return time;
+    }
+  }
 }

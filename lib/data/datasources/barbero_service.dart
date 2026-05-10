@@ -121,7 +121,7 @@ class BarberoService {
   Future<List<HorarioBarbero>> obtenerHorariosBarberos() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/HorariosBarberos?pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}?pageSize=1000';
       
       final response = await http.get(
         Uri.parse(url),

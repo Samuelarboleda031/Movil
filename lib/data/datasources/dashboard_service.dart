@@ -17,7 +17,7 @@ class DashboardService {
   Future<Map<String, dynamic>> obtenerDashboard() async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/Dashboard';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.dashboard}';
       final response = await http.get(Uri.parse(url), headers: headers);
 
       if (response.statusCode == 200) {
@@ -33,7 +33,7 @@ class DashboardService {
   Future<Map<String, dynamic>> obtenerGanancias(String periodo, String barbero) async {
     try {
       final headers = await _getHeaders();
-      final uri = Uri.parse('${ApiConfig.baseUrl}/Dashboard/ganancias').replace(queryParameters: {
+      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.dashboard}/ganancias').replace(queryParameters: {
         'periodo': periodo,
         'barbero': barbero,
       });
