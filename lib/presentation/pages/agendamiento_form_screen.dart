@@ -24,6 +24,27 @@ import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 
+// ─── Theme constants ─────────────────────────────────────────────────────────
+
+const _kBg = Color(0xFF0A0A0A);
+const _kSurface = Color(0xFF141414);
+const _kSurface2 = Color(0xFF1A1A1A);
+const _kBorder = Color(0xFF252525);
+const _kBorderHover = Color(0xFF3A3A3A);
+const _kGold = Color(0xFFE0C070);
+const _kGoldMid = Color(0xFFC9A04E);
+const _kGoldDark = Color(0xFF9A6A25);
+const _kGoldTint = Color(0xFF1A1408);
+const _kGoldBorder = Color(0xFF4A3010);
+const _kGoldText = Color(0xFF9A7030);
+const _kText = Colors.white;
+const _kTextMuted = Color(0xFFAAAAAA);
+const _kTextDim = Color(0xFF666666);
+const _kTextFaint = Color(0xFF444444);
+const _kRadius = 14.0;
+const _kRadiusMd = 10.0;
+const _kRadiusSm = 8.0;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 int _toMinutes(String hhmm) {
@@ -44,23 +65,17 @@ String _toAmPm(String hhmm) {
   final period = h >= 12 ? 'PM' : 'AM';
   if (h == 0) h = 12;
   if (h > 12) h -= 12;
-  return '${h}:${m.toString().padLeft(2, '0')} $period';
+  return '$h:${m.toString().padLeft(2, '0')} $period';
 }
-
-String _nombreDia(DateTime d) {
-  const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  return dias[d.weekday - 1];
-}
-
-// HorarioBarbero model is now global.
 
 // ─── Widget Principal ─────────────────────────────────────────────────────────
+
 class AgendamientoFormScreen extends StatefulWidget {
   final Agendamiento? agendamiento;
   final AppRole role;
-  
+
   const AgendamientoFormScreen({
-    super.key, 
+    super.key,
     this.agendamiento,
     this.role = AppRole.admin,
   });
@@ -79,7 +94,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   final AuthService _authService = AuthService();
   final UserContextService _userContextService = UserContextService();
 
-  // Datos base
   List<Cliente> _clientes = [];
   List<Barbero> _barberos = [];
   List<Servicio> _servicios = [];
@@ -88,7 +102,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   List<Agendamiento> _todasLasCitas = [];
   List<HorarioBarbero> _todosLosHorarios = [];
 
-  // Selecciones
   Cliente? _clienteSeleccionado;
   Barbero? _barberoSeleccionado;
   List<Servicio> _serviciosSeleccionados = [];
@@ -96,25 +109,41 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   Map<int, int> _productoCantidades = {};
   bool _esServicio = true;
 
-  // Fecha y hora
   DateTime _fechaSeleccionada = DateTime.now().add(const Duration(days: 1));
   String? _horaInicioSeleccionada;
   String? _horaFinSeleccionada;
-
-  // Slots disponibles calculados
   List<String> _slotsDisponibles = [];
 
-  // Otros campos
   String _estadoCita = 'Pendiente';
   double? _monto;
   String? _observaciones;
-
   bool _isLoading = false;
   bool _isLoadingData = true;
-  
+
   final TextEditingController _montoController = TextEditingController();
 
-  final List<String> _estadosCita = ['Pendiente', 'Confirmada', 'En Proceso', 'Completada', 'Cancelada'];
+  // Estado index para ciclado
+  final List<Map<String, dynamic>> _estadosCita = [
+    {
+      'label': 'Pendiente',
+      'color': const Color(0xFF1E1810),
+      'textColor': _kGoldMid,
+      'border': const Color(0xFF4A3A15),
+    },
+    {
+      'label': 'Completada',
+      'color': const Color(0xFF0F1E14),
+      'textColor': const Color(0xFF5EAA7C),
+      'border': const Color(0xFF1F5535),
+    },
+    {
+      'label': 'Cancelada',
+      'color': const Color(0xFF1E0F0F),
+      'textColor': const Color(0xFFAA5E5E),
+      'border': const Color(0xFF552020),
+    },
+  ];
+  int _estadoIndex = 0;
 
   @override
   void initState() {
@@ -126,15 +155,16 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     });
   }
 
-  // ─── Carga de datos ───────────────────────────────────────────────────────
+  @override
+  void dispose() {
+    _montoController.dispose();
+    super.dispose();
+  }
+
+  // ─── Carga de datos ────────────────────────────────────────────────────────
+
   Future<void> _cargarDatos() async {
     try {
-      final token = await _authService.getToken();
-      final headers = {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-
       final results = await Future.wait([
         _clienteService.obtenerClientes(),
         _barberoService.obtenerBarberos(),
@@ -147,18 +177,24 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
       if (!mounted) return;
       setState(() {
-        _clientes = (results[0] as List<Cliente>).where((c) => c.estado ?? true).toList();
-        
-        final listBarberRaw = (results[1] as List<Barbero>).where((b) => b.estado ?? true).toList();
-        listBarberRaw.sort((a, b) => a.nombreCompleto.toLowerCase().compareTo(b.nombreCompleto.toLowerCase()));
+        _clientes = (results[0] as List<Cliente>)
+            .where((c) => c.estado ?? true)
+            .toList();
+        final listBarberRaw =
+            (results[1] as List<Barbero>)
+                .where((b) => b.estado ?? true)
+                .toList()
+              ..sort(
+                (a, b) => a.nombreCompleto.toLowerCase().compareTo(
+                  b.nombreCompleto.toLowerCase(),
+                ),
+              );
         _barberos = listBarberRaw;
-
         _servicios = results[2] as List<Servicio>;
         _paquetes = results[3] as List<Paquete>;
         _productos = results[4] as List<Producto>;
         _todasLasCitas = (results[5] as Paginacion<Agendamiento>).items;
         _todosLosHorarios = results[6] as List<HorarioBarbero>;
-        
         _isLoadingData = false;
       });
 
@@ -167,9 +203,13 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
       if (widget.agendamiento == null) {
         if (widget.role == AppRole.client) {
-          autoCliente = await _userContextService.obtenerClienteActual(clientesCache: _clientes);
+          autoCliente = await _userContextService.obtenerClienteActual(
+            clientesCache: _clientes,
+          );
         } else if (widget.role == AppRole.barber) {
-          autoBarber = await _userContextService.obtenerBarberoActual(barberosCache: _barberos);
+          autoBarber = await _userContextService.obtenerBarberoActual(
+            barberosCache: _barberos,
+          );
         }
       }
 
@@ -186,9 +226,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     }
   }
 
-  // _fetchHorarios logic moved to BarberoService
+  // ─── Lógica de negocio ─────────────────────────────────────────────────────
 
-  // ─── Rellenar si edit ─────────────────────────────────────────────────────
   void _calcularTotal() {
     double total = 0;
     if (_esServicio) {
@@ -198,17 +237,15 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     } else if (_paqueteSeleccionado != null) {
       total += _paqueteSeleccionado!.precio;
     }
-
     _productoCantidades.forEach((pid, qty) {
       try {
         final p = _productos.firstWhere((prod) => prod.id == pid);
         total += p.precioVenta * qty;
       } catch (_) {}
     });
-
     setState(() {
-       _monto = total;
-       _montoController.text = total > 0 ? total.toStringAsFixed(0) : '';
+      _monto = total;
+      _montoController.text = total > 0 ? total.toStringAsFixed(0) : '';
     });
   }
 
@@ -219,61 +256,69 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       } catch (_) {
         _clienteSeleccionado = a.cliente;
       }
-      
       try {
         _barberoSeleccionado = _barberos.firstWhere((b) => b.id == a.barberoId);
       } catch (_) {
         _barberoSeleccionado = a.barbero;
       }
-
       if (a.servicioIds.isNotEmpty) {
-        _serviciosSeleccionados = _servicios.where((s) => a.servicioIds.contains(s.id)).toList();
+        _serviciosSeleccionados = _servicios
+            .where((s) => a.servicioIds.contains(s.id))
+            .toList();
         _esServicio = true;
       } else if (a.servicioId != null) {
         try {
           final serv = _servicios.firstWhere((s) => s.id == a.servicioId);
           _serviciosSeleccionados = [serv];
           _esServicio = true;
-        } catch(_) {
-           if (a.servicio != null) _serviciosSeleccionados = [a.servicio!];
+        } catch (_) {
+          if (a.servicio != null) _serviciosSeleccionados = [a.servicio!];
         }
       }
-      
       if (a.productoIds.isNotEmpty) {
         _productoCantidades.clear();
         for (var pid in a.productoIds) {
-           _productoCantidades[pid] = (_productoCantidades[pid] ?? 0) + 1;
+          _productoCantidades[pid] = (_productoCantidades[pid] ?? 0) + 1;
         }
       }
       if (a.paqueteId != null) {
         try {
-           _paqueteSeleccionado = _paquetes.firstWhere((p) => p.id == a.paqueteId);
+          _paqueteSeleccionado = _paquetes.firstWhere(
+            (p) => p.id == a.paqueteId,
+          );
         } catch (_) {
-           _paqueteSeleccionado = a.paquete;
+          _paqueteSeleccionado = a.paquete;
         }
         _esServicio = false;
       }
       if (a.fechaCita != null && a.fechaCita!.isNotEmpty) {
-        _fechaSeleccionada = DateTime.tryParse(a.fechaCita!) ?? _fechaSeleccionada;
+        _fechaSeleccionada =
+            DateTime.tryParse(a.fechaCita!) ?? _fechaSeleccionada;
       }
-      _horaInicioSeleccionada = a.horaInicio?.isNotEmpty == true ? a.horaInicio : null;
+      _horaInicioSeleccionada = a.horaInicio?.isNotEmpty == true
+          ? a.horaInicio
+          : null;
       _horaFinSeleccionada = a.horaFin?.isNotEmpty == true ? a.horaFin : null;
-      _estadoCita = a.estadoCita ?? 'Pendiente';
+
+      final idx = _estadosCita.indexWhere(
+        (e) => e['label'] == (a.estadoCita ?? 'Pendiente'),
+      );
+      _estadoIndex = idx >= 0 ? idx : 0;
+      _estadoCita = _estadosCita[_estadoIndex]['label'] as String;
+
       _monto = a.monto ?? a.precio;
       _montoController.text = _monto?.toStringAsFixed(0) ?? '';
     });
     _recalcularSlots();
   }
 
-  // ─── Cálculo de slots disponibles ─────────────────────────────────────────
   void _recalcularSlots() {
     if (_barberoSeleccionado == null) {
       setState(() => _slotsDisponibles = []);
       return;
     }
-
-    final dartDow = _fechaSeleccionada.weekday; 
-    final apiDow = dartDow % 7; 
+    final dartDow = _fechaSeleccionada.weekday;
+    final apiDow = dartDow % 7;
 
     final horariosBarbero = _todosLosHorarios.where((h) {
       if (h.barberoId != (_barberoSeleccionado!.id ?? 0)) return false;
@@ -291,28 +336,39 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
     int durMin = 0;
     if (_esServicio && _serviciosSeleccionados.isNotEmpty) {
-      durMin = _serviciosSeleccionados.fold(0, (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30));
+      durMin = _serviciosSeleccionados.fold(
+        0,
+        (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30),
+      );
     } else if (!_esServicio && _paqueteSeleccionado != null) {
-      durMin = _paqueteSeleccionado!.duracionMinutos > 0 ? _paqueteSeleccionado!.duracionMinutos : 60;
+      durMin = _paqueteSeleccionado!.duracionMinutos > 0
+          ? _paqueteSeleccionado!.duracionMinutos
+          : 60;
     }
     if (durMin == 0) durMin = 30;
 
     final now = DateTime.now();
-    final isToday = _fechaSeleccionada.year == now.year &&
-                    _fechaSeleccionada.month == now.month &&
-                    _fechaSeleccionada.day == now.day;
+    final isToday =
+        _fechaSeleccionada.year == now.year &&
+        _fechaSeleccionada.month == now.month &&
+        _fechaSeleccionada.day == now.day;
     final currentMin = now.hour * 60 + now.minute;
     final String fechaStr = DateFormat('yyyy-MM-dd').format(_fechaSeleccionada);
 
     final citasBarberoHoy = _todasLasCitas.where((c) {
       if (c.barberoId != _barberoSeleccionado!.id) return false;
-      if (c.estado?.toLowerCase() == 'cancelada' || c.estadoCita?.toLowerCase() == 'cancelada') return false;
+      if (c.estado?.toLowerCase() == 'cancelada' ||
+          c.estadoCita?.toLowerCase() == 'cancelada')
+        return false;
       String fCita = c.fechaCita ?? '';
       if (fCita.isEmpty && c.fechaHora != null && c.fechaHora!.contains('T')) {
-          fCita = c.fechaHora!.split('T')[0];
+        fCita = c.fechaHora!.split('T')[0];
       }
       if (fCita != fechaStr) return false;
-      if (c.id != null && widget.agendamiento != null && c.id == widget.agendamiento!.id) return false;
+      if (c.id != null &&
+          widget.agendamiento != null &&
+          c.id == widget.agendamiento!.id)
+        return false;
       return true;
     }).toList();
 
@@ -322,40 +378,31 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       final end = _toMinutes(h.horaFin);
       while (cursor + durMin <= end) {
         bool solapa = false;
-        if (isToday && cursor <= currentMin + 30) {
-           solapa = true;
-        }
-        
+        if (isToday && cursor <= currentMin + 30) solapa = true;
         if (!solapa) {
-           final endCursor = cursor + durMin;
-           for (final c in citasBarberoHoy) {
-              if (c.horaInicio == null || c.horaInicio!.isEmpty) continue;
-              int startExist = _toMinutes(c.horaInicio!);
-              int endExist = 0;
-              if (c.horaFin != null && c.horaFin!.isNotEmpty) {
-                  endExist = _toMinutes(c.horaFin!);
-              } else {
-                  endExist = startExist + 60; 
-              }
-              if (cursor < endExist && startExist < endCursor) {
-                 solapa = true;
-                 break;
-              }
-           }
+          final endCursor = cursor + durMin;
+          for (final c in citasBarberoHoy) {
+            if (c.horaInicio == null || c.horaInicio!.isEmpty) continue;
+            int startExist = _toMinutes(c.horaInicio!);
+            int endExist = (c.horaFin != null && c.horaFin!.isNotEmpty)
+                ? _toMinutes(c.horaFin!)
+                : startExist + 60;
+            if (cursor < endExist && startExist < endCursor) {
+              solapa = true;
+              break;
+            }
+          }
         }
-
-        if (!solapa) {
-           slots.add(_fromMinutes(cursor));
-        }
-        cursor += 30; 
+        if (!solapa) slots.add(_fromMinutes(cursor));
+        cursor += 30;
       }
     }
 
     final uniqueSlots = slots.toSet().toList()..sort();
-    
     setState(() {
       _slotsDisponibles = uniqueSlots;
-      if (_horaInicioSeleccionada != null && !uniqueSlots.contains(_horaInicioSeleccionada)) {
+      if (_horaInicioSeleccionada != null &&
+          !uniqueSlots.contains(_horaInicioSeleccionada)) {
         _horaInicioSeleccionada = null;
         _horaFinSeleccionada = null;
       }
@@ -365,114 +412,24 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   void _seleccionarSlot(String slot) {
     int durMin = 0;
     if (_esServicio && _serviciosSeleccionados.isNotEmpty) {
-      durMin = _serviciosSeleccionados.fold(0, (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30));
+      durMin = _serviciosSeleccionados.fold(
+        0,
+        (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30),
+      );
     } else if (!_esServicio && _paqueteSeleccionado != null) {
-      durMin = _paqueteSeleccionado!.duracionMinutos > 0 ? _paqueteSeleccionado!.duracionMinutos : 60;
+      durMin = _paqueteSeleccionado!.duracionMinutos > 0
+          ? _paqueteSeleccionado!.duracionMinutos
+          : 60;
     }
     if (durMin == 0) durMin = 30;
-    final finMin = _toMinutes(slot) + durMin;
     setState(() {
       _horaInicioSeleccionada = slot;
-      _horaFinSeleccionada = _fromMinutes(finMin);
+      _horaFinSeleccionada = _fromMinutes(_toMinutes(slot) + durMin);
     });
   }
 
-  @override
-  void dispose() {
-    _montoController.dispose();
-    super.dispose();
-  }
-
-  // ─── Selector de fecha ────────────────────────────────────────────────────
-  Widget _buildDaySelector() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final startOfCurrentWeek = today.subtract(Duration(days: today.weekday - 1));
-    final startOfNextWeek = startOfCurrentWeek.add(const Duration(days: 7));
-    
-    // Convert _fechaSeleccionada to midnight for accurate comparisons
-    final fechaSelDate = DateTime(_fechaSeleccionada.year, _fechaSeleccionada.month, _fechaSeleccionada.day);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161616),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFD8B081), width: 1),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: fechaSelDate.isBefore(startOfNextWeek) ? 0 : 1,
-              dropdownColor: const Color(0xFF1E1E1E),
-              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFD8B081)),
-              items: const [
-                DropdownMenuItem(value: 0, child: Text('Semana actual', style: TextStyle(color: Colors.white))),
-                DropdownMenuItem(value: 1, child: Text('Siguiente semana', style: TextStyle(color: Colors.white))),
-              ],
-              onChanged: (val) {
-                if (val == null) return;
-                setState(() {
-                  DateTime base = startOfCurrentWeek;
-                  if (val == 1) base = startOfNextWeek;
-                  // Ajustar al mismo día de la semana pero en la nueva semana
-                  _fechaSeleccionada = base.add(Duration(days: _fechaSeleccionada.weekday - 1));
-                  _horaInicioSeleccionada = null;
-                  _horaFinSeleccionada = null;
-                });
-                _recalcularSlots();
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List.generate(7, (i) {
-            DateTime base = startOfCurrentWeek;
-            if (!fechaSelDate.isBefore(startOfNextWeek)) {
-              base = startOfNextWeek;
-            }
-            final date = base.add(Duration(days: i));
-            final isPast = date.isBefore(today);
-            final isSelected = fechaSelDate.year == date.year && fechaSelDate.month == date.month && fechaSelDate.day == date.day;
-            
-            final name = DateFormat('EEEE', 'es_ES').format(date);
-            final label = name[0].toUpperCase() + name.substring(1);
-
-            return FilterChip(
-              label: Text(label),
-              selected: isSelected,
-              onSelected: isPast ? null : (val) {
-                if (val) {
-                  setState(() {
-                    _fechaSeleccionada = date;
-                    _horaInicioSeleccionada = null;
-                    _horaFinSeleccionada = null;
-                  });
-                  _recalcularSlots();
-                }
-              },
-              backgroundColor: const Color(0xFF161616),
-              selectedColor: const Color(0xFFD8B081),
-              labelStyle: TextStyle(
-                color: isPast ? Colors.white24 : (isSelected ? Colors.black : Colors.white70),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
-              ),
-              checkmarkColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-
   // ─── Guardar ───────────────────────────────────────────────────────────────
+
   Future<void> _guardarAgendamiento() async {
     if (!_formKey.currentState!.validate()) return;
     if (_clienteSeleccionado == null) {
@@ -497,17 +454,22 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     }
 
     setState(() => _isLoading = true);
-    
     final navigator = Navigator.of(context);
-    
+
     try {
       final agendamiento = Agendamiento(
         id: widget.agendamiento?.id,
         clienteId: _clienteSeleccionado!.id!,
         barberoId: _barberoSeleccionado!.id!,
-        servicioId: _esServicio && _serviciosSeleccionados.isNotEmpty ? _serviciosSeleccionados.first.id : null,
-        servicioIds: _esServicio ? _serviciosSeleccionados.map((s)=>s.id!).toList() : [],
-        productoIds: _productoCantidades.entries.expand((e) => List.filled(e.value, e.key)).toList(),
+        servicioId: _esServicio && _serviciosSeleccionados.isNotEmpty
+            ? _serviciosSeleccionados.first.id
+            : null,
+        servicioIds: _esServicio
+            ? _serviciosSeleccionados.map((s) => s.id!).toList()
+            : [],
+        productoIds: _productoCantidades.entries
+            .expand((e) => List.filled(e.value, e.key))
+            .toList(),
         paqueteId: !_esServicio ? _paqueteSeleccionado!.id : null,
         fechaCita: DateFormat('yyyy-MM-dd').format(_fechaSeleccionada),
         horaInicio: _horaInicioSeleccionada,
@@ -524,7 +486,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       }
 
       if (mounted) {
-        _mostrarExito(widget.agendamiento == null ? '✅ Cita creada exitosamente' : '✅ Cita actualizada');
+        _mostrarExito(
+          widget.agendamiento == null
+              ? '✅ Cita creada exitosamente'
+              : '✅ Cita actualizada',
+        );
         navigator.pop(true);
       }
     } catch (e) {
@@ -544,507 +510,1074 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     AppToast.showError(context, msg);
   }
 
-  // ─── UI Helpers ─────────────────────────────────────────────────────────────
+  // ─── UI Helpers ────────────────────────────────────────────────────────────
 
-  Widget _buildRadioOption(String title, bool isServicioOption) {
-    final isSelected = _esServicio == isServicioOption;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _esServicio = isServicioOption;
-          _serviciosSeleccionados.clear();
-          _paqueteSeleccionado = null;
-          _monto = null;
-          _horaInicioSeleccionada = null;
-          _horaFinSeleccionada = null;
-        });
-        _recalcularSlots();
-      },
+  /// Etiqueta de sección en mayúsculas pequeñas
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: _kTextDim,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.08 * 11,
+      ),
+    ),
+  );
+
+  /// Card de selección (barbero / cliente)
+  Widget _buildSelectorCard({
+    required IconData icon,
+    required String name,
+    required String hint,
+    required VoidCallback? onTap,
+    bool locked = false,
+  }) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(_kRadius),
+        border: Border.all(color: _kBorder, width: 0.5),
+      ),
       child: Row(
         children: [
           Container(
-            width: 20,
-            height: 20,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? const Color(0xFFD8B081) : Colors.white54,
-                width: 2,
-              ),
+              color: _kSurface2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
             ),
-            child: isSelected
-                ? Center(
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFFD8B081),
-                      ),
-                    ),
-                  )
-                : null,
+            child: Icon(icon, color: const Color(0xFF888888), size: 18),
           ),
           const SizedBox(width: 12),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: _kText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hint,
+                  style: const TextStyle(color: _kTextDim, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            locked ? Icons.lock_outline : Icons.keyboard_arrow_down,
+            color: _kTextFaint,
+            size: 20,
+          ),
         ],
+      ),
+    ),
+  );
+
+  /// Toggle Servicio / Paquete
+  Widget _buildTypeToggle() => Row(
+    children: [
+      _buildToggleOption('Servicio', Icons.cut, true),
+      const SizedBox(width: 8),
+      _buildToggleOption('Paquete', Icons.inventory_2_outlined, false),
+    ],
+  );
+
+  Widget _buildToggleOption(String label, IconData icon, bool isService) {
+    final selected = _esServicio == isService;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _esServicio = isService;
+            _serviciosSeleccionados.clear();
+            _paqueteSeleccionado = null;
+            _monto = null;
+            _horaInicioSeleccionada = null;
+            _horaFinSeleccionada = null;
+          });
+          _recalcularSlots();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? _kGoldTint : _kSurface,
+            borderRadius: BorderRadius.circular(_kRadiusMd),
+            border: Border.all(
+              color: selected ? _kGoldDark : _kBorder,
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: selected ? _kGoldMid : _kTextDim),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? _kGold : _kTextDim,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildGridBox({
-    required String label,
-    required String value,
-    required IconData rightIcon,
-    VoidCallback? onTap,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+  /// Selector de servicios searchable
+  Widget _buildServiciosList() => SearchableSelector<Servicio>(
+    label: '',
+    hint: 'Buscar y añadir servicios...',
+    items: _servicios,
+    selectedItem: null,
+    displayText: (s) => s.nombre,
+    searchText: (s) => s.nombre,
+    prefixIcon: Icons.cut,
+    required: _serviciosSeleccionados.isEmpty,
+    renderItem: (s) {
+      final isSelected = _serviciosSeleccionados.any((sel) => sel.id == s.id);
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? _kGoldTint : _kSurface,
+          borderRadius: BorderRadius.circular(_kRadius),
+          border: Border.all(
+            color: isSelected ? _kGoldDark : _kBorder,
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? _kGoldMid : const Color(0xFF333333),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.nombre,
+                    style: TextStyle(
+                      color: isSelected ? _kText : _kTextMuted,
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.w500
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${s.duracionMinutos} min · \$${s.precio.toStringAsFixed(0)}',
+                    style: const TextStyle(color: _kTextDim, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check : Icons.add,
+              size: 16,
+              color: isSelected ? _kGoldMid : _kTextFaint,
+            ),
+          ],
+        ),
+      );
+    },
+    onSelected: (s) {
+      if (s != null) {
+        setState(() {
+          if (!_serviciosSeleccionados.any((sel) => sel.id == s.id)) {
+            _serviciosSeleccionados.add(s);
+            _calcularTotal();
+            _horaInicioSeleccionada = null;
+            _horaFinSeleccionada = null;
+          }
+        });
+        _recalcularSlots();
+      }
+    },
+  );
+
+  /// Selector de paquete
+  Widget _buildPaqueteSelector() => SearchableSelector<Paquete>(
+    label: '',
+    hint: 'Selecciona un paquete...',
+    items: _paquetes,
+    selectedItem: _paqueteSeleccionado,
+    displayText: (p) => p.nombre,
+    searchText: (p) => p.nombre,
+    prefixIcon: Icons.inventory_2_outlined,
+    required: true,
+    onSelected: (p) {
+      setState(() {
+        _paqueteSeleccionado = p;
+        _calcularTotal();
+      });
+      _recalcularSlots();
+    },
+  );
+
+  /// Chips de servicios seleccionados
+  Widget _buildServicioChips() {
+    if (_serviciosSeleccionados.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: _serviciosSeleccionados
+            .map(
+              (s) => _ServiceChip(
+                label: s.nombre,
+                onRemove: () {
+                  setState(() {
+                    _serviciosSeleccionados.removeWhere(
+                      (sel) => sel.id == s.id,
+                    );
+                    _calcularTotal();
+                    _horaInicioSeleccionada = null;
+                    _horaFinSeleccionada = null;
+                  });
+                  _recalcularSlots();
+                },
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  /// Sección de productos
+  Widget _buildProductosSection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SearchableSelector<Producto>(
+        label: '',
+        hint: 'Añadir producto...',
+        items: _productos,
+        selectedItem: null,
+        displayText: (p) => p.nombre,
+        searchText: (p) => p.nombre,
+        prefixIcon: Icons.shopping_bag_outlined,
+        required: false,
+        renderItem: (p) => Row(
+          children: [
+            Expanded(
+              child: Text(
+                p.nombre,
+                style: const TextStyle(color: _kText, fontSize: 14),
+              ),
+            ),
+            Text(
+              '\$${p.precioVenta.toStringAsFixed(0)}',
+              style: const TextStyle(color: _kGoldText, fontSize: 12),
+            ),
+          ],
+        ),
+        onSelected: (p) {
+          if (p != null) {
+            setState(() {
+              _productoCantidades[p.id!] =
+                  (_productoCantidades[p.id!] ?? 0) + 1;
+              _calcularTotal();
+            });
+          }
+        },
+      ),
+      if (_productoCantidades.isNotEmpty) ...[
         const SizedBox(height: 8),
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF161616),
-              borderRadius: BorderRadius.circular(12),
+        ..._productoCantidades.entries.map((e) {
+          final p = _productos.firstWhere(
+            (prod) => prod.id == e.key,
+            orElse: () =>
+                Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
+          );
+          return Container(
+            margin: const EdgeInsets.only(bottom: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: _kSurface2, width: 0.5)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                Icon(rightIcon, color: Colors.white, size: 20),
+                Expanded(
+                  child: Text(
+                    p.nombre,
+                    style: const TextStyle(color: _kTextMuted, fontSize: 13),
+                  ),
+                ),
+                Text(
+                  '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
+                  style: const TextStyle(color: _kTextDim, fontSize: 12),
+                ),
+                const SizedBox(width: 12),
+                _QtyControl(
+                  value: e.value,
+                  onDecrement: () => setState(() {
+                    if (e.value > 1) {
+                      _productoCantidades[e.key] = e.value - 1;
+                    } else {
+                      _productoCantidades.remove(e.key);
+                    }
+                    _calcularTotal();
+                  }),
+                  onIncrement: () => setState(() {
+                    _productoCantidades[e.key] = e.value + 1;
+                    _calcularTotal();
+                  }),
+                ),
               ],
             ),
-          ),
-        ),
+          );
+        }).toList(),
       ],
-    );
-  }
+    ],
+  );
 
-  Widget _buildHoraInicioPicker() {
+  /// Selector de semana + días
+  Widget _buildDaySelector() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startOfCurrentWeek = today.subtract(
+      Duration(days: today.weekday - 1),
+    );
+    final startOfNextWeek = startOfCurrentWeek.add(const Duration(days: 7));
+    final fechaSelDate = DateTime(
+      _fechaSeleccionada.year,
+      _fechaSeleccionada.month,
+      _fechaSeleccionada.day,
+    );
+    final isNextWeek = !fechaSelDate.isBefore(startOfNextWeek);
+    final base = isNextWeek ? startOfNextWeek : startOfCurrentWeek;
+
+    final weekStart = base;
+    final weekEnd = base.add(const Duration(days: 6));
+    final monthFmt = DateFormat('d MMM', 'es_ES');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Hora de inicio', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161616),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              icon: const Icon(Icons.access_time, color: Colors.white, size: 20),
-              value: _horaInicioSeleccionada,
-              dropdownColor: const Color(0xFF1E1E1E),
-              hint: const Text('Hora...', style: TextStyle(color: Colors.white38, fontSize: 16)),
-              items: _slotsDisponibles.map((s) => DropdownMenuItem(
-                value: s,
-                child: Text(_toAmPm(s), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-              )).toList(),
-              onChanged: (s) {
-                if (s != null) _seleccionarSlot(s);
-              },
+        // Nav semana
+        Row(
+          children: [
+            _WeekArrow(
+              icon: Icons.chevron_left,
+              onTap: isNextWeek
+                  ? () {
+                      setState(() {
+                        _fechaSeleccionada = startOfCurrentWeek.add(
+                          Duration(days: _fechaSeleccionada.weekday - 1),
+                        );
+                        _horaInicioSeleccionada = null;
+                        _horaFinSeleccionada = null;
+                      });
+                      _recalcularSlots();
+                    }
+                  : null,
             ),
-          ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  '${monthFmt.format(weekStart)} – ${monthFmt.format(weekEnd)} ${weekEnd.year}',
+                  style: const TextStyle(color: _kTextDim, fontSize: 13),
+                ),
+              ),
+            ),
+            _WeekArrow(
+              icon: Icons.chevron_right,
+              onTap: !isNextWeek
+                  ? () {
+                      setState(() {
+                        _fechaSeleccionada = startOfNextWeek.add(
+                          Duration(days: _fechaSeleccionada.weekday - 1),
+                        );
+                        _horaInicioSeleccionada = null;
+                        _horaFinSeleccionada = null;
+                      });
+                      _recalcularSlots();
+                    }
+                  : null,
+            ),
+          ],
         ),
-      ],
-    );
-  }
+        const SizedBox(height: 12),
+        // Grilla 7 días
+        Row(
+          children: List.generate(7, (i) {
+            final date = base.add(Duration(days: i));
+            final isPast = date.isBefore(today);
+            final isSelected = fechaSelDate == date;
+            final isToday = date == today;
+            const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-  // ─── UI Principal ───────────────────────────────────────────────────────────
-  @override
-  Widget build(BuildContext context) {
-    return SessionGuard(
-      allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber, AppRole.client],
-      child: Scaffold(
-        backgroundColor: const Color(0xFF000000), // Fondo negro oscuro
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF000000),
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            widget.agendamiento == null ? 'Nueva Cita' : 'Editar Cita',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-          ),
-        ),
-        body: _isLoadingData
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFFD8B081)))
-            : Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            return Expanded(
+              child: GestureDetector(
+                onTap: isPast
+                    ? null
+                    : () {
+                        setState(() {
+                          _fechaSeleccionada = date;
+                          _horaInicioSeleccionada = null;
+                          _horaFinSeleccionada = null;
+                        });
+                        _recalcularSlots();
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? _kGoldTint : Colors.transparent,
+                    borderRadius: BorderRadius.circular(_kRadiusMd),
+                    border: Border.all(
+                      color: isSelected ? _kGoldDark : Colors.transparent,
+                      width: 0.5,
+                    ),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // ── Barbero (Selector) ──
-                      widget.role == AppRole.barber
-                        ? _buildGridBox(
-                            label: 'Barbero',
-                            value: _barberoSeleccionado?.nombreCompleto ?? 'Tú',
-                            rightIcon: Icons.lock_outline,
-                          )
-                        : SearchableSelector<Barbero>(
-                            label: 'Barbero *',
-                            hint: 'Selecciona un barbero...',
-                            items: _barberos,
-                            selectedItem: _barberoSeleccionado,
-                            displayText: (b) => b.nombreCompleto,
-                            searchText: (b) => b.nombreCompleto,
-                            prefixIcon: Icons.badge,
-                            required: true,
-                            onSelected: (b) {
-                              setState(() {
-                                 _barberoSeleccionado = b;
-                                 _horaInicioSeleccionada = null;
-                                 _horaFinSeleccionada = null;
-                              });
-                              _recalcularSlots();
-                            },
-                          ),
-                      const SizedBox(height: 24),
-
-                      // ── Cliente ──
-                      widget.role == AppRole.client
-                        ? _buildGridBox(
-                            label: 'Cliente',
-                            value: _clienteSeleccionado?.nombreCompleto ?? 'Tú',
-                            rightIcon: Icons.lock_outline,
-                          )
-                        : SearchableSelector<Cliente>(
-                            label: 'Cliente *',
-                            hint: 'Selecciona un cliente...',
-                            items: _clientes,
-                            selectedItem: _clienteSeleccionado,
-                            displayText: (c) => c.nombreCompleto,
-                            searchText: (c) => c.nombreCompleto,
-                            prefixIcon: Icons.person,
-                            required: true,
-                            onSelected: (c) => setState(() => _clienteSeleccionado = c),
-                          ),
-                      const SizedBox(height: 24),
-
-                      // ── Tipo de Cita ──
-                      const Text('Tipo de Cita', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: _buildRadioOption('Servicio', true)),
-                          Expanded(child: _buildRadioOption('Paquete', false)),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Añadir Servicio / Paquete ──
-                      _esServicio
-                          ? SearchableSelector<Servicio>(
-                              label: '', // Ocultamos label nativo para que parezca de la imagen
-                              hint: 'Añadir Servicio',
-                              items: _servicios,
-                              selectedItem: null,
-                              displayText: (s) => s.nombre,
-                              searchText: (s) => s.nombre,
-                              prefixIcon: Icons.cut,
-                              required: _serviciosSeleccionados.isEmpty,
-                              onSelected: (s) {
-                                if (s != null && !_serviciosSeleccionados.any((sel) => sel.id == s.id)) {
-                                  setState(() {
-                                    _serviciosSeleccionados.add(s);
-                                    _calcularTotal();
-                                  });
-                                  _recalcularSlots();
-                                }
-                              },
-                            )
-                          : SearchableSelector<Paquete>(
-                              label: '',
-                              hint: 'Añadir Paquete',
-                              items: _paquetes,
-                              selectedItem: _paqueteSeleccionado,
-                              displayText: (p) => p.nombre,
-                              searchText: (p) => p.nombre,
-                              prefixIcon: Icons.inventory_2,
-                              required: true,
-                              onSelected: (p) {
-                                setState(() {
-                                  _paqueteSeleccionado = p;
-                                  _calcularTotal();
-                                });
-                                _recalcularSlots();
-                              },
-                            ),
-                      
-                      // Chips de servicios seleccionados (si hay más de 1)
-                      if (_esServicio && _serviciosSeleccionados.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8, runSpacing: 8,
-                          children: _serviciosSeleccionados.map((s) => Chip(
-                            label: Text(s.nombre),
-                            onDeleted: () {
-                              setState(() {
-                                _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
-                                _calcularTotal();
-                                _horaInicioSeleccionada = null;
-                                _horaFinSeleccionada = null;
-                              });
-                              _recalcularSlots();
-                            },
-                            backgroundColor: const Color(0xFF161616),
-                            deleteIconColor: const Color(0xFFD8B081),
-                            labelStyle: const TextStyle(color: Colors.white, fontSize: 13),
-                            side: const BorderSide(color: Color(0xFF333333)),
-                          )).toList(),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-
-                      // ── Productos ──
-                      SearchableSelector<Producto>(
-                              label: 'Añadir Producto',
-                              hint: 'Escribe el nombre del producto...',
-                              items: _productos,
-                              selectedItem: null,
-                              displayText: (p) => p.nombre,
-                              searchText: (p) => p.nombre,
-                              prefixIcon: Icons.shopping_bag,
-                              required: false,
-                              renderItem: (p) => Row(
-                                children: [
-                                  Expanded(child: Text(p.nombre, style: const TextStyle(color: Colors.white, fontSize: 14))),
-                                  Text('\$${p.precioVenta.toStringAsFixed(0)}', style: const TextStyle(color: Color(0xFFD8B081), fontSize: 12)),
-                                ],
-                              ),
-                              onSelected: (p) {
-                                if (p != null) {
-                                  setState(() {
-                                    _productoCantidades[p.id!] = (_productoCantidades[p.id!] ?? 0) + 1;
-                                    _calcularTotal();
-                                  });
-                                }
-                              },
-                            ),
-                      if (_productoCantidades.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        ..._productoCantidades.entries.map((e) {
-                          final p = _productos.firstWhere((prod) => prod.id == e.key, orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0));
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0, left: 16, right: 16),
-                            child: Row(
-                              children: [
-                                Expanded(child: Text(p.nombre, style: const TextStyle(color: Colors.white70))),
-                                Text('\$${(p.precioVenta * e.value).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                                const SizedBox(width: 12),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFD8B081), size: 20),
-                                      onPressed: () {
-                                        setState(() {
-                                          if (e.value > 1) {
-                                            _productoCantidades[e.key] = e.value - 1;
-                                          } else {
-                                            _productoCantidades.remove(e.key);
-                                          }
-                                          _calcularTotal();
-                                        });
-                                      },
-                                    ),
-                                    Text('${e.value}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, color: Color(0xFFD8B081), size: 20),
-                                      onPressed: () {
-                                        setState(() {
-                                          _productoCantidades[e.key] = e.value + 1;
-                                          _calcularTotal();
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ],
-                      const SizedBox(height: 24),
-
-                      // ── Selecciona los días (Weekday Selector) ──
-                      const Text('Selecciona el día:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      _buildDaySelector(),
-                      const SizedBox(height: 24),
-
-                      // ── Cuadrícula: Hora Inicio, Hora Fin, Monto ──
-                      Row(
-                        children: [
-                           Expanded(child: _buildHoraInicioPicker()),
-                           const SizedBox(width: 12),
-                           Expanded(
-                            child: _buildGridBox(
-                              label: 'Hora de fin (Auto)',
-                              value: _horaFinSeleccionada != null ? _toAmPm(_horaFinSeleccionada!) : '--:--',
-                              rightIcon: Icons.access_time,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildGridBox(
-                              label: 'Hora de fin (Auto)',
-                              value: _horaFinSeleccionada != null ? _toAmPm(_horaFinSeleccionada!) : '--:--',
-                              rightIcon: Icons.access_time,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Monto', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF161616),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: TextFormField(
-                                    controller: _montoController,
-                                    readOnly: true,
-                                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                                    decoration: const InputDecoration(
-                                      prefixText: '\$ ',
-                                      prefixStyle: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.symmetric(vertical: 16),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Estado de la Cita ──
-                      const Text('Estado de la cita', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF161616),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            value: _estadoCita,
-                            dropdownColor: const Color(0xFF1E1E1E),
-                            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-                            items: _estadosCita.map((e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                            )).toList(),
-                            onChanged: (e) => setState(() => _estadoCita = e!),
-                          ),
+                      Text(
+                        dayNames[i],
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: isPast
+                              ? const Color(0xFF333333)
+                              : isSelected
+                              ? _kGoldText
+                              : _kTextDim,
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // ── Observaciones ──
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF161616),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: TextFormField(
-                          initialValue: _observaciones ?? '',
-                          maxLines: 4,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: 'Observaciones',
-                            hintStyle: TextStyle(color: Colors.white38),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(16),
-                          ),
-                          onChanged: (v) => _observaciones = v,
+                      const SizedBox(height: 4),
+                      Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isPast
+                              ? const Color(0xFF333333)
+                              : isSelected
+                              ? _kGold
+                              : isToday
+                              ? _kText
+                              : const Color(0xFF888888),
                         ),
                       ),
-                      const SizedBox(height: 40),
-
-                      // ── Botones ──
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFD8B081)),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              child: const Text(
-                                'Cancelar',
-                                style: TextStyle(color: Color(0xFFD8B081), fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: _isLoading ? null : _guardarAgendamiento,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFC9A96E).withOpacity(0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          width: 22, height: 22,
-                                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF111111)),
-                                        )
-                                      : Text(
-                                          widget.agendamiento == null ? 'Crear Cita' : 'Actualizar',
-                                          style: const TextStyle(color: Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.bold),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  /// Slots de hora
+  Widget _buildSlots() {
+    if (_barberoSeleccionado == null) {
+      return const Text(
+        'Selecciona un barbero primero',
+        style: TextStyle(color: _kTextFaint, fontSize: 13),
+      );
+    }
+    if (_slotsDisponibles.isEmpty) {
+      return const Text(
+        'Sin disponibilidad para este día',
+        style: TextStyle(color: _kTextFaint, fontSize: 13),
+      );
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: _slotsDisponibles.map((slot) {
+        final sel = slot == _horaInicioSeleccionada;
+        return GestureDetector(
+          onTap: () => _seleccionarSlot(slot),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: sel ? _kGoldTint : _kSurface,
+              borderRadius: BorderRadius.circular(_kRadiusSm),
+              border: Border.all(color: sel ? _kGoldMid : _kBorder, width: 0.5),
+            ),
+            child: Text(
+              _toAmPm(slot),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: sel ? FontWeight.w500 : FontWeight.normal,
+                color: sel ? _kGold : const Color(0xFF888888),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Fila hora inicio + fin
+  Widget _buildTimeRow() => Row(
+    children: [
+      Expanded(
+        child: _TimeBox(
+          label: 'Inicio',
+          value: _horaInicioSeleccionada != null
+              ? _toAmPm(_horaInicioSeleccionada!)
+              : '--:--',
+          hasValue: _horaInicioSeleccionada != null,
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: _TimeBox(
+          label: 'Fin (auto)',
+          value: _horaFinSeleccionada != null
+              ? _toAmPm(_horaFinSeleccionada!)
+              : '--:--',
+          hasValue: _horaFinSeleccionada != null,
+        ),
+      ),
+    ],
+  );
+
+  /// Caja de monto
+  Widget _buildAmountBox() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: _kGoldTint,
+      borderRadius: BorderRadius.circular(_kRadius),
+      border: Border.all(color: _kGoldBorder, width: 0.5),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Total estimado',
+          style: TextStyle(color: _kGoldText, fontSize: 12),
+        ),
+        Text(
+          _monto != null && _monto! > 0
+              ? '\$${NumberFormat('#,###', 'es_CO').format(_monto!.toInt())}'
+              : '\$0',
+          style: const TextStyle(
+            color: _kGold,
+            fontSize: 22,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  /// Badge de estado tap-able
+  Widget _buildEstadoBadge() {
+    final estado = _estadosCita[_estadoIndex];
+    return GestureDetector(
+      onTap: () => setState(() {
+        _estadoIndex = (_estadoIndex + 1) % _estadosCita.length;
+        _estadoCita = _estadosCita[_estadoIndex]['label'] as String;
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: _kSurface,
+          borderRadius: BorderRadius.circular(_kRadius),
+          border: Border.all(color: _kBorder, width: 0.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Estado de la cita',
+              style: TextStyle(color: _kTextMuted, fontSize: 14),
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                key: ValueKey(_estadoIndex),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: estado['color'] as Color,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: estado['border'] as Color,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  estado['label'] as String,
+                  style: TextStyle(
+                    color: estado['textColor'] as Color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Botones cancelar / guardar
+  Widget _buildButtons() => Row(
+    children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: _kBorderHover, width: 0.5),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_kRadius),
+            ),
+            foregroundColor: const Color(0xFF888888),
+          ),
+          child: const Text(
+            'Cancelar',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        flex: 2,
+        child: GestureDetector(
+          onTap: _isLoading ? null : _guardarAgendamiento,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_kGoldDark, _kGoldMid, _kGold],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(_kRadius),
+            ),
+            child: Center(
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF111111),
+                      ),
+                    )
+                  : Text(
+                      widget.agendamiento == null
+                          ? '✓  Crear cita'
+                          : '✓  Actualizar',
+                      style: const TextStyle(
+                        color: Color(0xFF111111),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  // ─── UI Principal ──────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return SessionGuard(
+      allowedRoles: const [
+        AppRole.admin,
+        AppRole.manager,
+        AppRole.barber,
+        AppRole.client,
+      ],
+      child: Scaffold(
+        backgroundColor: _kBg,
+        appBar: AppBar(
+          backgroundColor: _kBg,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: _kText),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            widget.agendamiento == null ? 'Nueva cita' : 'Editar cita',
+            style: const TextStyle(
+              color: _kText,
+              fontWeight: FontWeight.w500,
+              fontSize: 17,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(height: 0.5, color: const Color(0xFF1F1F1F)),
+          ),
+          actions: [
+            GestureDetector(
+              onTap: _isLoading ? null : _guardarAgendamiento,
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [_kGoldDark, _kGold]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  widget.agendamiento == null ? 'Guardar' : 'Actualizar',
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: _isLoadingData
+            ? const Center(child: CircularProgressIndicator(color: _kGoldMid))
+            : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ── Barbero ──
+                      _sectionLabel('Barbero'),
+                      widget.role == AppRole.barber
+                          ? _buildSelectorCard(
+                              icon: Icons.cut,
+                              name:
+                                  _barberoSeleccionado?.nombreCompleto ?? 'Tú',
+                              hint: 'Tu perfil como barbero',
+                              onTap: null,
+                              locked: true,
+                            )
+                          : SearchableSelector<Barbero>(
+                              label: '',
+                              hint: 'Selecciona un barbero...',
+                              items: _barberos,
+                              selectedItem: _barberoSeleccionado,
+                              displayText: (b) => b.nombreCompleto,
+                              searchText: (b) => b.nombreCompleto,
+                              prefixIcon: Icons.badge_outlined,
+                              required: true,
+                              onSelected: (b) {
+                                setState(() {
+                                  _barberoSeleccionado = b;
+                                  _horaInicioSeleccionada = null;
+                                  _horaFinSeleccionada = null;
+                                });
+                                _recalcularSlots();
+                              },
+                            ),
+                      const SizedBox(height: 20),
+
+                      // ── Cliente ──
+                      _sectionLabel('Cliente'),
+                      widget.role == AppRole.client
+                          ? _buildSelectorCard(
+                              icon: Icons.person_outline,
+                              name:
+                                  _clienteSeleccionado?.nombreCompleto ?? 'Tú',
+                              hint: 'Tu perfil como cliente',
+                              onTap: null,
+                              locked: true,
+                            )
+                          : SearchableSelector<Cliente>(
+                              label: '',
+                              hint: 'Selecciona un cliente...',
+                              items: _clientes,
+                              selectedItem: _clienteSeleccionado,
+                              displayText: (c) => c.nombreCompleto,
+                              searchText: (c) => c.nombreCompleto,
+                              prefixIcon: Icons.person_outline,
+                              required: true,
+                              onSelected: (c) =>
+                                  setState(() => _clienteSeleccionado = c),
+                            ),
+
+                      _buildDivider(),
+
+                      // ── Tipo de cita ──
+                      _sectionLabel('Tipo de cita'),
+                      _buildTypeToggle(),
+                      const SizedBox(height: 16),
+                      _esServicio
+                          ? _buildServiciosList()
+                          : _buildPaqueteSelector(),
+                      _buildServicioChips(),
+
+                      _buildDivider(),
+
+                      // ── Productos ──
+                      _sectionLabel('Productos (opcional)'),
+                      _buildProductosSection(),
+
+                      _buildDivider(),
+
+                      // ── Fecha ──
+                      _sectionLabel('Fecha'),
+                      _buildDaySelector(),
+                      const SizedBox(height: 16),
+                      _sectionLabel('Horarios disponibles'),
+                      _buildSlots(),
+                      const SizedBox(height: 16),
+                      _buildTimeRow(),
+                      const SizedBox(height: 10),
+                      _buildAmountBox(),
+
+                      _buildDivider(),
+
+                      // ── Estado ──
+                      _buildEstadoBadge(),
+                      const SizedBox(height: 20),
+
+                      // ── Observaciones ──
+                      _sectionLabel('Observaciones'),
+                      TextFormField(
+                        initialValue: _observaciones ?? '',
+                        maxLines: 3,
+                        style: const TextStyle(
+                          color: _kTextMuted,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText:
+                              'Agrega notas o instrucciones para el barbero...',
+                          hintStyle: const TextStyle(
+                            color: Color(0xFF444444),
+                            fontSize: 14,
+                          ),
+                          filled: true,
+                          fillColor: _kSurface,
+                          contentPadding: const EdgeInsets.all(14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_kRadius),
+                            borderSide: BorderSide(color: _kBorder, width: 0.5),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_kRadius),
+                            borderSide: BorderSide(color: _kBorder, width: 0.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_kRadius),
+                            borderSide: const BorderSide(
+                              color: _kGoldDark,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        onChanged: (v) => _observaciones = v,
+                      ),
+                      const SizedBox(height: 32),
+
+                      // ── Botones ──
+                      _buildButtons(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildDivider() => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 20),
+    child: Divider(color: Color(0xFF1A1A1A), thickness: 0.5, height: 0),
+  );
+}
+
+// ─── Sub-widgets reutilizables ─────────────────────────────────────────────────
+
+class _ServiceChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onRemove;
+  const _ServiceChip({required this.label, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(left: 10, right: 6, top: 5, bottom: 5),
+      decoration: BoxDecoration(
+        color: _kGoldTint,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF6A4A15), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _kGold,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(Icons.close, size: 14, color: _kGoldText),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool hasValue;
+  const _TimeBox({
+    required this.label,
+    required this.value,
+    required this.hasValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(_kRadius),
+        border: Border.all(color: _kBorder, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: _kTextDim, fontSize: 11)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: hasValue ? _kText : _kTextFaint,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QtyControl extends StatelessWidget {
+  final int value;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
+  const _QtyControl({
+    required this.value,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _QtyBtn(icon: Icons.remove, onTap: onDecrement),
+        const SizedBox(width: 6),
+        Text(
+          '$value',
+          style: const TextStyle(
+            color: _kText,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(width: 6),
+        _QtyBtn(icon: Icons.add, onTap: onIncrement),
+      ],
+    );
+  }
+}
+
+class _QtyBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _QtyBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: _kSurface2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _kBorder, width: 0.5),
+        ),
+        child: Icon(icon, size: 14, color: _kGoldMid),
+      ),
+    );
+  }
+}
+
+class _WeekArrow extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _WeekArrow({required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: _kSurface2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _kBorder, width: 0.5),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: onTap != null ? const Color(0xFF888888) : _kTextFaint,
+        ),
       ),
     );
   }

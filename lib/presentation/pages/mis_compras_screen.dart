@@ -16,6 +16,7 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
+import 'package:parte_movil/data/datasources/devolucion_service.dart';
 
 class MisComprasScreen extends StatefulWidget {
   const MisComprasScreen({super.key});
@@ -32,14 +33,18 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   final BarberoService _barberoService = BarberoService();
   final ServicioService _servicioService = ServicioService();
   final PaqueteService _paqueteService = PaqueteService();
+  final DevolucionService _devolucionService = DevolucionService();
   
   List<Venta> _ventas = [];
+  double _saldoAFavor = 0;
   bool _isLoading = true;
   int _currentPage = 1;
   static const int _pageSize = 5;
   String _searchQuery = '';
   DateTime? _fechaDesde;
   DateTime? _fechaHasta;
+  String _periodoActivo = '';
+  bool _filtroFechaActivo = false;
   final Map<int, String> _nombresBarberos = {};
   final Map<int, String> _nombresUsuarios = {};
   final Map<int, String> _nombresProductos = {};
@@ -100,8 +105,16 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
         print('Error cargando catálogos de ítems: $e');
       }
 
+      double saldo = 0;
+      try {
+        saldo = await _devolucionService.obtenerSaldoAFavor(cliente.id!);
+      } catch (e) {
+        print('Error cargando saldo a favor: $e');
+      }
+      
       setState(() {
         _ventas = misVentas;
+        _saldoAFavor = saldo;
         _isLoading = false;
       });
     } catch (e) {
@@ -117,13 +130,19 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   List<Venta> get _ventasFiltradas {
     var resultado = _ventas;
 
-    if (_fechaDesde != null || _fechaHasta != null) {
+    if (_filtroFechaActivo && (_fechaDesde != null || _fechaHasta != null)) {
       resultado = resultado.where((v) {
         if (v.fechaRegistro == null || v.fechaRegistro!.isEmpty) return false;
         try {
           final fecha = DateTime.parse(v.fechaRegistro!);
-          if (_fechaDesde != null && fecha.isBefore(DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day))) return false;
-          if (_fechaHasta != null && fecha.isAfter(DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59))) return false;
+          if (_fechaDesde != null) {
+            final desde = DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day);
+            if (fecha.isBefore(desde)) return false;
+          }
+          if (_fechaHasta != null) {
+            final hasta = DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59);
+            if (fecha.isAfter(hasta)) return false;
+          }
           return true;
         } catch (_) { return false; }
       }).toList();
@@ -143,10 +162,81 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
       initialDateRange: _fechaDesde != null && _fechaHasta != null ? DateTimeRange(start: _fechaDesde!, end: _fechaHasta!) : null,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFFD8B081),
+            onPrimary: Color(0xFF111111),
+            surface: Color(0xFF1A1A1A),
+            onSurface: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (rango != null) {
-      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; _currentPage = 1; });
+      setState(() { 
+        _fechaDesde = rango.start; 
+        _fechaHasta = rango.end; 
+        _filtroFechaActivo = true;
+        _periodoActivo = '';
+        _currentPage = 1; 
+      });
     }
+  }
+
+  void _setFechaRapida(String periodo) {
+    final hoy = DateTime.now();
+    setState(() {
+      _periodoActivo = periodo;
+      _filtroFechaActivo = true;
+      _currentPage = 1;
+      switch (periodo) {
+        case 'hoy':
+          _fechaDesde = hoy;
+          _fechaHasta = hoy;
+          break;
+        case 'semanal':
+          _fechaDesde = hoy.subtract(Duration(days: hoy.weekday - 1));
+          _fechaHasta = hoy;
+          break;
+        case 'mensual':
+          _fechaDesde = DateTime(hoy.year, hoy.month, 1);
+          _fechaHasta = hoy;
+          break;
+      }
+    });
+  }
+
+  Widget _buildQuickDateBtn(String label, String periodo) {
+    final sel = _periodoActivo == periodo && _filtroFechaActivo;
+    return GestureDetector(
+      onTap: () => _setFechaRapida(periodo),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: sel ? const Color(0xFFD8B081).withOpacity(0.2) : Colors.grey.shade900,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: sel ? const Color(0xFFD8B081) : Colors.grey.shade800),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: sel ? const Color(0xFFD8B081) : Colors.grey, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  void _limpiarFiltros() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _fechaDesde = null;
+      _fechaHasta = null;
+      _filtroFechaActivo = false;
+      _periodoActivo = '';
+      _currentPage = 1;
+    });
   }
 
   @override
@@ -165,6 +255,51 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
         ),
         body: Column(
           children: [
+            // Saldo a Favor Header
+            if (!_isLoading) 
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2A1A0E), Color(0xFF1A1008)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD8B081).withOpacity(0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'SALDO A FAVOR DISPONIBLE',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppFormat.cop(_saldoAFavor),
+                      style: const TextStyle(
+                        color: Color(0xFFD8B081),
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
@@ -188,48 +323,87 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _seleccionarFechasCompras,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _fechaDesde != null ? const Color(0xFFD8B081).withOpacity(0.15) : Colors.grey.shade800,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey.shade600),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.calendar_today_outlined, size: 16, color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _fechaDesde != null && _fechaHasta != null
-                                    ? '${_fechaDesde!.day}/${_fechaDesde!.month} - ${_fechaHasta!.day}/${_fechaHasta!.month}'
-                                    : 'Filtrar por fecha',
-                                style: TextStyle(color: _fechaDesde != null ? const Color(0xFFD8B081) : Colors.grey, fontSize: 13),
+                  Row(
+                    children: [
+                      // Selector de rango
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            _periodoActivo = '';
+                            _seleccionarFechasCompras();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            decoration: BoxDecoration(
+                              color: _filtroFechaActivo && _periodoActivo.isEmpty
+                                  ? const Color(0xFFD8B081).withOpacity(0.15)
+                                  : Colors.grey.shade900,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _filtroFechaActivo && _periodoActivo.isEmpty ? const Color(0xFFD8B081) : Colors.grey.shade800,
                               ),
                             ),
-                            if (_fechaDesde != null)
-                              GestureDetector(
-                                onTap: () => setState(() { _fechaDesde = null; _fechaHasta = null; _currentPage = 1; }),
-                                child: const Icon(Icons.close, size: 16, color: Color(0xFFD8B081)),
-                              ),
-                          ],
+                            child: Row(
+                              children: [
+                                Icon(Icons.calendar_today_outlined, size: 16,
+                                  color: _filtroFechaActivo ? const Color(0xFFD8B081) : Colors.grey),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _filtroFechaActivo && _fechaDesde != null && _fechaHasta != null
+                                        ? '${_fechaDesde!.day}/${_fechaDesde!.month} - ${_fechaHasta!.day}/${_fechaHasta!.month}'
+                                        : 'Filtrar por fecha',
+                                    style: TextStyle(
+                                      color: _filtroFechaActivo ? const Color(0xFFD8B081) : Colors.grey,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (_filtroFechaActivo)
+                                  GestureDetector(
+                                    onTap: () => setState(() {
+                                      _fechaDesde = null; _fechaHasta = null;
+                                      _filtroFechaActivo = false; _periodoActivo = '';
+                                    }),
+                                    child: const Icon(Icons.close, size: 16, color: Color(0xFFD8B081)),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      _buildQuickDateBtn('Hoy', 'hoy'),
+                      const SizedBox(width: 6),
+                      _buildQuickDateBtn('Semana', 'semanal'),
+                      const SizedBox(width: 6),
+                      _buildQuickDateBtn('Mes', 'mensual'),
+                    ],
                   ),
-                  if (_fechaDesde != null || _searchQuery.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () { _searchController.clear(); setState(() { _searchQuery = ''; _fechaDesde = null; _fechaHasta = null; _currentPage = 1; }); },
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: Colors.grey.shade800, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade600)),
-                        child: const Icon(Icons.filter_alt_off, size: 18, color: Color(0xFFD8B081)),
+                  if (_filtroFechaActivo || _searchQuery.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: _limpiarFiltros,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD8B081).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.filter_alt_off, size: 14, color: Color(0xFFD8B081)),
+                              SizedBox(width: 4),
+                              Text('Limpiar filtros', style: TextStyle(fontSize: 12, color: Color(0xFFD8B081))),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -333,7 +507,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
             ),
             Text(
               AppFormat.cop(venta.total),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD8B081)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
             ),
           ],
         ),

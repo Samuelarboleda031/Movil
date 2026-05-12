@@ -54,8 +54,14 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     // Filtro estado Admin
     if (_filtroEstadoAdmin != 'Todos') {
       resultado = resultado.where((a) {
-        final estado = (a.estadoCita ?? '').toLowerCase();
-        return estado == _filtroEstadoAdmin.toLowerCase();
+        final estado = (a.estadoCita ?? '').toLowerCase().trim();
+        final filtro = _filtroEstadoAdmin.toLowerCase();
+        
+        if (filtro == 'completada') {
+          return estado == 'completada' || estado == 'completado' || estado == 'finalizado' || estado == 'finalizada';
+        }
+        
+        return estado == filtro;
       }).toList();
     }
 
@@ -98,6 +104,42 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     }
 
     return resultado;
+  }
+
+  Color _getStatusColor(String? estadoRaw) {
+    final estado = (estadoRaw ?? '').toLowerCase().trim();
+    if (estado == 'pendiente') {
+      return AppColors.gold;
+    } else if (estado == 'completada' || estado == 'completado' || estado == 'finalizado' || estado == 'finalizada') {
+      return AppColors.green;
+    } else if (estado == 'cancelada' || estado == 'cancelado') {
+      return AppColors.red.withOpacity(0.8);
+    }
+    return AppColors.grey;
+  }
+
+  Widget _buildStatusBadge(String? estadoRaw) {
+    final color = _getStatusColor(estadoRaw);
+    String label = estadoRaw ?? 'Sin estado';
+    if (label.toLowerCase() == 'finalizado') label = 'Completada';
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3), width: 0.5),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
 
   bool get _hayFiltrosAdminActivos => _filtroEstadoAdmin != 'Todos' || _filtroBarberoId != null || _fechaDesde != null || _searchQuery.isNotEmpty;
@@ -159,56 +201,58 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Column(
         children: [
-          // Estado chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: ['Todos', 'Pendiente', 'Confirmado', 'En Proceso', 'Finalizado', 'No Asistio', 'Cancelado'].map((e) {
-                final sel = _filtroEstadoAdmin == e;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    label: Text(e, style: TextStyle(color: sel ? AppColors.bg : AppColors.greyLight, fontSize: 11, fontWeight: FontWeight.w600)),
-                    selected: sel,
-                    onSelected: (_) => setState(() => _filtroEstadoAdmin = e),
-                    selectedColor: AppColors.gold,
-                    backgroundColor: AppColors.card,
-                    side: BorderSide(color: sel ? AppColors.gold : AppColors.divider),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    showCheckmark: false,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Barbero dropdown
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: _filtroBarberoId != null ? AppColors.gold.withOpacity(0.15) : AppColors.card,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _filtroBarberoId != null ? AppColors.gold : AppColors.divider),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int?>(
-                value: _filtroBarberoId,
-                hint: const Text('Todos los barberos', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                isExpanded: true,
-                dropdownColor: AppColors.card,
-                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _filtroBarberoId != null ? AppColors.gold : AppColors.grey),
-                style: const TextStyle(color: AppColors.white, fontSize: 13),
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('Todos los barberos', style: TextStyle(color: AppColors.greyLight))),
-                  ..._listaBarberos.map((b) => DropdownMenuItem<int?>(value: b.id, child: Text(b.nombreCompleto, overflow: TextOverflow.ellipsis))),
-                ],
-                onChanged: (v) => setState(() => _filtroBarberoId = v),
+          // Estado chips (Ocultar para clientes)
+          if (widget.role != AppRole.client) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: ['Todos', 'Pendiente', 'Completada', 'Cancelada'].map((e) {
+                  final sel = _filtroEstadoAdmin == e;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      label: Text(e, style: TextStyle(color: sel ? AppColors.bg : AppColors.greyLight, fontSize: 11, fontWeight: FontWeight.w600)),
+                      selected: sel,
+                      onSelected: (_) => setState(() => _filtroEstadoAdmin = e),
+                      selectedColor: AppColors.gold,
+                      backgroundColor: AppColors.card,
+                      side: BorderSide(color: sel ? AppColors.gold : AppColors.divider),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      showCheckmark: false,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  );
+                }).toList(),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
+            // Barbero dropdown (Ocultar para clientes)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: _filtroBarberoId != null ? AppColors.gold.withOpacity(0.15) : AppColors.card,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _filtroBarberoId != null ? AppColors.gold : AppColors.divider),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int?>(
+                  value: _filtroBarberoId,
+                  hint: const Text('Todos los barberos', style: TextStyle(color: AppColors.grey, fontSize: 13)),
+                  isExpanded: true,
+                  dropdownColor: AppColors.card,
+                  icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _filtroBarberoId != null ? AppColors.gold : AppColors.grey),
+                  style: const TextStyle(color: AppColors.white, fontSize: 13),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('Todos los barberos', style: TextStyle(color: AppColors.greyLight))),
+                    ..._listaBarberos.map((b) => DropdownMenuItem<int?>(value: b.id, child: Text(b.nombreCompleto, overflow: TextOverflow.ellipsis))),
+                  ],
+                  onChanged: (v) => setState(() => _filtroBarberoId = v),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           // Fecha: rango + botones rápidos
           Row(
             children: [
@@ -769,6 +813,8 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     // Precio
     final precio = cita.precio ?? cita.monto ?? 0;
 
+    final statusColor = _getStatusColor(cita.estadoCita);
+
     return GestureDetector(
       onTap: () => _verDetalles(cita),
       child: Container(
@@ -778,9 +824,33 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           color: AppColors.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            if (statusColor != AppColors.grey)
+              BoxShadow(
+                color: statusColor.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+          ],
         ),
-        child: Row(
-          children: [
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              // Indicador de estado lateral
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4,
+                  color: statusColor,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
             // Columna de hora y fecha
             SizedBox(
               width: 60,
@@ -825,15 +895,22 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    nombreCliente,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nombreCliente,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      _buildStatusBadge(cita.estadoCita),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -865,9 +942,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 Text(
                   AppFormat.cop(precio.toDouble()),
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.greenAccent,
+                    color: AppColors.grey,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -878,7 +953,11 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 ),
               ],
             ),
-          ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1475,6 +1554,8 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     // Precio
     final precio = cita.monto ?? cita.precio ?? 0;
 
+    final statusColor = _getStatusColor(cita.estadoCita);
+
     return GestureDetector(
       onTap: () => _verDetalles(cita),
       child: Container(
@@ -1485,8 +1566,24 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.divider),
         ),
-        child: Row(
-          children: [
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              // Indicador lateral
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4,
+                  color: statusColor,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
             // Columna de hora
             SizedBox(
               width: 55,
@@ -1531,15 +1628,22 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    nombreCliente,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nombreCliente,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      _buildStatusBadge(cita.estadoCita),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -1561,9 +1665,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 Text(
                   AppFormat.cop(precio),
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.green,
+                    color: AppColors.grey,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1574,7 +1676,11 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                 ),
               ],
             ),
-          ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -38,6 +38,8 @@ class _VentasScreenState extends State<VentasScreen> {
   String _filtroEstado = 'Todas';
   DateTime? _fechaDesde;
   DateTime? _fechaHasta;
+  String _periodoActivo = '';
+  bool _filtroFechaActivo = false;
 
   String _getNombreMostrar(Venta venta, Map<int, Cliente> catalogoClientes) {
     if (venta.cliente != null && venta.cliente!.nombre.isNotEmpty) return venta.cliente!.nombreCompleto;
@@ -57,13 +59,19 @@ class _VentasScreenState extends State<VentasScreen> {
       }).toList();
     }
 
-    if (_fechaDesde != null || _fechaHasta != null) {
+    if (_filtroFechaActivo && (_fechaDesde != null || _fechaHasta != null)) {
       resultado = resultado.where((v) {
         if (v.fechaRegistro == null || v.fechaRegistro!.isEmpty) return false;
         try {
           final fecha = DateTime.parse(v.fechaRegistro!);
-          if (_fechaDesde != null && fecha.isBefore(DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day))) return false;
-          if (_fechaHasta != null && fecha.isAfter(DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59))) return false;
+          if (_fechaDesde != null) {
+            final desde = DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day);
+            if (fecha.isBefore(desde)) return false;
+          }
+          if (_fechaHasta != null) {
+            final hasta = DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59);
+            if (fecha.isAfter(hasta)) return false;
+          }
           return true;
         } catch (_) {
           return false;
@@ -83,7 +91,7 @@ class _VentasScreenState extends State<VentasScreen> {
     return resultado;
   }
 
-  bool get _hayFiltrosActivos => _filtroEstado != 'Todas' || _fechaDesde != null || _fechaHasta != null || _searchQuery.isNotEmpty;
+  bool get _hayFiltrosActivos => _filtroEstado != 'Todas' || _filtroFechaActivo || _searchQuery.isNotEmpty;
 
   void _limpiarFiltros() {
     _searchController.clear();
@@ -92,6 +100,8 @@ class _VentasScreenState extends State<VentasScreen> {
       _filtroEstado = 'Todas';
       _fechaDesde = null;
       _fechaHasta = null;
+      _filtroFechaActivo = false;
+      _periodoActivo = '';
     });
   }
 
@@ -111,8 +121,54 @@ class _VentasScreenState extends State<VentasScreen> {
       ),
     );
     if (rango != null) {
-      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; });
+      setState(() { 
+        _fechaDesde = rango.start; 
+        _fechaHasta = rango.end; 
+        _filtroFechaActivo = true;
+        _periodoActivo = '';
+      });
     }
+  }
+
+  void _setFechaRapida(String periodo) {
+    final hoy = DateTime.now();
+    setState(() {
+      _periodoActivo = periodo;
+      _filtroFechaActivo = true;
+      switch (periodo) {
+        case 'hoy':
+          _fechaDesde = hoy;
+          _fechaHasta = hoy;
+          break;
+        case 'semanal':
+          _fechaDesde = hoy.subtract(Duration(days: hoy.weekday - 1));
+          _fechaHasta = hoy;
+          break;
+        case 'mensual':
+          _fechaDesde = DateTime(hoy.year, hoy.month, 1);
+          _fechaHasta = hoy;
+          break;
+      }
+    });
+  }
+
+  Widget _buildQuickDateBtn(String label, String periodo) {
+    final sel = _periodoActivo == periodo && _filtroFechaActivo;
+    return GestureDetector(
+      onTap: () => _setFechaRapida(periodo),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.gold.withOpacity(0.2) : AppColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: sel ? AppColors.gold : AppColors.divider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: sel ? AppColors.gold : AppColors.grey, fontSize: 12),
+        ),
+      ),
+    );
   }
 
   Widget _buildFiltrosVentas() {
@@ -120,60 +176,90 @@ class _VentasScreenState extends State<VentasScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: ['Todas', 'Completada', 'Anulada'].map((estado) {
-                final selected = _filtroEstado == estado;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(estado, style: TextStyle(color: selected ? AppColors.bg : AppColors.greyLight, fontSize: 12, fontWeight: FontWeight.w600)),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _filtroEstado = estado),
-                    selectedColor: AppColors.gold,
-                    backgroundColor: AppColors.card,
-                    side: BorderSide(color: selected ? AppColors.gold : AppColors.divider),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    showCheckmark: false,
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 8),
+          // 1. Filtros de Fecha (Botones rápidos + Rango)
           Row(
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: _seleccionarRangoFechas,
+                  onTap: () {
+                    _periodoActivo = '';
+                    _seleccionarRangoFechas();
+                  },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                     decoration: BoxDecoration(
-                      color: (_fechaDesde != null) ? AppColors.gold.withOpacity(0.15) : AppColors.card,
+                      color: _filtroFechaActivo && _periodoActivo.isEmpty
+                          ? AppColors.gold.withOpacity(0.15)
+                          : AppColors.card,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: (_fechaDesde != null) ? AppColors.gold : AppColors.divider),
+                      border: Border.all(
+                        color: _filtroFechaActivo && _periodoActivo.isEmpty ? AppColors.gold : AppColors.divider,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.calendar_today_outlined, size: 16, color: (_fechaDesde != null) ? AppColors.gold : AppColors.grey),
+                        Icon(Icons.calendar_today_outlined, size: 16,
+                          color: _filtroFechaActivo ? AppColors.gold : AppColors.grey),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _fechaDesde != null && _fechaHasta != null
+                            _filtroFechaActivo && _fechaDesde != null && _fechaHasta != null
                                 ? '${_fechaDesde!.day}/${_fechaDesde!.month} - ${_fechaHasta!.day}/${_fechaHasta!.month}'
                                 : 'Filtrar por fecha',
-                            style: TextStyle(color: (_fechaDesde != null) ? AppColors.gold : AppColors.grey, fontSize: 12),
+                            style: TextStyle(
+                              color: _filtroFechaActivo ? AppColors.gold : AppColors.grey,
+                              fontSize: 12,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (_fechaDesde != null)
+                        if (_filtroFechaActivo)
                           GestureDetector(
-                            onTap: () => setState(() { _fechaDesde = null; _fechaHasta = null; }),
+                            onTap: () => setState(() {
+                              _fechaDesde = null; _fechaHasta = null;
+                              _filtroFechaActivo = false; _periodoActivo = '';
+                            }),
                             child: const Icon(Icons.close, size: 16, color: AppColors.gold),
                           ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickDateBtn('Hoy', 'hoy'),
+              const SizedBox(width: 6),
+              _buildQuickDateBtn('Semana', 'semanal'),
+              const SizedBox(width: 6),
+              _buildQuickDateBtn('Mes', 'mensual'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 2. Filtros de Estado
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: ['Todas', 'Completada', 'Anulada'].map((estado) {
+                      final selected = _filtroEstado == estado;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(estado, style: TextStyle(color: selected ? AppColors.bg : AppColors.greyLight, fontSize: 12, fontWeight: FontWeight.w600)),
+                          selected: selected,
+                          onSelected: (_) => setState(() => _filtroEstado = estado),
+                          selectedColor: AppColors.gold,
+                          backgroundColor: AppColors.card,
+                          side: BorderSide(color: selected ? AppColors.gold : AppColors.divider),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          showCheckmark: false,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
@@ -182,9 +268,19 @@ class _VentasScreenState extends State<VentasScreen> {
                 GestureDetector(
                   onTap: _limpiarFiltros,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.divider)),
-                    child: const Icon(Icons.filter_alt_off, size: 18, color: AppColors.gold),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.filter_alt_off, size: 14, color: AppColors.gold),
+                        SizedBox(width: 4),
+                        Text('Limpiar', style: TextStyle(fontSize: 12, color: AppColors.gold)),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -507,9 +603,7 @@ class _VentasScreenState extends State<VentasScreen> {
                 Text(
                   labelPrecio,
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isAnulada ? AppColors.red : AppColors.green,
+                    color: AppColors.grey,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -638,7 +732,7 @@ class _VentasScreenState extends State<VentasScreen> {
                   Text(
                     labelPrecio,
                     style: TextStyle(
-                      color: isAnulada ? AppColors.red : AppColors.green,
+                      color: AppColors.grey,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),

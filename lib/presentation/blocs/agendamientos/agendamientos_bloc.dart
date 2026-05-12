@@ -150,7 +150,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       } else {
         // MODO ADMIN / MANAGER
         final bool isWeekly = event.estaSemana ?? false;
-        const int pageSize = 10;
+        const int pageSize = 2000;
         print('🔍 [AgendamientosBloc] Cargando citas ADMIN/MANAGER. isWeekly: $isWeekly');
         final paginacion = await _agendamientoService.obtenerAgendamientos(
           page: event.page,

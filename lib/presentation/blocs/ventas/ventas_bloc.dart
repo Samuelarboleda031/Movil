@@ -79,7 +79,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
         // MODO ADMIN / MANAGER
         final paginacion = await _ventaService.obtenerVentas(
           page: event.page,
-          pageSize: 5,
+          pageSize: 2000,
         );
         emit(VentasLoaded(
           ventas: paginacion.items,

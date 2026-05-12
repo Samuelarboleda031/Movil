@@ -155,14 +155,14 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                   width: size.width,
                   constraints: const BoxConstraints(maxHeight: 220),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF3A3A3A)),
+                    color: const Color(0xFF1A1A1A), // _kSurface2
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF252525), width: 0.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withOpacity(0.4),
                         blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
@@ -201,7 +201,7 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                               },
                               child: Container(
                                 color: isSelected
-                                    ? const Color(0xFFD8B081).withOpacity(0.1)
+                                    ? const Color(0xFF1A1408) // _kGoldTint
                                     : Colors.transparent,
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 10),
@@ -212,7 +212,7 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                                           if (isSelected)
                                             const Icon(Icons.check,
                                                 size: 14,
-                                                color: Color(0xFFD8B081)),
+                                                color: Color(0xFFC9A04E)), // _kGoldMid
                                           if (isSelected)
                                             const SizedBox(width: 6),
                                           Expanded(
@@ -298,19 +298,19 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                 _openOverlay();
               },
               decoration: InputDecoration(
-                labelText: widget.label,
+                labelText: widget.label.isEmpty ? null : widget.label,
                 labelStyle: const TextStyle(
-                    color: Color(0xFFD8B081), fontSize: 12),
+                    color: Color(0xFFC9A04E), fontSize: 12),
                 hintText: widget.hint,
                 hintStyle:
-                    const TextStyle(color: Colors.white38, fontSize: 13),
+                    const TextStyle(color: Color(0xFF444444), fontSize: 14),
                 filled: true,
-                fillColor: const Color(0xFF2A2A2A),
+                fillColor: const Color(0xFF141414), // _kSurface
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 13),
+                    horizontal: 16, vertical: 14),
                 prefixIcon: widget.prefixIcon != null
                     ? Icon(widget.prefixIcon,
-                        size: 18, color: const Color(0xFFD8B081))
+                        size: 18, color: const Color(0xFF888888))
                     : null,
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -319,42 +319,39 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                       GestureDetector(
                         onTap: _clearSelection,
                         child: const Icon(Icons.close,
-                            size: 18, color: Colors.white38),
+                            size: 18, color: Color(0xFF666666)),
                       ),
                     const SizedBox(width: 4),
                     AnimatedRotation(
                       turns: _isOpen ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
                       child: const Icon(Icons.keyboard_arrow_down,
-                          size: 22, color: Colors.white54),
+                          size: 20, color: Color(0xFF444444)),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                   ],
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: Color(0xFF3A3A3A)),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF252525), width: 0.5),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide(
                     color: field.hasError
                         ? Colors.red
-                        : (widget.selectedItem != null
-                            ? const Color(0xFFD8B081)
-                            : const Color(0xFF3A3A3A)),
+                        : const Color(0xFF252525),
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(
-                      color: Color(0xFFD8B081), width: 1.5),
+                      color: Color(0xFF9A6A25), width: 0.5),
                 ),
                 errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide:
-                      const BorderSide(color: Colors.red, width: 1.5),
+                      const BorderSide(color: Colors.red, width: 0.5),
                 ),
               ),
             ),
