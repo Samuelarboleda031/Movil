@@ -15,6 +15,7 @@ import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
+import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
 import 'package:parte_movil/data/datasources/dashboard_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
@@ -352,13 +353,13 @@ class _VentasScreenState extends State<VentasScreen> {
                             SliverToBoxAdapter(child: _buildVentasBuscador()),
                             // Lista
                             ventasFiltradas.isEmpty
-                                ? SliverToBoxAdapter(child: _buildEmptyStateDark())
-                                : SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) => _buildVentaCardDark(ventasFiltradas[index], catalogo),
-                                      childCount: ventasFiltradas.length,
+                                  ? SliverToBoxAdapter(child: _buildEmptyStateDark())
+                                  : SliverList(
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) => _buildVentaCard(ventasFiltradas[index], catalogo),
+                                        childCount: ventasFiltradas.length,
+                                      ),
                                     ),
-                                  ),
                             // Paginación
                             if (paginacion != null && paginacion.totalPages > 1)
                               SliverToBoxAdapter(
@@ -381,6 +382,7 @@ class _VentasScreenState extends State<VentasScreen> {
               title: const Text('Panel de Ventas', style: TextStyle(fontWeight: FontWeight.bold)),
               backgroundColor: AppColors.bg,
               elevation: 0,
+              actions: [CitaNotificationBell(role: widget.role)],
             ),
             backgroundColor: AppColors.bg,
             body: Column(
@@ -465,18 +467,24 @@ class _VentasScreenState extends State<VentasScreen> {
   Widget _buildVentasHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Mis Ventas',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Mis Ventas',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Resumen de tu actividad',
+                style: TextStyle(fontSize: 14, color: AppColors.grey),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Resumen de tu actividad',
-            style: TextStyle(fontSize: 14, color: AppColors.grey),
-          ),
+          CitaNotificationBell(role: widget.role),
         ],
       ),
     );
@@ -525,93 +533,17 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Widget _buildVentaCardDark(Venta venta, Map<int, Cliente> catalogo) {
-    final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
-    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#${venta.id}';
-    final String labelCliente = _getNombreMostrar(venta, catalogo);
-    final String labelPrecio = AppFormat.cop(venta.total);
-
-    String fechaFormateada = '';
-    try {
-      if (venta.fechaRegistro != null && venta.fechaRegistro!.isNotEmpty) {
-        final fecha = DateTime.parse(venta.fechaRegistro!);
-        fechaFormateada = '${fecha.day}/${fecha.month}/${fecha.year}';
-      }
-    } catch (_) {
-      fechaFormateada = venta.fechaRegistro?.split('T')[0] ?? '';
-    }
-
-    return GestureDetector(
-      onTap: () => _verDetallesVenta(venta, catalogo),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            // Icono
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: isAnulada ? AppColors.red.withOpacity(0.15) : AppColors.gold.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                isAnulada ? Icons.close : Icons.shopping_bag_outlined,
-                color: isAnulada ? AppColors.red : AppColors.gold,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Venta $labelNumero',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.white),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    labelCliente,
-                    style: TextStyle(fontSize: 12, color: AppColors.grey.withOpacity(0.9)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (fechaFormateada.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      fechaFormateada,
-                      style: TextStyle(fontSize: 10, color: AppColors.grey.withOpacity(0.7)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Precio y flecha
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  labelPrecio,
-                  style: TextStyle(
-                    color: AppColors.grey,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
-              ],
-            ),
-          ],
-        ),
+  Widget _buildStatusBadge(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.red.withOpacity(0.5), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: AppColors.red, fontSize: 8, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -660,89 +592,67 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildVentaCard(Venta venta, Map<int, Cliente> catalogo) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
-    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#ID:${venta.id}';
+    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#${venta.id}';
     final String labelCliente = _getNombreMostrar(venta, catalogo);
     final String labelPrecio = AppFormat.cop(venta.total);
+    final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false) 
+        ? venta.fechaRegistro!.split('T')[0] 
+        : (venta.fechaRegistro ?? '');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider.withOpacity(0.5)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _verDetallesVenta(venta, catalogo),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: isAnulada ? AppColors.red.withOpacity(0.12) : AppColors.gold.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  isAnulada ? Icons.close : Icons.receipt_long_outlined,
-                  color: isAnulada ? AppColors.red : AppColors.gold,
-                  size: 24,
-                ),
+    return GestureDetector(
+      onTap: () => _verDetallesVenta(venta, catalogo),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider.withOpacity(0.5)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isAnulada ? AppColors.red.withOpacity(0.12) : AppColors.gold.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Venta $labelNumero',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      labelCliente,
-                      style: const TextStyle(color: AppColors.greyLight, fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today_outlined, size: 10, color: AppColors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          venta.fechaRegistro?.split('T')[0] ?? 'Sin fecha',
-                          style: const TextStyle(color: AppColors.grey, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              child: Icon(
+                isAnulada ? Icons.close : Icons.shopping_bag_outlined,
+                color: isAnulada ? AppColors.red : AppColors.gold,
+                size: 22,
               ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    labelPrecio,
-                    style: TextStyle(
-                      color: AppColors.grey,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                  Row(
+                    children: [
+                      Text(labelNumero, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(width: 8),
+                      if (isAnulada) _buildStatusBadge('ANULADA'),
+                    ],
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
+                  Text(labelCliente, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text(fechaStr, style: const TextStyle(color: AppColors.grey, fontSize: 12)),
                 ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(labelPrecio, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 4),
+                const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
+              ],
+            ),
+          ],
         ),
       ),
     );

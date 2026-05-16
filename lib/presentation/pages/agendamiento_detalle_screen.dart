@@ -417,38 +417,63 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
           BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -5))
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _cambiarEstado,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                side: const BorderSide(color: Color(0xFFD8B081)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _cambiarEstado,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    side: const BorderSide(color: Color(0xFFD8B081)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text(
+                    'CAMBIAR ESTADO',
+                    style: TextStyle(color: Color(0xFFD8B081), fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
-              child: const Text(
-                'CAMBIAR ESTADO',
-                style: TextStyle(color: Color(0xFFD8B081), fontWeight: FontWeight.bold),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _editarCita,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD8B081),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text(
+                    'EDITAR CITA',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_currentAg.estadoCita?.toLowerCase() == 'en proceso' || _currentAg.estadoCita?.toLowerCase() == 'confirmado' || _currentAg.estadoCita?.toLowerCase() == 'confirmada') ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: widget.role == AppRole.barber ? _avisarTermino : _terminarTemprano,
+                icon: Icon(widget.role == AppRole.barber ? Icons.notifications_active : Icons.timer_off, color: Colors.white, size: 20),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.role == AppRole.barber ? AppColors.gold : Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                label: Text(
+                  widget.role == AppRole.barber ? 'AVISAR TÉRMINO' : 'TERMINAR TEMPRANO',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _editarCita,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD8B081),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text(
-                'EDITAR CITA',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -523,6 +548,60 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
     ).then((val) {
       if (val == true) _refreshData();
     });
+  }
+
+  Future<void> _terminarTemprano() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text('Terminar Temprano', style: TextStyle(color: Colors.white)),
+        content: const Text('¿Confirmas que terminaste esta cita antes de tiempo? Se marcará como Completada.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('CONFIRMAR', style: TextStyle(color: Colors.green))),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() => _isLoading = true);
+      try {
+        await AgendamientoService().actualizarEstadoAgendamiento(_currentAg.id!, 'Completada');
+        AppToast.showSuccess(context, 'Cita finalizada temprano');
+        _refreshData();
+      } catch (e) {
+        setState(() => _isLoading = false);
+        AppToast.showError(context, 'Error al actualizar: $e');
+      }
+    }
+  }
+
+  Future<void> _avisarTermino() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text('Avisar Término', style: TextStyle(color: Colors.white)),
+        content: const Text('¿Confirmas que terminaste la cita? Se enviará un aviso al administrador.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('CONFIRMAR', style: TextStyle(color: AppColors.gold))),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() => _isLoading = true);
+      try {
+        await AgendamientoService().actualizarEstadoAgendamiento(_currentAg.id!, 'Terminado por Barbero');
+        AppToast.showSuccess(context, 'Aviso enviado al administrador');
+        _refreshData();
+      } catch (e) {
+        setState(() => _isLoading = false);
+        AppToast.showError(context, 'Error al enviar aviso: $e');
+      }
+    }
   }
 
   Future<void> _cancelarComoCliente() async {

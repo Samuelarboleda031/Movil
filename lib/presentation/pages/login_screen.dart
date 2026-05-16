@@ -87,6 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const SizedBox(height: 50),
                     // Logo Circular
                     Container(
                       width: 120,
@@ -108,26 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    const Text(
-                      'MANITO BARBERSHOP',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sistema de Gestión',
-                      style: TextStyle(
-                        color: const Color(0xFFD8B081).withOpacity(0.8),
-                        fontSize: 14,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 50),
 
                     // Formulario
                     TextField(
@@ -159,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment: Alignment.center,
                       child: TextButton(
                         onPressed: () {
                           Navigator.push(
@@ -220,18 +202,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        icon: Image.network(
-                            'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                            height: 20,
-                            width: 20,
-                            errorBuilder: (ctx, err, stack) => const Text('G',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        icon: Container(
+                          width: 20,
+                          height: 20,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Text(
+                            'G',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
                           ),
+                        ),
                         label: const Text('Google',
                             style: TextStyle(
                                 color: Colors.white, fontWeight: FontWeight.bold)),

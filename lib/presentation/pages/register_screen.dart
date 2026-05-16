@@ -6,6 +6,7 @@ import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -63,20 +64,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _showMessage('Complete todos los campos obligatorios');
       return;
     }
+
+    // Validación de email
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegex.hasMatch(email)) {
+      _showMessage('Ingresa un correo electrónico válido');
+      return;
+    }
+
     if (emailConf.isEmpty) {
       _showMessage('Confirma tu correo electrónico');
       return;
     }
-    if (passConf.isEmpty) {
-      _showMessage('Confirma tu contraseña');
+    if (email != emailConf) {
+      _showMessage('Los correos no coinciden');
       return;
     }
+
+    // Validaciones de contraseña (igual que en la web)
     if (pass.length < 6) {
       _showMessage('La contraseña debe tener al menos 6 caracteres');
       return;
     }
-    if (email != emailConf) {
-      _showMessage('Los correos no coinciden');
+    if (!RegExp(r'[0-9]').hasMatch(pass)) {
+      _showMessage('La contraseña debe incluir al menos un número');
+      return;
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(pass)) {
+      _showMessage('La contraseña debe incluir al menos una mayúscula');
+      return;
+    }
+    if (!RegExp(r'[a-z]').hasMatch(pass)) {
+      _showMessage('La contraseña debe incluir al menos una minúscula');
+      return;
+    }
+
+    if (passConf.isEmpty) {
+      _showMessage('Confirma tu contraseña');
       return;
     }
     if (pass != passConf) {
@@ -88,14 +112,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await _auth.signUp(email, pass);
       
-      // Sincronizar el usuario con la API incluyendo nombre y apellido
+      // Sincronizar el usuario con la API incluyendo nombre, apellido y documento
       final usuarioApi = await _auth.syncUsuarioConApi(
         rolId: rolIdForRole(_selectedRole),
         contrasena: pass,
+        additionalData: {
+          'nombre': nombre,
+          'apellido': apellido,
+          'documento': documento,
+          'tipoDocumento': 'CC',
+          'telefono': '0000000000', // Valor por defecto ya que no se pide en el form móvil aún
+        },
       );
 
       if (usuarioApi == null || usuarioApi.id == null) {
-        throw Exception('Se creó la cuenta, pero no se pudo sincronizar el perfil. Intenta iniciar sesión y completa tu perfil.');
+        // ROLLBACK: Eliminar el usuario de Firebase si la API falla
+        try {
+          await FirebaseAuth.instance.currentUser?.delete();
+        } catch (rollbackError) {
+          print('Error en rollback de Firebase: $rollbackError');
+        }
+        throw Exception('No se pudo vincular tu cuenta con el sistema. Intenta nuevamente.');
       }
 
       // Crear registro de cliente con los datos reales
@@ -107,10 +144,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         usuarioId: usuarioApi.id,
         estado: true,
       );
-      await _clienteService.crearCliente(cliente);
+      
+      try {
+        await _clienteService.crearCliente(cliente);
+      } catch (e) {
+        print('Error creando perfil de cliente: $e');
+      }
       
       await _auth.sendEmailVerification();
-      _showMessage('Cuenta creada. Revise su correo para verificar la cuenta.', isError: false);
+      _showMessage('Cuenta creada con éxito. Revisa tu correo para verificar tu cuenta.', isError: false);
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       _showMessage(_firebaseErrorMessage(e));
@@ -139,8 +181,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _googleRegister() async {
     setState(() => _loading = true);
     try {
-      final user = await _auth.signInWithGoogle();
-      if (user != null && mounted) {
+      final cred = await _auth.signInWithGoogle();
+      if (cred != null && mounted) {
         Navigator.pushReplacementNamed(context, '/main-client');
       }
     } on FirebaseAuthException catch (e) {
@@ -155,8 +197,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text('MANITO BARBERSHOP')),
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        title: const Text('MANITO BARBERSHOP'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -166,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               'Crear Cuenta',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -233,6 +279,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _passCtrl,
               decoration: InputDecoration(
                 labelText: 'Contraseña *',
+                helperText: 'Mínimo 6 caracteres, una mayúscula y un número',
+                helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -293,7 +341,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _loading ? null : _googleRegister,
-                icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png', height: 20),
+                icon: Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text(
+                    'G',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
                 label: const Text('Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),

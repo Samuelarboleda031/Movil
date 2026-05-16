@@ -20,6 +20,7 @@ import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/datasources/dashboard_service.dart';
 import 'agendamiento_detalle_screen.dart';
+import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
 
 class AgendamientosScreen extends StatefulWidget {
   final AppRole role;
@@ -673,7 +674,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Citas'),
-          actions: const [],
+          actions: [CitaNotificationBell(role: widget.role)],
         ),
 
         body: BlocConsumer<AgendamientosBloc, AgendamientosState>(
@@ -1150,12 +1151,9 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.clear, size: 12, color: AppColors.gold),
-                            SizedBox(width: 2),
-                            Text(
-                              'Limpiar filtros',
-                              style: TextStyle(fontSize: 11, color: AppColors.gold),
-                            ),
+                            Icon(Icons.clear, size: 10, color: AppColors.gold),
+                            SizedBox(width: 4),
+                            Text('Limpiar', style: TextStyle(fontSize: 10, color: AppColors.gold)),
                           ],
                         ),
                       ),
@@ -1165,6 +1163,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
               ),
             ],
           ),
+          CitaNotificationBell(role: widget.role),
         ],
       ),
     );

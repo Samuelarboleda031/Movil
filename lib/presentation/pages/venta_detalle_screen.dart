@@ -37,7 +37,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   final VentaService _ventaService = VentaService();
   final ServicioService _servicioService = ServicioService();
   final PaqueteService _paqueteService = PaqueteService();
-  
+
   bool _isLoading = true;
   Venta? _ventaCompleta;
   List<Producto> _productos = [];
@@ -71,17 +71,22 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar detalles: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al cargar detalles: $e')));
       }
     }
   }
 
   String _getNombreMostrar(Venta v) {
-    if (v.clienteNombre != null && v.clienteNombre!.isNotEmpty && v.clienteNombre != 'Cliente invitado') {
+    if (v.clienteNombre != null &&
+        v.clienteNombre!.isNotEmpty &&
+        v.clienteNombre != 'Cliente invitado') {
       return v.clienteNombre!;
     }
     if (v.cliente != null) return v.cliente!.nombreCompleto;
-    if (widget.catalogoClientes != null && widget.catalogoClientes!.containsKey(v.clienteId)) {
+    if (widget.catalogoClientes != null &&
+        widget.catalogoClientes!.containsKey(v.clienteId)) {
       return widget.catalogoClientes![v.clienteId]!.nombreCompleto;
     }
     return 'Cliente Genérico';
@@ -92,67 +97,80 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Detalles de la Venta', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Detalles de la Venta',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         elevation: 0,
         backgroundColor: AppColors.bg,
       ),
       resizeToAvoidBottomInset: false,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFD8B081)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFD8B081)),
+            )
           : _ventaCompleta == null
-              ? const Center(child: Text('No se pudieron cargar los detalles'))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildHeader(_ventaCompleta!),
-                            const SizedBox(height: 24),
+          ? const Center(child: Text('No se pudieron cargar los detalles'))
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(_ventaCompleta!),
+                        const SizedBox(height: 24),
 
-                            _buildInfoGrid(_ventaCompleta!),
-                            const SizedBox(height: 24),
-                            
-                            const Text('Items Comprados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            const SizedBox(height: 12),
-                            _buildItemsList(_ventaCompleta!),
-                            const SizedBox(height: 16),
-                            const Divider(color: Colors.grey),
-                            const SizedBox(height: 16),
+                        _buildInfoGrid(_ventaCompleta!),
+                        const SizedBox(height: 24),
 
-                            _buildPaymentSummary(_ventaCompleta!),
-                          ],
+                        const Text(
+                          'Items Comprados',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        _buildItemsList(_ventaCompleta!),
+                        const SizedBox(height: 16),
+                        const Divider(color: Colors.grey),
+                        const SizedBox(height: 16),
+
+                        _buildPaymentSummary(_ventaCompleta!),
+                      ],
                     ),
-                    _buildActionButtonsBar(context, _ventaCompleta!),
-                  ],
+                  ),
                 ),
+                _buildActionButtonsBar(context, _ventaCompleta!),
+              ],
+            ),
     );
   }
 
   Widget _buildHeader(Venta venta) {
-    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#ID:${venta.id}';
+    final String labelNumero = venta.numero.isNotEmpty
+        ? '#${venta.numero}'
+        : '#ID:${venta.id}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Venta $labelNumero',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
           AppFormat.cop(venta.total),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: const Color(0xFFD8B081),
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-              ),
+            color: const Color(0xFFD8B081),
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
         ),
       ],
     );
@@ -160,8 +178,12 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildInfoGrid(Venta venta) {
     final String labelCliente = _getNombreMostrar(venta);
-    final String responsableMostrar = venta.responsableNombre ?? venta.usuario?.nombreCompleto ?? 'N/A';
-    final String barberoMostrar = venta.barberoNombreStr ?? venta.barbero?.nombreCompleto ?? 'Sin asignar';
+    final String responsableMostrar =
+        venta.responsableNombre ?? venta.usuario?.nombreCompleto ?? 'N/A';
+    final String barberoMostrar =
+        venta.barberoNombreStr ??
+        venta.barbero?.nombreCompleto ??
+        'Sin asignar';
     final String fecha = venta.fechaRegistro?.split('T')[0] ?? 'N/A';
     final String metodoPago = venta.metodoPago ?? 'N/A';
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
@@ -178,13 +200,13 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         _buildInfoCard('Fecha', fecha),
         _buildInfoCard('Responsable', responsableMostrar),
         if (barberoMostrar != 'Sin asignar' && barberoMostrar.isNotEmpty) ...[
-           _buildInfoCard('Barbero', barberoMostrar),
+          _buildInfoCard('Barbero', barberoMostrar),
         ],
         _buildInfoCard('Método de Pago', metodoPago),
         _buildInfoCard(
-          'Estado', 
-          isAnulada ? 'ANULADA' : 'ACTIVA', 
-          valueColor: isAnulada ? Colors.red : Colors.green
+          'Estado',
+          isAnulada ? 'ANULADA' : 'ACTIVA',
+          valueColor: isAnulada ? Colors.red : Colors.green,
         ),
       ],
     );
@@ -225,8 +247,6 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       ),
     );
   }
-
-
 
   Widget _buildItemsList(Venta venta) {
     return ListView.builder(
@@ -273,24 +293,43 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: itemImage != null && itemImage.isNotEmpty
-                ? Image.network(
-                    itemImage.startsWith('http') ? itemImage : '${ApiConfig.baseUrl}$itemImage',
-                    width: 45,
-                    height: 45,
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Container(
-                      width: 45, height: 45, color: Colors.grey[800],
+                  ? Image.network(
+                      itemImage.startsWith('http')
+                          ? itemImage
+                          : '${ApiConfig.baseUrl}$itemImage',
+                      width: 45,
+                      height: 45,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => Container(
+                        width: 45,
+                        height: 45,
+                        color: Colors.grey[800],
+                        child: Icon(defaultIcon, color: Colors.grey),
+                      ),
+                    )
+                  : Container(
+                      width: 45,
+                      height: 45,
+                      color: Colors.grey[800],
                       child: Icon(defaultIcon, color: Colors.grey),
                     ),
-                  )
-                : Container(
-                    width: 45, height: 45, color: Colors.grey[800],
-                    child: Icon(defaultIcon, color: Colors.grey),
-                  ),
             ),
-            title: Text(itemName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            subtitle: Text('${d.cantidad} x ${AppFormat.cop(d.precioUnitario)}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-            trailing: Text(AppFormat.cop(d.cantidad * d.precioUnitario), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+            title: Text(
+              itemName,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            subtitle: Text(
+              '${d.cantidad} x ${AppFormat.cop(d.precioUnitario)}',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            trailing: Text(
+              AppFormat.cop(d.cantidad * d.precioUnitario),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
           ),
         );
       },
@@ -313,23 +352,44 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Subtotal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-            Text(AppFormat.cop(venta.subtotal), style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[400])),
+            const Text(
+              'Subtotal',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              AppFormat.cop(venta.subtotal),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[400],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Descuento', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-            Text(
-              '- ${AppFormat.cop(venta.porcentajeDescuento)}', 
+            const Text(
+              'Descuento',
               style: TextStyle(
-                fontWeight: FontWeight.w600, 
-                color: (widget.role == AppRole.admin || widget.role == AppRole.manager || widget.role == AppRole.barber) 
-                  ? Colors.red 
-                  : Colors.greenAccent
-              )
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '- ${AppFormat.cop(venta.porcentajeDescuento)}',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color:
+                    (widget.role == AppRole.admin ||
+                        widget.role == AppRole.manager ||
+                        widget.role == AppRole.barber)
+                    ? Colors.red
+                    : Colors.greenAccent,
+              ),
             ),
           ],
         ),
@@ -339,10 +399,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
           children: [
             const Text(
               'Total',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 17,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
             ),
             Text(
               AppFormat.cop(venta.total),
@@ -360,7 +417,8 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildActionButtonsBar(BuildContext context, Venta venta) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
-    final bool isManagerOrAdmin = widget.role == AppRole.admin || widget.role == AppRole.manager;
+    final bool isManagerOrAdmin =
+        widget.role == AppRole.admin || widget.role == AppRole.manager;
     final bool isClient = widget.role == AppRole.client;
 
     if (isClient) {
@@ -371,9 +429,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.black,
-        border: Border(
-          top: BorderSide(color: Colors.grey[900]!, width: 1.0),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey[900]!, width: 1.0)),
       ),
       padding: EdgeInsets.fromLTRB(
         16,
@@ -407,7 +463,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             ),
             const SizedBox(width: 12),
           ],
-          
+
           if (isManagerOrAdmin) ...[
             Expanded(
               child: ElevatedButton(
@@ -462,7 +518,9 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF111111),
         title: const Text('¿Anular venta?'),
-        content: const Text('Esta acción no se puede deshacer y el estado pasará a Anulada.'),
+        content: const Text(
+          'Esta acción no se puede deshacer y el estado pasará a Anulada.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -475,7 +533,10 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
               Navigator.pop(this.context); // detalle view
               bloc.add(DeleteVentaRequested(venta.id!));
             },
-            child: const Text('Confirmar Anulación', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Confirmar Anulación',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),

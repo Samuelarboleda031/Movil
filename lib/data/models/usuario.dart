@@ -2,6 +2,9 @@ import 'package:parte_movil/domain/entities/usuario_entity.dart';
 
 class Usuario extends UsuarioEntity {
   final String? contrasena;
+  final String? documento;
+  final String? tipoDocumento;
+  final String? telefono;
 
   const Usuario({
     super.id,
@@ -9,6 +12,9 @@ class Usuario extends UsuarioEntity {
     super.apellido,
     required super.correo,
     this.contrasena,
+    this.documento,
+    this.tipoDocumento,
+    this.telefono,
     super.fotoPerfil,
     super.rolId,
     super.estado,
@@ -25,6 +31,9 @@ class Usuario extends UsuarioEntity {
       apellido: json['apellido'] ?? json['Apellido'],
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       contrasena: json['contrasena'] ?? json['Contrasena'],
+      documento: json['documento'] ?? json['Documento'],
+      tipoDocumento: json['tipoDocumento'] ?? json['TipoDocumento'],
+      telefono: json['telefono'] ?? json['Telefono'],
       rolId: _parseInt(json['rolId'] ?? json['RolId'] ?? json['RolID']),
       estado: _parseBool(json['estado'] ?? json['Estado']),
     );
@@ -37,6 +46,9 @@ class Usuario extends UsuarioEntity {
       'Correo': correo,
       'Contrasena': contrasena ?? '',
       'RolId': rolId,
+      'Documento': documento ?? '',
+      'TipoDocumento': tipoDocumento ?? 'CC',
+      'Telefono': telefono ?? '',
       'FotoPerfil': fotoPerfil,
       'Estado': estado ?? true,
     };

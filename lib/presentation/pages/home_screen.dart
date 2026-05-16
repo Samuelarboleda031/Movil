@@ -24,6 +24,7 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 import 'package:parte_movil/core/themes/app_colors.dart';
@@ -186,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: Text(title),
       backgroundColor: AppColors.card,
       actions: [
+        CitaNotificationBell(role: widget.role),
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: PopupMenuButton<String>(
@@ -264,8 +266,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           // Avatar del barbero - clickable para abrir menú
-          GestureDetector(
-            onTap: () {
+          Row(
+            children: [
+              CitaNotificationBell(role: widget.role),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
               print('👆 Avatar tocado, _showDropdown: $_showDropdown');
               setState(() => _showDropdown = !_showDropdown);
             },
@@ -327,6 +333,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
               ),
             ),
+          ),
+            ],
           ),
         ],
       ),

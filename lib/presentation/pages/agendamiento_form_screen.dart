@@ -526,12 +526,67 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     ),
   );
 
+  /// Avatar o icono fallback
+  Widget _buildAvatar(String? foto, IconData fallback, {double size = 36}) {
+    if (foto == null || foto.isEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: _kSurface2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
+        ),
+        child: Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+      );
+    }
+
+    Widget image;
+    if (foto.startsWith('http')) {
+      image = Image.network(
+        foto,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+      );
+    } else {
+      try {
+        // Asumimos base64 si no es URL
+        final cleanBase64 = foto.contains(',') ? foto.split(',')[1] : foto;
+        image = Image.memory(
+          base64Decode(cleanBase64),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+        );
+      } catch (_) {
+        image = Icon(
+          fallback,
+          color: const Color(0xFF888888),
+          size: size * 0.5,
+        );
+      }
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: _kSurface2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
+      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(9.5), child: image),
+    );
+  }
+
   /// Card de selección (barbero / cliente)
   Widget _buildSelectorCard({
     required IconData icon,
     required String name,
     required String hint,
     required VoidCallback? onTap,
+    String? foto,
     bool locked = false,
   }) => GestureDetector(
     onTap: onTap,
@@ -544,16 +599,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _kSurface2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
-            ),
-            child: Icon(icon, color: const Color(0xFF888888), size: 18),
-          ),
+          _buildAvatar(foto, icon),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1287,6 +1333,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               name:
                                   _barberoSeleccionado?.nombreCompleto ?? 'Tú',
                               hint: 'Tu perfil como barbero',
+                              foto: _barberoSeleccionado?.fotoPerfil,
                               onTap: null,
                               locked: true,
                             )
@@ -1299,6 +1346,23 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               searchText: (b) => b.nombreCompleto,
                               prefixIcon: Icons.badge_outlined,
                               required: true,
+                              renderItem: (b) => Row(
+                                children: [
+                                  _buildAvatar(
+                                    b.fotoPerfil,
+                                    Icons.cut,
+                                    size: 30,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    b.nombreCompleto,
+                                    style: const TextStyle(
+                                      color: _kText,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               onSelected: (b) {
                                 setState(() {
                                   _barberoSeleccionado = b;
@@ -1318,6 +1382,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               name:
                                   _clienteSeleccionado?.nombreCompleto ?? 'Tú',
                               hint: 'Tu perfil como cliente',
+                              foto: _clienteSeleccionado?.fotoPerfil,
                               onTap: null,
                               locked: true,
                             )
@@ -1330,6 +1395,23 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               searchText: (c) => c.nombreCompleto,
                               prefixIcon: Icons.person_outline,
                               required: true,
+                              renderItem: (c) => Row(
+                                children: [
+                                  _buildAvatar(
+                                    c.fotoPerfil,
+                                    Icons.person_outline,
+                                    size: 30,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    c.nombreCompleto,
+                                    style: const TextStyle(
+                                      color: _kText,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               onSelected: (c) =>
                                   setState(() => _clienteSeleccionado = c),
                             ),

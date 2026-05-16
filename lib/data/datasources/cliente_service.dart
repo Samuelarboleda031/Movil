@@ -15,25 +15,30 @@ class ClienteService {
     };
   }
 
-  Future<List<Cliente>> obtenerClientes({int page = 1, int pageSize = 1000}) async {
+  Future<List<Cliente>> obtenerClientes({
+    int page = 1,
+    int pageSize = 1000,
+  }) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}?page=$page&pageSize=$pageSize';
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Tiempo de espera agotado. Verifique su conexión a internet.');
-        },
-      );
+      final url =
+          '${ApiConfig.baseUrl}${ApiConfig.clientes}?page=$page&pageSize=$pageSize';
+
+      final response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Tiempo de espera agotado. Verifique su conexión a internet.',
+              );
+            },
+          );
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return [];
         final dynamic rawData = jsonDecode(response.body);
-        
+
         List<dynamic> data;
         if (rawData is List) {
           data = rawData;
@@ -45,15 +50,19 @@ class ClienteService {
 
         return data.map((json) => Cliente.fromJson(json)).toList();
       } else {
-        throw Exception('Error al obtener clientes: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Error al obtener clientes: ${response.statusCode} - ${response.body}',
+        );
       }
     } on FormatException catch (e) {
       throw Exception('Error al procesar la respuesta de la API: $e');
     } catch (e) {
-      if (e.toString().contains('Failed host lookup') || 
+      if (e.toString().contains('Failed host lookup') ||
           e.toString().contains('Failed to connect') ||
           e.toString().contains('Failed to fetch')) {
-        throw Exception('No se pudo conectar con el servidor. Verifique su conexión a internet y que la API esté disponible.');
+        throw Exception(
+          'No se pudo conectar con el servidor. Verifique su conexión a internet y que la API esté disponible.',
+        );
       }
       throw Exception('Error de conexión: $e');
     }
@@ -73,7 +82,9 @@ class ClienteService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Cliente.fromJson(jsonDecode(response.body));
       } else {
-        throw Exception('Error al crear cliente: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Error al crear cliente: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       throw Exception('Error de conexión al crear cliente: $e');
@@ -100,7 +111,9 @@ class ClienteService {
       } else if (response.statusCode == 204) {
         return cliente;
       } else {
-        throw Exception('Error al actualizar cliente: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Error al actualizar cliente: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       throw Exception('Error de conexión al actualizar cliente: $e');
@@ -121,12 +134,9 @@ class ClienteService {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}/$clienteId';
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      ).timeout(
-        const Duration(seconds: 30),
-      );
+      final response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final raw = jsonDecode(response.body);
@@ -143,6 +153,31 @@ class ClienteService {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<double> obtenerSaldoAFavor(int clienteId) async {
+    try {
+      final headers = await _getHeaders();
+      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}/$clienteId/saldo-disponible';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 15),
+      );
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final raw = jsonDecode(response.body);
+        if (raw is Map) {
+          final val = raw['disponible'] ?? raw['Disponible'] ?? 0;
+          return (val as num).toDouble();
+        }
+      }
+      return 0.0;
+    } catch (_) {
+      return 0.0;
     }
   }
 }

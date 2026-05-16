@@ -205,7 +205,11 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   // Sincroniza el usuario autenticado de Firebase con la API (tabla Usuarios)
-  Future<Usuario?> syncUsuarioConApi({required int rolId, String? contrasena}) async {
+  Future<Usuario?> syncUsuarioConApi({
+    required int rolId, 
+    String? contrasena,
+    Map<String, dynamic>? additionalData,
+  }) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) return null;
 
@@ -217,16 +221,19 @@ class AuthService {
       Usuario sincronizado;
 
       if (existente == null) {
-        String nombre = 'Cliente';
-        String apellido = 'Nuevo';
+        String nombre = additionalData?['nombre'] ?? 'Cliente';
+        String apellido = additionalData?['apellido'] ?? 'Nuevo';
         
-        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        if (user.displayName != null && user.displayName!.trim().isNotEmpty && additionalData == null) {
           final parts = user.displayName!.split(' ');
           nombre = parts[0];
           if (parts.length > 1) {
             apellido = parts.sublist(1).join(' ');
           }
         }
+
+        // Generar documento aleatorio si no se proporciona (como en la web)
+        final randomDoc = additionalData?['documento'] ?? '${(100000 + DateTime.now().millisecond % 899999)}${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}';
 
         final nuevo = Usuario(
           correo: correo,
@@ -235,18 +242,27 @@ class AuthService {
           fotoPerfil: user.photoURL,
           contrasena: passwordValue,
           rolId: rolId,
+          documento: randomDoc,
+          tipoDocumento: additionalData?['tipoDocumento'] ?? 'OT',
+          telefono: additionalData?['telefono'],
           estado: true,
         );
         sincronizado = await crearUsuario(nuevo);
       } else {
         final rolFinal = existente.rolId ?? rolId;
         
-        if (existente.rolId != rolFinal || existente.estado != true) {
+        // Si hay datos adicionales, actualizamos el perfil del usuario
+        if (existente.rolId != rolFinal || existente.estado != true || additionalData != null) {
           final actualizado = Usuario(
             id: existente.id,
             correo: existente.correo,
+            nombre: additionalData?['nombre'] ?? existente.nombre,
+            apellido: additionalData?['apellido'] ?? existente.apellido,
             contrasena: existente.contrasena ?? passwordValue,
             rolId: rolFinal,
+            documento: additionalData?['documento'] ?? existente.documento,
+            tipoDocumento: additionalData?['tipoDocumento'] ?? existente.tipoDocumento ?? 'CC',
+            telefono: additionalData?['telefono'] ?? existente.telefono,
             estado: true,
           );
           sincronizado = await actualizarUsuario(actualizado);
