@@ -165,6 +165,55 @@ class AgendamientoService {
     }
   }
 
+  Future<void> completarParcialmente(int id, List<int> serviciosCompletados, List<int> productosCompletados) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id/completar-parcialmente'),
+        headers: headers,
+        body: jsonEncode({
+          'serviciosCompletados': serviciosCompletados,
+          'productosCompletados': productosCompletados,
+          'estado': 'Completada',
+        }),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al completar parcialmente: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<List<Agendamiento>> obtenerCitasPorTerminar() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/por-terminar'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final dynamic rawData = jsonDecode(response.body);
+        List<dynamic> list = [];
+        
+        if (rawData is Map<String, dynamic> && rawData.containsKey('data')) {
+          list = rawData['data'] as List<dynamic>;
+        } else if (rawData is List) {
+          list = rawData;
+        }
+
+        return list.map((j) => Agendamiento.fromJson(j as Map<String, dynamic>)).toList();
+      } else {
+        throw Exception('Error al obtener citas por terminar: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ [AgendamientoService] Error en obtenerCitasPorTerminar: $e');
+      return [];
+    }
+  }
+
   Future<void> cancelarDiaBarbero({
     required int barberoId,
     required int usuarioSolicitanteId,

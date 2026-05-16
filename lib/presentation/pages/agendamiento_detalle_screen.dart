@@ -11,6 +11,7 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
 
 class AgendamientoDetalleScreen extends StatefulWidget {
   final Agendamiento agendamiento;
@@ -468,11 +469,30 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 label: Text(
-                  widget.role == AppRole.barber ? 'AVISAR TÉRMINO' : 'TERMINAR TEMPRANO',
+                  widget.role == AppRole.barber ? 'AVISAR TÉRMINO' : 'TERMINAR COMPLETO',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
+            if (widget.role != AppRole.barber) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _terminarParcial,
+                  icon: const Icon(Icons.checklist, color: AppColors.gold, size: 20),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.gold),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  label: const Text(
+                    'COMPLETAR PARCIALMENTE',
+                    style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -525,8 +545,8 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
       setState(() => _isLoading = true);
       try {
         final service = AgendamientoService();
-        final updated = _currentAg.copyWith(estadoCita: nuevo);
-        await service.actualizarAgendamiento(updated);
+        // Usar el endpoint específico de cambio de estado (PATCH) en lugar de actualizar todo el agendamiento (PUT)
+        await service.actualizarEstadoAgendamiento(_currentAg.id!, nuevo);
         AppToast.showSuccess(context, 'Cita actualizada a $nuevo');
         _refreshData();
       } catch (e) {
@@ -575,6 +595,12 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
         AppToast.showError(context, 'Error al actualizar: $e');
       }
     }
+  }
+
+  void _terminarParcial() {
+    ModalCompletarParcialmente.show(context, _currentAg, () {
+      _refreshData();
+    });
   }
 
   Future<void> _avisarTermino() async {

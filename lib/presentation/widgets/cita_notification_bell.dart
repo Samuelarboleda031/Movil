@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
+import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
+import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
 
 class CitaNotification {
   final int citaId;
@@ -78,13 +80,56 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
     _isLoading = true;
     try {
       final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final currentMinutes = now.hour * 60 + now.minute;
+      
+      // Obtener el lunes de la semana actual para mostrar citas pendientes
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      final startOfWeekStr = '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      final pag = await _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 200);
+      final results = await Future.wait([
+        _agendamientoService.obtenerCitasPorTerminar(),
+        _agendamientoService.obtenerAgendamientos(page: 1, pageSize: 200),
+      ]);
+
+      final porTerminar = results[0] as List<Agendamiento>;
+      final todas = (results[1] as Paginacion<Agendamiento>).items;
+
       List<CitaNotification> newNotifs = [];
+      Set<int> processedIds = {};
 
-      for (var cita in pag.items) {
+      // 1. Agregar las que vienen del backend por-terminar
+      for (var cita in porTerminar) {
+        if (cita.id == null || processedIds.contains(cita.id!)) continue;
+        
+        if (widget.role == AppRole.barber && _currentBarber != null) {
+          if (cita.barberoId != _currentBarber!.id) continue;
+        }
+
+        processedIds.add(cita.id!);
+        String servicioNombre = cita.serviciosNombres.isNotEmpty 
+            ? cita.serviciosNombres.first 
+            : (cita.servicio?.nombre ?? 'Servicio');
+
+        newNotifs.add(
+          CitaNotification(
+            citaId: cita.id!,
+            clienteNombre: cita.clienteNombre ?? cita.cliente?.nombreCompleto ?? 'Cliente',
+            clienteFotoPerfil: cita.cliente?.fotoPerfil,
+            servicioNombre: servicioNombre,
+            barberoNombre: cita.barberoNombre ?? cita.barbero?.nombreCompleto ?? 'Barbero',
+            hora: cita.horaInicio ?? '00:00',
+            fecha: cita.fechaCita ?? todayStr,
+            minutosRestantes: 0,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+      }
+
+      // 2. Agregar las de hoy que están a 10 min o menos
+      for (var cita in todas) {
+        if (cita.id == null || processedIds.contains(cita.id!)) continue;
+        if (cita.fechaCita != todayStr) continue;
         if (cita.estadoCita?.toLowerCase() == 'cancelada' ||
             cita.estadoCita?.toLowerCase() == 'cancelado' ||
             cita.estadoCita?.toLowerCase() == 'completada' ||
@@ -93,9 +138,6 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
           continue;
         }
 
-        if (cita.fechaCita != todayStr) continue;
-
-        // Filtro para barbero: solo sus propias citas
         if (widget.role == AppRole.barber && _currentBarber != null) {
           if (cita.barberoId != _currentBarber!.id) continue;
         }
@@ -107,27 +149,24 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
               ? cita.duracion as int 
               : int.tryParse(cita.duracion?.toString() ?? '60') ?? 60;
           final citaEndMin = citaStartMin + duracion;
-
           final minutosRestantes = citaEndMin - currentMinutes;
 
-          if (minutosRestantes > -60 && minutosRestantes <= 10 && currentMinutes >= citaStartMin) {
-            String servicioNombre = 'Servicio';
-            if (cita.serviciosNombres.isNotEmpty) {
-              servicioNombre = cita.serviciosNombres.first;
-            } else if (cita.servicio?.nombre != null) {
-              servicioNombre = cita.servicio!.nombre;
-            }
+          if (minutosRestantes > 0 && minutosRestantes <= 10) {
+            processedIds.add(cita.id!);
+            String servicioNombre = cita.serviciosNombres.isNotEmpty 
+                ? cita.serviciosNombres.first 
+                : (cita.servicio?.nombre ?? 'Servicio');
 
             newNotifs.add(
               CitaNotification(
-                citaId: cita.id ?? 0,
+                citaId: cita.id!,
                 clienteNombre: cita.clienteNombre ?? cita.cliente?.nombreCompleto ?? 'Cliente',
                 clienteFotoPerfil: cita.cliente?.fotoPerfil,
                 servicioNombre: servicioNombre,
                 barberoNombre: cita.barberoNombre ?? cita.barbero?.nombreCompleto ?? 'Barbero',
                 hora: cita.horaInicio ?? '00:00',
                 fecha: cita.fechaCita ?? todayStr,
-                minutosRestantes: minutosRestantes > 0 ? minutosRestantes.toInt() : 0,
+                minutosRestantes: minutosRestantes.toInt(),
                 createdAt: DateTime.now().millisecondsSinceEpoch,
               ),
             );
@@ -313,18 +352,27 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
                 Row(
                   children: [
                     if (widget.role == AppRole.barber) ...[
-                      _actionButton(
-                        icon: Icons.notifications_active,
-                        color: AppColors.gold,
-                        label: 'AVISAR',
-                        onTap: () => _handleAvisar(notif.citaId, setModalState),
-                      ),
+                      if (notif.minutosRestantes <= 0)
+                        _actionButton(
+                          icon: Icons.notifications_active,
+                          color: AppColors.gold,
+                          label: 'AVISAR',
+                          onTap: () => _handleAvisar(notif.citaId, setModalState),
+                        ),
                     ] else ...[
-                      _actionButton(
-                        icon: Icons.check,
-                        color: Colors.green,
-                        onTap: () => _handleAction(notif.citaId, 'Completada', setModalState),
-                      ),
+                      if (notif.minutosRestantes <= 0) ...[
+                        _actionButton(
+                          icon: Icons.check,
+                          color: Colors.green,
+                          onTap: () => _handleAction(notif.citaId, 'Completada', setModalState),
+                        ),
+                        const SizedBox(width: 8),
+                        _actionButton(
+                          icon: Icons.checklist,
+                          color: AppColors.gold,
+                          onTap: () => _handleParcial(notif.citaId, setModalState),
+                        ),
+                      ],
                       const SizedBox(width: 8),
                       _actionButton(
                         icon: Icons.close,
@@ -401,6 +449,27 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
       }
     } catch (e) {
       AppToast.showError(context, 'Error al actualizar estado');
+    }
+  }
+
+  Future<void> _handleParcial(int citaId, StateSetter setModalState) async {
+    try {
+      final cita = await _agendamientoService.obtenerAgendamientoPorId(citaId);
+      if (!mounted) return;
+      
+      ModalCompletarParcialmente.show(context, cita, () {
+        setModalState(() {
+          _notifications.removeWhere((n) => n.citaId == citaId);
+        });
+        setState(() {
+          _notifications.removeWhere((n) => n.citaId == citaId);
+        });
+        if (_notifications.isEmpty) {
+          Navigator.pop(context);
+        }
+      });
+    } catch (e) {
+      if (mounted) AppToast.showError(context, 'Error al cargar detalles de la cita');
     }
   }
 
