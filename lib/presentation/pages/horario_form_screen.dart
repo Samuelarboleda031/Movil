@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/horario_barbero.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -12,10 +13,10 @@ import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 
 class HorarioFormScreen extends StatefulWidget {
-  final HorarioBarbero? horario;
+  final HorarioSemanal? horarioSemanal;
   final AppRole role;
   
-  const HorarioFormScreen({super.key, this.horario, required this.role});
+  const HorarioFormScreen({super.key, this.horarioSemanal, required this.role});
 
   @override
   State<HorarioFormScreen> createState() => _HorarioFormScreenState();
@@ -26,7 +27,8 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
   final List<int> _diasSeleccionados = [];
   TimeOfDay _horaInicio = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _horaFin = const TimeOfDay(hour: 18, minute: 0);
-  bool _estado = true;
+  bool _estado = true; // true = Activo, false = Finalizado
+  DateTime _fechaInicioSemana = DateTime.now();
 
   List<Barbero> _barberos = [];
   bool _isLoadingBarberos = true;
@@ -38,11 +40,26 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
     super.initState();
     _loadBarberos();
     
-    if (widget.horario != null) {
-      _diasSeleccionados.add(widget.horario!.diaSemana);
-      _horaInicio = _parseTimeOfDay(widget.horario!.horaInicio);
-      _horaFin = _parseTimeOfDay(widget.horario!.horaFin);
-      _estado = widget.horario!.estado;
+    if (widget.horarioSemanal != null) {
+      final h = widget.horarioSemanal!;
+      for (var d in h.detalles) {
+        if (!_diasSeleccionados.contains(d.diaSemana)) {
+          _diasSeleccionados.add(d.diaSemana);
+        }
+      }
+      if (h.detalles.isNotEmpty) {
+        _horaInicio = _parseTimeOfDay(h.detalles.first.horaInicio);
+        _horaFin = _parseTimeOfDay(h.detalles.first.horaFin);
+      }
+      _estado = h.estado == 'Activo';
+      _fechaInicioSemana = DateTime.tryParse(h.fechaInicioSemana) ?? DateTime.now();
+    } else {
+      // Por defecto seleccionar de Lunes a Viernes (1 a 5)
+      _diasSeleccionados.addAll([1, 2, 3, 4, 5]);
+      // Ajustar fechaInicioSemana al próximo lunes si no es lunes hoy
+      while (_fechaInicioSemana.weekday != 1) {
+        _fechaInicioSemana = _fechaInicioSemana.add(const Duration(days: 1));
+      }
     }
   }
 
@@ -62,9 +79,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
             _barberoSeleccionado = currentBarber;
           } else {
             _barberos = barberos;
-            if (widget.horario != null) {
+            if (widget.horarioSemanal != null) {
               try {
-                _barberoSeleccionado = _barberos.firstWhere((b) => b.id == widget.horario!.barberoId);
+                _barberoSeleccionado = _barberos.firstWhere((b) => b.id == widget.horarioSemanal!.barberoId);
               } catch (_) {}
             }
           }
@@ -118,6 +135,31 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
     }
   }
 
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaInicioSemana,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.gold,
+            onPrimary: Colors.black,
+            surface: AppColors.card,
+            onSurface: AppColors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _fechaInicioSemana = picked;
+      });
+    }
+  }
+
   void _save() {
     if (_barberoSeleccionado == null) {
       AppToast.showError(context, 'Seleccione un barbero');
@@ -135,42 +177,56 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
       return;
     }
 
-    if (widget.horario == null) {
+    final fechaInicioStr = DateFormat('yyyy-MM-dd').format(_fechaInicioSemana);
+    final fechaFinStr = DateFormat('yyyy-MM-dd').format(_fechaInicioSemana.add(const Duration(days: 6)));
+
+    if (widget.horarioSemanal == null) {
       // Create mode
-      final horarios = _diasSeleccionados.map((dia) {
-        return HorarioBarbero(
-          barberoId: _barberoSeleccionado!.id!,
-          diaSemana: dia,
-          horaInicio: _formatTimeOfDay(_horaInicio),
-          horaFin: _formatTimeOfDay(_horaFin),
-          estado: _estado,
-        );
-      }).toList();
-      context.read<HorariosBloc>().add(CreateMultipleHorariosRequested(horarios));
+      final horario = HorarioSemanal(
+        barberoId: _barberoSeleccionado!.id!,
+        fechaInicioSemana: fechaInicioStr,
+        fechaFinSemana: fechaFinStr,
+        estado: _estado ? 'Activo' : 'Finalizado',
+        detalles: _diasSeleccionados.map((dia) {
+          return DetalleHorarioDia(
+            diaSemana: dia,
+            horaInicio: _formatTimeOfDay(_horaInicio),
+            horaFin: _formatTimeOfDay(_horaFin),
+          );
+        }).toList(),
+      );
+      context.read<HorariosBloc>().add(CreateHorarioSemanalRequested(horario));
     } else {
       // Edit mode
-      final newHorario = HorarioBarbero(
-        id: widget.horario!.id,
+      final newHorario = HorarioSemanal(
+        id: widget.horarioSemanal!.id,
         barberoId: _barberoSeleccionado!.id!,
-        diaSemana: _diasSeleccionados.first,
-        horaInicio: _formatTimeOfDay(_horaInicio),
-        horaFin: _formatTimeOfDay(_horaFin),
-        estado: _estado,
+        fechaInicioSemana: fechaInicioStr,
+        fechaFinSemana: fechaFinStr,
+        estado: _estado ? 'Activo' : 'Finalizado',
+        detalles: _diasSeleccionados.map((dia) {
+          return DetalleHorarioDia(
+            diaSemana: dia,
+            horaInicio: _formatTimeOfDay(_horaInicio),
+            horaFin: _formatTimeOfDay(_horaFin),
+          );
+        }).toList(),
       );
-      context.read<HorariosBloc>().add(UpdateHorarioRequested(newHorario));
+      context.read<HorariosBloc>().add(UpdateHorarioSemanalRequested(newHorario.id!, newHorario));
     }
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isEditMode = widget.horario != null;
+    final bool isEditMode = widget.horarioSemanal != null;
     final bool canChangeBarber = !isEditMode && widget.role != AppRole.barber;
+    final fechaFinSemana = _fechaInicioSemana.add(const Duration(days: 6));
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: Text(isEditMode ? 'Editar Horario' : 'Nuevo Horario', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.white)),
+        title: Text(isEditMode ? 'Editar Horario Semanal' : 'Nuevo Horario Semanal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.white)),
         backgroundColor: AppColors.bg,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.gold),
@@ -230,8 +286,45 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                     
                     const SizedBox(height: 32),
 
+                    // ── SECCIÓN FECHAS DE LA SEMANA ──
+                    const Text('2. FECHAS DE LA SEMANA', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => _selectDate(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_month, color: AppColors.gold, size: 28),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Semana de Trabajo', style: TextStyle(color: AppColors.grey, fontSize: 13)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${DateFormat('dd MMM yyyy').format(_fechaInicioSemana)} al ${DateFormat('dd MMM yyyy').format(fechaFinSemana)}',
+                                    style: const TextStyle(color: AppColors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.edit_calendar, color: AppColors.grey, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
                     // ── SECCIÓN DÍAS ──
-                    Text(isEditMode ? '2. DÍA' : '2. DÍAS DE LA SEMANA', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
+                    const Text('3. DÍAS DE LA SEMANA', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 10,
@@ -243,15 +336,10 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                           selected: isSelected,
                           onSelected: (val) {
                             setState(() {
-                              if (isEditMode) {
-                                _diasSeleccionados.clear();
-                                if (val) _diasSeleccionados.add(i);
+                              if (val) {
+                                _diasSeleccionados.add(i);
                               } else {
-                                if (val) {
-                                  _diasSeleccionados.add(i);
-                                } else {
-                                  _diasSeleccionados.remove(i);
-                                }
+                                _diasSeleccionados.remove(i);
                               }
                             });
                           },
@@ -270,7 +358,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                     const SizedBox(height: 32),
 
                     // ── SECCIÓN HORAS ──
-                    const Text('3. RANGO DE HORAS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
+                    const Text('4. RANGO DE HORAS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -334,7 +422,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                       child: SwitchListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         title: const Text('Estado Operativo', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600, fontSize: 16)),
-                        subtitle: Text(_estado ? 'Horario activo para agendar' : 'Horario inactivo', style: const TextStyle(color: AppColors.grey, fontSize: 13)),
+                        subtitle: Text(_estado ? 'Horario semanal activo' : 'Horario finalizado', style: const TextStyle(color: AppColors.grey, fontSize: 13)),
                         value: _estado,
                         activeColor: AppColors.gold,
                         activeTrackColor: AppColors.gold.withOpacity(0.3),
@@ -363,7 +451,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                           Icon(isEditMode ? Icons.save : Icons.add_circle_outline, size: 22),
                           const SizedBox(width: 10),
                           Text(
-                            isEditMode ? 'GUARDAR CAMBIOS' : 'CREAR HORARIO',
+                            isEditMode ? 'GUARDAR CAMBIOS' : 'CREAR HORARIO SEMANAL',
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1),
                           ),
                         ],

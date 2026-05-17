@@ -13,7 +13,7 @@ class HorariosInitial extends HorariosState {}
 class HorariosLoading extends HorariosState {}
 
 class HorariosLoaded extends HorariosState {
-  final List<HorarioBarbero> horarios;
+  final List<HorarioSemanal> horarios;
 
   const HorariosLoaded({required this.horarios});
 

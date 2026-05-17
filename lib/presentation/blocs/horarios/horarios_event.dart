@@ -10,47 +10,40 @@ abstract class HorariosEvent extends Equatable {
 
 class LoadHorariosRequested extends HorariosEvent {}
 
-class CreateHorarioRequested extends HorariosEvent {
-  final HorarioBarbero horario;
+class CreateHorarioSemanalRequested extends HorariosEvent {
+  final HorarioSemanal horario;
 
-  const CreateHorarioRequested(this.horario);
-
-  @override
-  List<Object?> get props => [horario];
-}
-
-class CreateMultipleHorariosRequested extends HorariosEvent {
-  final List<HorarioBarbero> horarios;
-
-  const CreateMultipleHorariosRequested(this.horarios);
-
-  @override
-  List<Object?> get props => [horarios];
-}
-
-class UpdateHorarioRequested extends HorariosEvent {
-  final HorarioBarbero horario;
-
-  const UpdateHorarioRequested(this.horario);
+  const CreateHorarioSemanalRequested(this.horario);
 
   @override
   List<Object?> get props => [horario];
 }
 
-class DeleteHorarioRequested extends HorariosEvent {
+class UpdateHorarioSemanalRequested extends HorariosEvent {
+  final int id;
+  final HorarioSemanal horario;
+
+  const UpdateHorarioSemanalRequested(this.id, this.horario);
+
+  @override
+  List<Object?> get props => [id, horario];
+}
+
+class DeleteHorarioSemanalRequested extends HorariosEvent {
   final int id;
 
-  const DeleteHorarioRequested(this.id);
+  const DeleteHorarioSemanalRequested(this.id);
 
   @override
   List<Object?> get props => [id];
 }
 
-class ToggleHorarioStatusRequested extends HorariosEvent {
+class ToggleHorarioSemanalStatusRequested extends HorariosEvent {
   final int id;
+  final bool nuevoEstado;
 
-  const ToggleHorarioStatusRequested(this.id);
+  const ToggleHorarioSemanalStatusRequested(this.id, this.nuevoEstado);
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, nuevoEstado];
 }

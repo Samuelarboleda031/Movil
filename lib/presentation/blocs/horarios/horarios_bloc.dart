@@ -22,11 +22,10 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
     required this.role,
   }) : super(HorariosInitial()) {
     on<LoadHorariosRequested>(_onLoadHorarios);
-    on<CreateHorarioRequested>(_onCreateHorario);
-    on<CreateMultipleHorariosRequested>(_onCreateMultipleHorarios);
-    on<UpdateHorarioRequested>(_onUpdateHorario);
-    on<DeleteHorarioRequested>(_onDeleteHorario);
-    on<ToggleHorarioStatusRequested>(_onToggleHorarioStatus);
+    on<CreateHorarioSemanalRequested>(_onCreateHorarioSemanal);
+    on<UpdateHorarioSemanalRequested>(_onUpdateHorarioSemanal);
+    on<DeleteHorarioSemanalRequested>(_onDeleteHorarioSemanal);
+    on<ToggleHorarioSemanalStatusRequested>(_onToggleStatus);
   }
 
   Future<void> _onLoadHorarios(LoadHorariosRequested event, Emitter<HorariosState> emit) async {
@@ -55,69 +54,50 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
     }
   }
 
-  Future<void> _onCreateHorario(CreateHorarioRequested event, Emitter<HorariosState> emit) async {
+  Future<void> _onCreateHorarioSemanal(CreateHorarioSemanalRequested event, Emitter<HorariosState> emit) async {
     emit(HorariosLoading());
     try {
-      await horarioService.crearHorario(event.horario);
-      emit(const HorarioActionSuccess(message: 'Horario creado exitosamente'));
+      await horarioService.crearHorarioSemanal(event.horario);
+      emit(const HorarioActionSuccess(message: 'Horario semanal creado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al crear horario: $e'));
+      emit(HorariosError(message: 'Error al crear horario semanal: $e'));
       add(LoadHorariosRequested());
     }
   }
 
-  Future<void> _onCreateMultipleHorarios(CreateMultipleHorariosRequested event, Emitter<HorariosState> emit) async {
+  Future<void> _onUpdateHorarioSemanal(UpdateHorarioSemanalRequested event, Emitter<HorariosState> emit) async {
     emit(HorariosLoading());
     try {
-      for (var horario in event.horarios) {
-        await horarioService.crearHorario(horario);
-      }
-      emit(const HorarioActionSuccess(message: 'Horarios creados exitosamente'));
+      await horarioService.actualizarHorarioSemanal(event.id, event.horario);
+      emit(const HorarioActionSuccess(message: 'Horario semanal actualizado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al crear horarios: $e'));
+      emit(HorariosError(message: 'Error al actualizar horario semanal: $e'));
       add(LoadHorariosRequested());
     }
   }
 
-  Future<void> _onUpdateHorario(UpdateHorarioRequested event, Emitter<HorariosState> emit) async {
+  Future<void> _onDeleteHorarioSemanal(DeleteHorarioSemanalRequested event, Emitter<HorariosState> emit) async {
     emit(HorariosLoading());
     try {
-      await horarioService.actualizarHorario(event.horario);
-      emit(const HorarioActionSuccess(message: 'Horario actualizado exitosamente'));
+      await horarioService.eliminarHorarioSemanal(event.id);
+      emit(const HorarioActionSuccess(message: 'Horario semanal eliminado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al actualizar horario: $e'));
+      emit(HorariosError(message: 'Error al eliminar horario semanal: $e'));
       add(LoadHorariosRequested());
     }
   }
 
-  Future<void> _onDeleteHorario(DeleteHorarioRequested event, Emitter<HorariosState> emit) async {
+  Future<void> _onToggleStatus(ToggleHorarioSemanalStatusRequested event, Emitter<HorariosState> emit) async {
     emit(HorariosLoading());
     try {
-      await horarioService.eliminarHorario(event.id);
-      emit(const HorarioActionSuccess(message: 'Horario eliminado exitosamente'));
-      add(LoadHorariosRequested());
-    } catch (e) {
-      emit(HorariosError(message: 'Error al eliminar horario: $e'));
-      add(LoadHorariosRequested());
-    }
-  }
-
-  Future<void> _onToggleHorarioStatus(ToggleHorarioStatusRequested event, Emitter<HorariosState> emit) async {
-    emit(HorariosLoading());
-    try {
-      await horarioService.cambiarEstado(event.id);
+      await horarioService.cambiarEstado(event.id, event.nuevoEstado);
       emit(const HorarioActionSuccess(message: 'Estado cambiado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      // If error occurs, might just be because it returns 204 or no body but actually changed
-      if (e.toString().contains('El endpoint de estado devolvió 204') || e.toString().contains('FormatException')) {
-          emit(const HorarioActionSuccess(message: 'Estado cambiado exitosamente'));
-      } else {
-          emit(HorariosError(message: 'Error al cambiar estado: $e'));
-      }
+      emit(HorariosError(message: 'Error al cambiar estado: $e'));
       add(LoadHorariosRequested());
     }
   }

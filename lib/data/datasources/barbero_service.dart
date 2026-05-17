@@ -118,7 +118,7 @@ class BarberoService {
     }
   }
 
-  Future<List<HorarioBarbero>> obtenerHorariosBarberos() async {
+  Future<List<HorarioSemanal>> obtenerHorariosBarberos() async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}?pageSize=1000';
@@ -142,14 +142,14 @@ class BarberoService {
         }
 
         return data
-            .map((json) => HorarioBarbero.fromJson(json as Map<String, dynamic>))
-            .where((h) => h.estado)
+            .map((json) => HorarioSemanal.fromJson(json as Map<String, dynamic>))
+            .where((h) => h.estado == 'Activo')
             .toList();
       } else {
-        throw Exception('Error al obtener horarios: ${response.statusCode}');
+        throw Exception('Error al obtener horarios semanales: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error al obtener horarios de barberos: $e');
+      print('Error al obtener horarios semanales de barberos: $e');
       return [];
     }
   }

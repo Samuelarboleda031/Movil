@@ -15,7 +15,7 @@ class HorarioBarberoService {
     };
   }
 
-  Future<List<HorarioBarbero>> obtenerHorarios() async {
+  Future<List<HorarioSemanal>> obtenerHorarios() async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}?pageSize=1000';
@@ -39,18 +39,18 @@ class HorarioBarberoService {
         }
 
         return data
-            .map((json) => HorarioBarbero.fromJson(json as Map<String, dynamic>))
-            .toList(); // Return all to allow toggling status
+            .map((json) => HorarioSemanal.fromJson(json as Map<String, dynamic>))
+            .toList();
       } else {
         throw Exception('Error al obtener horarios: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error al obtener horarios de barberos: $e');
+      print('Error al obtener horarios semanales: $e');
       return [];
     }
   }
 
-  Future<HorarioBarbero> crearHorario(HorarioBarbero horario) async {
+  Future<HorarioSemanal> crearHorarioSemanal(HorarioSemanal horario) async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}';
@@ -62,43 +62,45 @@ class HorarioBarberoService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return HorarioBarbero.fromJson(jsonDecode(response.body));
+        return HorarioSemanal.fromJson(jsonDecode(response.body));
       } else {
-        throw Exception('Error al crear horario: ${response.statusCode} - ${response.body}');
+        throw Exception('Error al crear horario semanal: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error de conexión al crear horario: $e');
+      throw Exception('Error de conexión al crear horario semanal: $e');
     }
   }
 
-  Future<HorarioBarbero> actualizarHorario(HorarioBarbero horario) async {
-    if (horario.id == null || horario.id == 0) {
-      throw Exception('No se puede actualizar un horario sin ID');
-    }
-
+  Future<HorarioSemanal> actualizarHorarioSemanal(int id, HorarioSemanal horario) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/${horario.id}';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id';
+
+      final body = <String, dynamic>{};
+      if (horario.fechaInicioSemana.isNotEmpty) body['FechaInicioSemana'] = horario.fechaInicioSemana;
+      if (horario.fechaFinSemana.isNotEmpty) body['FechaFinSemana'] = horario.fechaFinSemana;
+      if (horario.estado.isNotEmpty) body['Estado'] = horario.estado;
+      if (horario.detalles.isNotEmpty) body['Detalles'] = horario.detalles.map((d) => d.toJson()).toList();
 
       final response = await http.put(
         Uri.parse(url),
         headers: headers,
-        body: jsonEncode(horario.toJson()),
+        body: jsonEncode(body),
       );
 
       if (response.statusCode == 200) {
-        return HorarioBarbero.fromJson(jsonDecode(response.body));
+        return HorarioSemanal.fromJson(jsonDecode(response.body));
       } else if (response.statusCode == 204) {
         return horario;
       } else {
-        throw Exception('Error al actualizar horario: ${response.statusCode} - ${response.body}');
+        throw Exception('Error al actualizar horario semanal: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error de conexión al actualizar horario: $e');
+      throw Exception('Error de conexión al actualizar horario semanal: $e');
     }
   }
 
-  Future<void> eliminarHorario(int id) async {
+  Future<void> eliminarHorarioSemanal(int id) async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id';
@@ -109,26 +111,16 @@ class HorarioBarberoService {
       );
 
       if (response.statusCode != 200 && response.statusCode != 204) {
-        throw Exception('Error al eliminar horario: ${response.statusCode} - ${response.body}');
+        throw Exception('Error al eliminar horario semanal: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error de conexión al eliminar horario: $e');
+      throw Exception('Error de conexión al eliminar horario semanal: $e');
     }
   }
 
-  Future<HorarioBarbero> cambiarEstado(int id, {int usuarioSolicitanteId = 0}) async {
+  Future<void> cambiarEstado(int id, bool nuevoEstado, {int usuarioSolicitanteId = 0}) async {
     try {
       final headers = await _getHeaders();
-
-      final getUrl = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id';
-      final getResp = await http.get(Uri.parse(getUrl), headers: headers);
-
-      if (getResp.statusCode != 200) {
-        throw Exception('No se encontró el horario para cambiar estado');
-      }
-
-      final horario = HorarioBarbero.fromJson(jsonDecode(getResp.body));
-      final nuevoEstado = !horario.estado;
 
       int resolvedUserId = usuarioSolicitanteId;
       if (resolvedUserId <= 0) {
@@ -144,35 +136,11 @@ class HorarioBarberoService {
 
       final response = await http.post(Uri.parse(url), headers: headers, body: payload);
 
-      if (response.statusCode == 200) {
-        try {
-          final data = jsonDecode(response.body);
-          if (data['entidad'] != null) {
-            return HorarioBarbero.fromJson(data['entidad']);
-          }
-        } catch (_) {}
-        return HorarioBarbero(
-          id: horario.id,
-          barberoId: horario.barberoId,
-          diaSemana: horario.diaSemana,
-          horaInicio: horario.horaInicio,
-          horaFin: horario.horaFin,
-          estado: nuevoEstado,
-        );
-      } else if (response.statusCode == 204) {
-        return HorarioBarbero(
-          id: horario.id,
-          barberoId: horario.barberoId,
-          diaSemana: horario.diaSemana,
-          horaInicio: horario.horaInicio,
-          horaFin: horario.horaFin,
-          estado: nuevoEstado,
-        );
-      } else {
+      if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al cambiar estado: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error al cambiar estado del horario: $e');
+      throw Exception('Error al cambiar estado del horario semanal: $e');
     }
   }
 }

@@ -50,10 +50,10 @@ const kTextDim   = AppColors.grey;
 // ─── MODELO UI GRUPO ─────────────────────────────────────────────────────────
 class _BarberGroup {
   final Barbero barbero;
-  final List<HorarioBarbero> turnos;
+  final List<HorarioSemanal> semanales;
   final Color color;
 
-  _BarberGroup({required this.barbero, required this.turnos, required this.color});
+  _BarberGroup({required this.barbero, required this.semanales, required this.color});
 
   String get iniciales {
     if (barbero.nombre.isEmpty) return '??';
@@ -62,7 +62,7 @@ class _BarberGroup {
     return barbero.nombre.substring(0, math.min(2, barbero.nombre.length)).toUpperCase();
   }
 
-  int get turnosActivos => turnos.where((t) => t.estado).length;
+  int get turnosActivos => semanales.where((s) => s.estado == 'Activo').length;
 }
 
 // ─── PANTALLA PRINCIPAL ──────────────────────────────────────────────────────
@@ -141,9 +141,9 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
     return colors[hash % colors.length];
   }
 
-  List<_BarberGroup> _getGroupedData(List<HorarioBarbero> horarios) {
+  List<_BarberGroup> _getGroupedData(List<HorarioSemanal> horarios) {
     final q = _searchQuery.toLowerCase();
-    final Map<int, List<HorarioBarbero>> map = {};
+    final Map<int, List<HorarioSemanal>> map = {};
     for (var h in horarios) {
       if (!map.containsKey(h.barberoId)) map[h.barberoId] = [];
       map[h.barberoId]!.add(h);
@@ -152,26 +152,27 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
     List<_BarberGroup> groups = [];
     for (var entry in map.entries) {
       final barberoId = entry.key;
-      final turnos = entry.value;
+      final semanales = entry.value;
 
       Barbero barbero;
       try {
         barbero = _barberos.firstWhere((b) => b.id == barberoId);
       } catch (e) {
-        barbero = Barbero(id: barberoId, nombre: 'Barbero', apellido: '$barberoId', documento: '', estado: true);
+        barbero = Barbero(id: barberoId, nombre: semanales.first.barberoNombre ?? 'Barbero', apellido: '', documento: '', estado: true);
       }
 
       final barberoStr = barbero.nombreCompleto.toLowerCase();
 
-      final turnosFiltrados = turnos.where((t) {
-        final diaStr = _obtenerDiaSemana(t.diaSemana).toLowerCase();
-        return q.isEmpty || barberoStr.contains(q) || diaStr.contains(q);
+      final semanalesFiltrados = semanales.where((s) {
+        final fechasStr = '${s.fechaInicioSemana} ${s.fechaFinSemana}'.toLowerCase();
+        final estadoStr = s.estado.toLowerCase();
+        return q.isEmpty || barberoStr.contains(q) || fechasStr.contains(q) || estadoStr.contains(q);
       }).toList();
 
-      if (turnosFiltrados.isNotEmpty) {
+      if (semanalesFiltrados.isNotEmpty) {
         groups.add(_BarberGroup(
           barbero: barbero,
-          turnos: turnosFiltrados,
+          semanales: semanalesFiltrados,
           color: _getColorForBarber(barbero.nombreCompleto),
         ));
       }
@@ -179,14 +180,14 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
     return groups;
   }
 
-  void _eliminarHorario(HorarioBarbero horario, String nombreBarbero) {
+  void _eliminarHorario(HorarioSemanal horario, String nombreBarbero) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: kSurface,
-        title: const Text('Eliminar Horario', style: TextStyle(color: kTextPrim)),
+        title: const Text('Eliminar Horario Semanal', style: TextStyle(color: kTextPrim)),
         content: Text(
-          '¿Desea eliminar el horario de ${_obtenerDiaSemana(horario.diaSemana)} de $nombreBarbero?',
+          '¿Desea eliminar el horario semanal del ${horario.fechaInicioSemana} al ${horario.fechaFinSemana} de $nombreBarbero?',
           style: const TextStyle(color: kTextMuted),
         ),
         actions: [
@@ -194,7 +195,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              context.read<HorariosBloc>().add(DeleteHorarioRequested(horario.id!));
+              context.read<HorariosBloc>().add(DeleteHorarioSemanalRequested(horario.id!));
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Eliminar'),
@@ -406,7 +407,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
                                       MaterialPageRoute(
                                         builder: (ctx) => BlocProvider.value(
                                           value: context.read<HorariosBloc>(),
-                                          child: HorarioFormScreen(horario: h, role: _currentRole),
+                                          child: HorarioFormScreen(horarioSemanal: h, role: _currentRole),
                                         ),
                                       ),
                                     );
@@ -583,8 +584,8 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
 class _BarberCard extends StatefulWidget {
   final _BarberGroup group;
   final String Function(int) obtenerDiaSemana;
-  final void Function(HorarioBarbero) onEdit;
-  final void Function(HorarioBarbero) onDelete;
+  final void Function(HorarioSemanal) onEdit;
+  final void Function(HorarioSemanal) onDelete;
 
   const _BarberCard({
     required this.group,
@@ -705,7 +706,7 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${g.turnosActivos}/${g.turnos.length} días activos',
+                          '${g.turnosActivos}/${g.semanales.length} semanas activas',
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 11,
@@ -728,7 +729,7 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
             ),
           ),
 
-          // ── Lista de turnos (acordeón) ──────────────────────────────────────
+          // ── Lista de semanas (acordeón) ──────────────────────────────────────
           SizeTransition(
             sizeFactor: _expandAnim,
             child: Column(
@@ -738,31 +739,16 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.only(top: 2, bottom: 8, left: 14, right: 14),
-                  itemCount: g.turnos.length,
+                  itemCount: g.semanales.length,
                   itemBuilder: (ctx, i) {
-                    final t = g.turnos[i];
-                    return _TurnoRow(
-                      turno: t,
-                      dia: widget.obtenerDiaSemana(t.diaSemana),
-                      onEdit: () => widget.onEdit(t),
-                      onDelete: () => widget.onDelete(t),
-                      onTap: () {
-                        // Normalizar diaSemana al rango [0..6] (0=Dom..6=Sab)
-                        // El backend puede enviar 7 para Domingo (ISO) o 6 para Domingo (modelo Lunes-first).
-                        final rawDia = t.diaSemana;
-                        final diaNorm = (rawDia == 7) ? 0 : (rawDia < 0 || rawDia > 6) ? 0 : rawDia;
-                        Navigator.push(
-                          ctx,
-                          MaterialPageRoute(
-                            builder: (_) => CitasPorDiaScreen(
-                              barberoId: g.barbero.id ?? t.barberoId,
-                              barberoNombre: g.barbero.nombreCompleto,
-                              diaSemana: diaNorm,
-                              horaInicio: t.horaInicio.length >= 5 ? t.horaInicio.substring(0, 5) : t.horaInicio,
-                              horaFin: t.horaFin.length >= 5 ? t.horaFin.substring(0, 5) : t.horaFin,
-                              accentColor: g.color,
-                            ),
-                          ),
+                    final s = g.semanales[i];
+                    return _SemanaRow(
+                      semana: s,
+                      onEdit: () => widget.onEdit(s),
+                      onDelete: () => widget.onDelete(s),
+                      onToggleStatus: () {
+                        context.read<HorariosBloc>().add(
+                          ToggleHorarioSemanalStatusRequested(s.id!, s.estado != 'Activo'),
                         );
                       },
                     );
@@ -777,72 +763,76 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
   }
 }
 
-// ─── FILA DE TURNO ───────────────────────────────────────────────────────────
-class _TurnoRow extends StatelessWidget {
-  final HorarioBarbero turno;
-  final String dia;
+// ─── FILA DE SEMANA ───────────────────────────────────────────────────────────
+class _SemanaRow extends StatelessWidget {
+  final HorarioSemanal semana;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final VoidCallback? onTap;
+  final VoidCallback onToggleStatus;
 
-  const _TurnoRow({
-    required this.turno,
-    required this.dia,
+  const _SemanaRow({
+    required this.semana,
     required this.onEdit,
     required this.onDelete,
-    this.onTap,
+    required this.onToggleStatus,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isActivo = semana.estado == 'Activo';
+    final isPendiente = semana.estado == 'Pendiente';
+    final badgeColor = isActivo ? kGold : isPendiente ? Colors.orange : kTextDim;
+    final badgeBg = isActivo ? kGold.withOpacity(0.12) : isPendiente ? Colors.orange.withOpacity(0.12) : kBorder2;
+
+    // Generar resumen de días
+    final diasStr = semana.detalles.map((d) {
+      const nombres = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+      final idx = (d.diaSemana < 0 || d.diaSemana > 7) ? 0 : d.diaSemana;
+      return nombres[idx];
+    }).join(', ');
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: Container(
         decoration: BoxDecoration(
           color: kSurface2,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: turno.estado ? kGold.withOpacity(0.22) : kBorder,
+            color: isActivo ? kGold.withOpacity(0.22) : kBorder,
             width: 0.5,
           ),
         ),
         padding: const EdgeInsets.only(left: 12, right: 4, top: 10, bottom: 10),
         child: Row(
           children: [
-            // Día + estado
+            // Fechas + estado
             SizedBox(
-              width: 82,
+              width: 110,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    dia,
+                    '${semana.fechaInicioSemana} / ${semana.fechaFinSemana}',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: turno.estado ? kTextPrim : kTextDim,
+                      color: isActivo ? kTextPrim : kTextDim,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
-                      color: turno.estado ? kGold.withOpacity(0.12) : kBorder2,
+                      color: badgeBg,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      turno.estado ? 'activo' : 'inactivo',
+                      semana.estado.toLowerCase(),
                       style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 9,
                         fontWeight: FontWeight.w500,
-                        color: turno.estado ? kGold : kTextDim,
+                        color: badgeColor,
                       ),
                     ),
                   ),
@@ -850,26 +840,27 @@ class _TurnoRow extends StatelessWidget {
               ),
             ),
 
-            // Rango horario
+            // Resumen de días
             Expanded(
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _formatHora12(turno.horaInicio),
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
+                    diasStr.isEmpty ? 'Sin días configurados' : diasStr,
+                    style: const TextStyle(fontSize: 12, color: kTextMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Text('→', style: TextStyle(fontSize: 10, color: kTextDim)),
-                  ),
-                  Text(
-                    _formatHora12(turno.horaFin),
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
-                  ),
+                  if (semana.detalles.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_formatHora12(semana.detalles.first.horaInicio)} → ${_formatHora12(semana.detalles.first.horaFin)}',
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: kTextDim),
+                    ),
+                  ],
                 ],
               ),
             ),
-
 
             // Opciones
             PopupMenuButton<String>(
@@ -878,16 +869,16 @@ class _TurnoRow extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               itemBuilder: (context) => [
                 const PopupMenuItem(value: 'edit', child: Text('Editar', style: TextStyle(color: kTextPrim))),
+                PopupMenuItem(value: 'toggle', child: Text(isActivo ? 'Finalizar' : 'Activar', style: TextStyle(color: kGold))),
                 const PopupMenuItem(value: 'delete', child: Text('Eliminar', style: TextStyle(color: Colors.red))),
               ],
               onSelected: (val) {
                 if (val == 'edit') onEdit();
+                else if (val == 'toggle') onToggleStatus();
                 else if (val == 'delete') onDelete();
               },
             ),
           ],
-        ),
-          ),
         ),
       ),
     );

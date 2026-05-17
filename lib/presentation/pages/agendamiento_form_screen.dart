@@ -100,7 +100,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   List<Paquete> _paquetes = [];
   List<Producto> _productos = [];
   List<Agendamiento> _todasLasCitas = [];
-  List<HorarioBarbero> _todosLosHorarios = [];
+  List<HorarioSemanal> _todosLosHorarios = [];
 
   Cliente? _clienteSeleccionado;
   Barbero? _barberoSeleccionado;
@@ -194,7 +194,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         _paquetes = results[3] as List<Paquete>;
         _productos = results[4] as List<Producto>;
         _todasLasCitas = (results[5] as Paginacion<Agendamiento>).items;
-        _todosLosHorarios = results[6] as List<HorarioBarbero>;
+        _todosLosHorarios = results[6] as List<HorarioSemanal>;
         _isLoadingData = false;
       });
 
@@ -317,12 +317,20 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       setState(() => _slotsDisponibles = []);
       return;
     }
-    final dartDow = _fechaSeleccionada.weekday;
-    final apiDow = dartDow % 7;
+    final dartDow = _fechaSeleccionada.weekday; // 1..7
+    final fechaStr = DateFormat('yyyy-MM-dd').format(_fechaSeleccionada);
 
-    final horariosBarbero = _todosLosHorarios.where((h) {
+    // Buscar el HorarioSemanal activo para este barbero que cubra la fecha seleccionada
+    final horarioSemanal = _todosLosHorarios.where((h) {
       if (h.barberoId != (_barberoSeleccionado!.id ?? 0)) return false;
-      return h.diaSemana == apiDow || (dartDow == 7 && h.diaSemana == 7);
+      if (h.estado != 'Activo') return false;
+      if (h.fechaInicioSemana.compareTo(fechaStr) <= 0 && h.fechaFinSemana.compareTo(fechaStr) >= 0) return true;
+      return false;
+    }).toList();
+
+    // Obtener los detalles que coincidan con el día de la semana
+    final horariosBarbero = horarioSemanal.expand((h) => h.detalles).where((d) {
+      return d.diaSemana == dartDow || (dartDow == 7 && d.diaSemana == 0);
     }).toList();
 
     if (horariosBarbero.isEmpty) {
