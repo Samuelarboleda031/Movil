@@ -400,14 +400,73 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
   }
 
   Widget _buildActionButtons() {
-    final isStaff = widget.role == AppRole.admin || 
-                    widget.role == AppRole.manager || 
-                    widget.role == AppRole.barber;
-
-    if (!isStaff) {
+    if (widget.role == AppRole.client) {
        return _currentAg.estadoCita?.toLowerCase() == 'pendiente' 
         ? _buildClientCancelButton() 
         : const SizedBox.shrink();
+    }
+
+    if (widget.role == AppRole.barber) {
+      final estado = (_currentAg.estadoCita ?? '').toLowerCase();
+      final puedeCancelar = estado != 'cancelada' && 
+                            estado != 'cancelado' && 
+                            estado != 'completada' && 
+                            estado != 'finalizado' && 
+                            estado != 'finalizada' && 
+                            estado != 'no asistio';
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -5))
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (puedeCancelar)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _cancelarComoCliente,
+                  icon: const Icon(Icons.cancel, color: Colors.white, size: 20),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  label: const Text(
+                    'CANCELAR CITA',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            if (estado == 'en proceso' || estado == 'confirmado' || estado == 'confirmada') ...[
+              if (puedeCancelar) const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _avisarTermino,
+                  icon: const Icon(Icons.notifications_active, color: Colors.white, size: 20),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  label: const Text(
+                    'AVISAR TÉRMINO',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
     }
 
     return Container(
@@ -460,39 +519,37 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: widget.role == AppRole.barber ? _avisarTermino : _terminarTemprano,
-                icon: Icon(widget.role == AppRole.barber ? Icons.notifications_active : Icons.timer_off, color: Colors.white, size: 20),
+                onPressed: _terminarTemprano,
+                icon: const Icon(Icons.timer_off, color: Colors.white, size: 20),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.role == AppRole.barber ? AppColors.gold : Colors.green.shade700,
+                  backgroundColor: Colors.green.shade700,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                label: Text(
-                  widget.role == AppRole.barber ? 'AVISAR TÉRMINO' : 'TERMINAR COMPLETO',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                label: const Text(
+                  'TERMINAR COMPLETO',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-            if (widget.role != AppRole.barber) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _terminarParcial,
-                  icon: const Icon(Icons.checklist, color: AppColors.gold, size: 20),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.gold),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  label: const Text(
-                    'COMPLETAR PARCIALMENTE',
-                    style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
-                  ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _terminarParcial,
+                icon: const Icon(Icons.checklist, color: AppColors.gold, size: 20),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.gold),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                label: const Text(
+                  'COMPLETAR PARCIALMENTE',
+                  style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
                 ),
               ),
-            ],
+            ),
           ],
         ],
       ),

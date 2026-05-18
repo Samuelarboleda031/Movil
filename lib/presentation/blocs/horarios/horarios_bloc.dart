@@ -4,6 +4,7 @@ import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'horarios_event.dart';
 import 'horarios_state.dart';
 
@@ -93,7 +94,44 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
   Future<void> _onToggleStatus(ToggleHorarioSemanalStatusRequested event, Emitter<HorariosState> emit) async {
     emit(HorariosLoading());
     try {
-      await horarioService.cambiarEstado(event.id, event.nuevoEstado);
+      final user = await authService.getCurrentUser();
+      final userId = user?.id ?? 0;
+      final result = await horarioService.cambiarEstado(event.id, event.nuevoEstado, usuarioSolicitanteId: userId);
+
+      // Si se desactiva el horario (pasa a Finalizado) y la API devuelve citas canceladas
+      if (!event.nuevoEstado && result != null) {
+        final List<dynamic>? detalle = result['detalle'] ?? result['Detalle'];
+        if (detalle != null && detalle.isNotEmpty) {
+          final emailService = EmailJsService();
+          
+          // Despachar el envío de correos en segundo plano para no colgar la interfaz gráfica (UI)
+          Future.microtask(() async {
+            for (final item in detalle) {
+              final String? clienteEmail = item['clienteCorreo'] ?? item['ClienteCorreo'];
+              if (clienteEmail != null && clienteEmail.isNotEmpty) {
+                String fechaStr = item['fechaHoraOriginal'] ?? item['FechaHoraOriginal'] ?? 'Fecha no especificada';
+                try {
+                  final date = DateTime.parse(fechaStr);
+                  fechaStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                } catch (_) {}
+
+                try {
+                  await emailService.notificarCancelacion(
+                    clienteNombre: item['clienteNombre'] ?? item['ClienteNombre'] ?? 'Cliente',
+                    clienteEmail: clienteEmail,
+                    barberoNombre: item['barberoNombre'] ?? item['BarberoNombre'] ?? 'Barbero',
+                    fechaOriginal: fechaStr,
+                    motivo: 'El horario semanal ha sido finalizado/desactivado por la administración.',
+                  );
+                } catch (e) {
+                  print('Error al enviar correo en background: $e');
+                }
+              }
+            }
+          });
+        }
+      }
+
       emit(const HorarioActionSuccess(message: 'Estado cambiado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {

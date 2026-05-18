@@ -56,6 +56,9 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
   @override
   void initState() {
     super.initState();
+    if (widget.role == AppRole.client || widget.role == AppRole.barber) {
+      return;
+    }
     _initUser();
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _checkCitas();
@@ -63,9 +66,6 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
   }
 
   Future<void> _initUser() async {
-    if (widget.role == AppRole.barber) {
-      _currentBarber = await _userContextService.obtenerBarberoActual();
-    }
     _checkCitas();
   }
 
@@ -475,7 +475,9 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.role == AppRole.client) return const SizedBox.shrink();
+    if (widget.role == AppRole.client || widget.role == AppRole.barber) {
+      return const SizedBox.shrink();
+    }
 
     final activeCount = _notifications.length;
 

@@ -118,7 +118,7 @@ class HorarioBarberoService {
     }
   }
 
-  Future<void> cambiarEstado(int id, bool nuevoEstado, {int usuarioSolicitanteId = 0}) async {
+  Future<Map<String, dynamic>?> cambiarEstado(int id, bool nuevoEstado, {int usuarioSolicitanteId = 0}) async {
     try {
       final headers = await _getHeaders();
 
@@ -131,7 +131,14 @@ class HorarioBarberoService {
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id/estado';
       final payload = jsonEncode({
         'estado': nuevoEstado,
+        'UsuarioSolicitanteId': resolvedUserId,
         'usuarioSolicitanteId': resolvedUserId,
+        'FechaReferencia': DateTime.now().toIso8601String().split('T').first,
+        'fechaReferencia': DateTime.now().toIso8601String().split('T').first,
+        'Motivo': 'Estado cambiado desde el móvil',
+        'motivo': 'Estado cambiado desde el móvil',
+        'CantidadSugerencias': 3,
+        'cantidadSugerencias': 3,
       });
 
       final response = await http.post(Uri.parse(url), headers: headers, body: payload);
@@ -139,6 +146,15 @@ class HorarioBarberoService {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al cambiar estado: ${response.statusCode} - ${response.body}');
       }
+
+      if (response.body.isNotEmpty) {
+        try {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       throw Exception('Error al cambiar estado del horario semanal: $e');
     }

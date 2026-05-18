@@ -41,10 +41,24 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
+  late final HorariosBloc _horariosBloc;
 
   @override
   void initState() {
     super.initState();
+    _horariosBloc = HorariosBloc(
+      horarioService: HorarioBarberoService(),
+      barberoService: BarberoService(),
+      authService: AuthService(),
+      userContextService: UserContextService(),
+      role: widget.role,
+    )..add(LoadHorariosRequested());
+  }
+
+  @override
+  void dispose() {
+    _horariosBloc.close();
+    super.dispose();
   }
 
   List<Widget> _getScreens() {
@@ -75,14 +89,8 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           const ServiciosGestionScreen(),
           const ProductosGestionScreen(),
-          BlocProvider(
-            create: (context) => HorariosBloc(
-              horarioService: HorarioBarberoService(),
-              barberoService: BarberoService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-              role: widget.role,
-            )..add(LoadHorariosRequested()),
+          BlocProvider.value(
+            value: _horariosBloc,
             child: HorariosGestionScreen(role: widget.role),
           ),
         ];
@@ -108,14 +116,8 @@ class _MainLayoutState extends State<MainLayout> {
             )..add(const LoadVentasRequested(page: 1)),
             child: VentasScreen(role: widget.role), // Reutilizamos aquí
           ),
-          BlocProvider(
-            create: (context) => HorariosBloc(
-              horarioService: HorarioBarberoService(),
-              barberoService: BarberoService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-              role: widget.role,
-            )..add(LoadHorariosRequested()),
+          BlocProvider.value(
+            value: _horariosBloc,
             child: HorariosGestionScreen(role: widget.role),
           ),
           ProfileScreen(role: widget.role),
@@ -227,7 +229,7 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 5 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider(create: (_) => HorariosBloc(horarioService: HorarioBarberoService(), barberoService: BarberoService(), authService: AuthService(), userContextService: UserContextService(), role: widget.role), child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -260,7 +262,7 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 3 && widget.role == AppRole.barber) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider(create: (_) => HorariosBloc(horarioService: HorarioBarberoService(), barberoService: BarberoService(), authService: AuthService(), userContextService: UserContextService(), role: widget.role), child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(

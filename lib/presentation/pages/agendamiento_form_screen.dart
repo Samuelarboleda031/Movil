@@ -361,7 +361,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         _fechaSeleccionada.month == now.month &&
         _fechaSeleccionada.day == now.day;
     final currentMin = now.hour * 60 + now.minute;
-    final String fechaStr = DateFormat('yyyy-MM-dd').format(_fechaSeleccionada);
 
     final citasBarberoHoy = _todasLasCitas.where((c) {
       if (c.barberoId != _barberoSeleccionado!.id) return false;

@@ -15,6 +15,7 @@ import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart' show DaySelectorWidget;
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
+import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'dart:math' as math;
 import 'horario_form_screen.dart';
 import 'solicitudes_cambio_horario_screen.dart';
@@ -166,7 +167,12 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
       final semanalesFiltrados = semanales.where((s) {
         final fechasStr = '${s.fechaInicioSemana} ${s.fechaFinSemana}'.toLowerCase();
         final estadoStr = s.estado.toLowerCase();
-        return q.isEmpty || barberoStr.contains(q) || fechasStr.contains(q) || estadoStr.contains(q);
+        final diasStr = s.detalles.map((d) {
+          const nombres = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+          final idx = (d.diaSemana < 0 || d.diaSemana > 7) ? 0 : d.diaSemana;
+          return nombres[idx];
+        }).join(' ');
+        return q.isEmpty || barberoStr.contains(q) || fechasStr.contains(q) || estadoStr.contains(q) || diasStr.contains(q);
       }).toList();
 
       if (semanalesFiltrados.isNotEmpty) {
@@ -341,6 +347,38 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
 
         await srv.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
         canceladas++;
+
+        // Notificación asíncrona de cancelación al cliente
+        try {
+          final emailService = EmailJsService();
+          final clienteEmail = cita.cliente?.email ?? '';
+          if (clienteEmail.isNotEmpty) {
+            final bNombre = b.id != -1 ? b.nombre : (cita.barberoNombre ?? 'Barbero');
+            final cNombre = cita.cliente?.nombre ?? cita.clienteNombre ?? 'Cliente';
+            
+            String fechaStr = '${cita.fechaCita} ${cita.horaInicio ?? ''}'.trim();
+            try {
+              if (cita.fechaCita != null) {
+                final dt = DateTime.parse(cita.fechaCita!);
+                fechaStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${cita.horaInicio ?? ''}';
+              }
+            } catch (_) {}
+
+            Future.microtask(() async {
+              try {
+                await emailService.notificarCancelacion(
+                  clienteNombre: cNombre,
+                  clienteEmail: clienteEmail,
+                  barberoNombre: bNombre,
+                  fechaOriginal: fechaStr,
+                  motivo: 'El día/horario ha sido cancelado por la administración.',
+                );
+              } catch (e) {
+                print('Error al enviar correo en cancelar dias: $e');
+              }
+            });
+          }
+        } catch (_) {}
       }
 
       if (mounted) Navigator.pop(context); // close loading
@@ -744,6 +782,7 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
                     final s = g.semanales[i];
                     return _SemanaRow(
                       semana: s,
+                      barberoNombre: g.barbero.nombreCompleto,
                       onEdit: () => widget.onEdit(s),
                       onDelete: () => widget.onDelete(s),
                       onToggleStatus: () {
@@ -766,12 +805,14 @@ class _BarberCardState extends State<_BarberCard> with SingleTickerProviderState
 // ─── FILA DE SEMANA ───────────────────────────────────────────────────────────
 class _SemanaRow extends StatelessWidget {
   final HorarioSemanal semana;
+  final String barberoNombre;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onToggleStatus;
 
   const _SemanaRow({
     required this.semana,
+    required this.barberoNombre,
     required this.onEdit,
     required this.onDelete,
     required this.onToggleStatus,
@@ -784,100 +825,198 @@ class _SemanaRow extends StatelessWidget {
     final badgeColor = isActivo ? kGold : isPendiente ? Colors.orange : kTextDim;
     final badgeBg = isActivo ? kGold.withOpacity(0.12) : isPendiente ? Colors.orange.withOpacity(0.12) : kBorder2;
 
-    // Generar resumen de días
-    final diasStr = semana.detalles.map((d) {
-      const nombres = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
-      final idx = (d.diaSemana < 0 || d.diaSemana > 7) ? 0 : d.diaSemana;
-      return nombres[idx];
-    }).join(', ');
+    const nombresDias = ['Dom', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+    final sortedDetalles = List<DetalleHorarioDia>.from(semana.detalles)
+      ..sort((a, b) {
+        int getWeight(int day) {
+          if (day == 0 || day == 7) return 7; // Domingo al final
+          return day; // Lunes = 1, ..., Sábado = 6
+        }
+        return getWeight(a.diaSemana).compareTo(getWeight(b.diaSemana));
+      });
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Container(
-        decoration: BoxDecoration(
-          color: kSurface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isActivo ? kGold.withOpacity(0.22) : kBorder,
-            width: 0.5,
-          ),
-        ),
-        padding: const EdgeInsets.only(left: 12, right: 4, top: 10, bottom: 10),
-        child: Row(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Fechas + estado
-            SizedBox(
-              width: 110,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${semana.fechaInicioSemana} / ${semana.fechaFinSemana}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isActivo ? kTextPrim : kTextDim,
-                    ),
+            // ── Encabezado Superior (Título + Rango de Fechas + Acciones de Semana) ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'HORARIO SEMANAL DE ${barberoNombre.toUpperCase()}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: kGold,
+                          letterSpacing: 0.8,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${semana.fechaInicioSemana} al ${semana.fechaFinSemana}',
+                        style: const TextStyle(fontSize: 10, color: kTextDim),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(4),
+                ),
+                // Botones de acción general de la semana
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(isActivo ? Icons.toggle_on : Icons.toggle_off, color: isActivo ? kGold : kTextDim, size: 22),
+                      onPressed: onToggleStatus,
+                      tooltip: isActivo ? 'Finalizar horario' : 'Activar horario',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     ),
-                    child: Text(
-                      semana.estado.toLowerCase(),
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        color: badgeColor,
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: kTextMuted, size: 18),
+                      onPressed: onEdit,
+                      tooltip: 'Editar horario semanal',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                      onPressed: onDelete,
+                      tooltip: 'Eliminar horario semanal',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── Tarjetas de Días Separadas ──
+            if (semana.detalles.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text('Sin días configurados en esta semana', style: TextStyle(fontSize: 12, color: kTextMuted)),
+                ),
+              )
+            else
+              ...sortedDetalles.map((d) {
+                final idx = (d.diaSemana < 0 || d.diaSemana > 7) ? 0 : d.diaSemana;
+                final nombreDia = nombresDias[idx];
+                final horarioStr = '${_formatHora12(d.horaInicio)} - ${_formatHora12(d.horaFin)}';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CitasPorDiaScreen(
+                              barberoId: semana.barberoId,
+                              barberoNombre: barberoNombre,
+                              diaSemana: d.diaSemana,
+                              horaInicio: d.horaInicio,
+                              horaFin: d.horaFin,
+                              accentColor: kGold,
+                            ),
+                          ),
+                        );
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: kSurface2,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isActivo ? kGold.withOpacity(0.22) : kBorder,
+                            width: 0.5,
+                          ),
+                        ),
+                        padding: const EdgeInsets.only(left: 12, right: 8, top: 10, bottom: 10),
+                        child: Row(
+                          children: [
+                            // Día + estado badge
+                            SizedBox(
+                              width: 86,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nombreDia,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: isActivo ? kTextPrim : kTextDim,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: isActivo ? kGold.withOpacity(0.12) : kBorder2,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      isActivo ? 'activo' : 'inactivo',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w500,
+                                        color: isActivo ? kGold : kTextDim,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Rango horario
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _formatHora12(d.horaInicio),
+                                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    child: Text('→', style: TextStyle(fontSize: 10, color: kTextDim)),
+                                  ),
+                                  Text(
+                                    _formatHora12(d.horaFin),
+                                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: kTextMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Chevron indicador de navegación
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: kTextMuted,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            // Resumen de días
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    diasStr.isEmpty ? 'Sin días configurados' : diasStr,
-                    style: const TextStyle(fontSize: 12, color: kTextMuted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (semana.detalles.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_formatHora12(semana.detalles.first.horaInicio)} → ${_formatHora12(semana.detalles.first.horaFin)}',
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: kTextDim),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Opciones
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: kTextMuted, size: 18),
-              color: kSurface2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text('Editar', style: TextStyle(color: kTextPrim))),
-                PopupMenuItem(value: 'toggle', child: Text(isActivo ? 'Finalizar' : 'Activar', style: TextStyle(color: kGold))),
-                const PopupMenuItem(value: 'delete', child: Text('Eliminar', style: TextStyle(color: Colors.red))),
-              ],
-              onSelected: (val) {
-                if (val == 'edit') onEdit();
-                else if (val == 'toggle') onToggleStatus();
-                else if (val == 'delete') onDelete();
-              },
-            ),
+                );
+              }),
           ],
         ),
       ),

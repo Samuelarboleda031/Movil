@@ -43,8 +43,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
     if (widget.horarioSemanal != null) {
       final h = widget.horarioSemanal!;
       for (var d in h.detalles) {
-        if (!_diasSeleccionados.contains(d.diaSemana)) {
-          _diasSeleccionados.add(d.diaSemana);
+        final mappedDay = d.diaSemana == 7 ? 0 : d.diaSemana;
+        if (!_diasSeleccionados.contains(mappedDay)) {
+          _diasSeleccionados.add(mappedDay);
         }
       }
       if (h.detalles.isNotEmpty) {
@@ -188,8 +189,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
         fechaFinSemana: fechaFinStr,
         estado: _estado ? 'Activo' : 'Finalizado',
         detalles: _diasSeleccionados.map((dia) {
+          final mappedDay = dia == 0 ? 7 : dia;
           return DetalleHorarioDia(
-            diaSemana: dia,
+            diaSemana: mappedDay,
             horaInicio: _formatTimeOfDay(_horaInicio),
             horaFin: _formatTimeOfDay(_horaFin),
           );
@@ -205,8 +207,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
         fechaFinSemana: fechaFinStr,
         estado: _estado ? 'Activo' : 'Finalizado',
         detalles: _diasSeleccionados.map((dia) {
+          final mappedDay = dia == 0 ? 7 : dia;
           return DetalleHorarioDia(
-            diaSemana: dia,
+            diaSemana: mappedDay,
             horaInicio: _formatTimeOfDay(_horaInicio),
             horaFin: _formatTimeOfDay(_horaFin),
           );
