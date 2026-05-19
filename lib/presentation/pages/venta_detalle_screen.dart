@@ -150,26 +150,56 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   }
 
   Widget _buildHeader(Venta venta) {
-    final String labelNumero = venta.numero.isNotEmpty
-        ? '#${venta.numero}'
-        : '#ID:${venta.id}';
+    final String numeroVenta = '${venta.id ?? 'N/A'}';
+    final String numeroRecibo = venta.numero.isNotEmpty ? venta.numero : 'N/A';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Venta $labelNumero',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        // Nº Venta
+        _buildHeaderBadge('Nº Venta', numeroVenta),
         const SizedBox(height: 8),
+        // Nº Recibo
+        _buildHeaderBadge('Nº Recibo', numeroRecibo),
+        const SizedBox(height: 14),
+        // Total
         Text(
           AppFormat.cop(venta.total),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: const Color(0xFFD8B081),
             fontWeight: FontWeight.bold,
             fontSize: 22,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderBadge(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.grey,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFD8B081), width: 1),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFFD8B081),
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -393,6 +423,25 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             ),
           ],
         ),
+        if ((venta.saldoAFavorUsado ?? 0) > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Saldo a Favor aplicado',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                '- ${AppFormat.cop(venta.saldoAFavorUsado!)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue,
+                ),
+              ),
+            ],
+          ),
+        ],
         const Divider(height: 32, thickness: 0.5, color: Colors.grey),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

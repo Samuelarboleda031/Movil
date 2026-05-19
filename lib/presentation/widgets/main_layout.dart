@@ -42,6 +42,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   late final HorariosBloc _horariosBloc;
+  late final VentasBloc _ventasBloc;
 
   @override
   void initState() {
@@ -53,11 +54,19 @@ class _MainLayoutState extends State<MainLayout> {
       userContextService: UserContextService(),
       role: widget.role,
     )..add(LoadHorariosRequested());
+
+    _ventasBloc = VentasBloc(
+      ventaService: VentaService(),
+      clienteService: ClienteService(),
+      barberoService: BarberoService(),
+      authService: AuthService(),
+    )..add(const LoadVentasRequested(page: 1));
   }
 
   @override
   void dispose() {
     _horariosBloc.close();
+    _ventasBloc.close();
     super.dispose();
   }
 
@@ -78,13 +87,8 @@ class _MainLayoutState extends State<MainLayout> {
           ),
 
 
-          BlocProvider(
-            create: (context) => VentasBloc(
-              ventaService: VentaService(),
-              clienteService: ClienteService(),
-              barberoService: BarberoService(),
-              authService: AuthService(),
-            )..add(const LoadVentasRequested(page: 1)),
+          BlocProvider.value(
+            value: _ventasBloc,
             child: VentasScreen(role: widget.role),
           ),
           const ServiciosGestionScreen(),
@@ -107,13 +111,8 @@ class _MainLayoutState extends State<MainLayout> {
             )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
             child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
           ),
-          BlocProvider(
-            create: (context) => VentasBloc(
-              ventaService: VentaService(),
-              clienteService: ClienteService(),
-              barberoService: BarberoService(),
-              authService: AuthService(),
-            )..add(const LoadVentasRequested(page: 1)),
+          BlocProvider.value(
+            value: _ventasBloc,
             child: VentasScreen(role: widget.role), // Reutilizamos aquí
           ),
           BlocProvider.value(
@@ -185,7 +184,9 @@ class _MainLayoutState extends State<MainLayout> {
 
     if (_currentIndex == 1 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -196,7 +197,14 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 2 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const VentaFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const VentaFormScreen()),
+        ).then((value) {
+          if (value == true) {
+            _ventasBloc.add(const LoadVentasRequested(page: 1));
+          }
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -207,7 +215,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 3 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ServicioFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ServicioFormScreen())).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -218,7 +228,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 4 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductoFormScreen())).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductoFormScreen())).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -229,7 +241,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 5 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -240,7 +254,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -251,7 +267,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.barber) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
@@ -262,7 +280,9 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 3 && widget.role == AppRole.barber) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) => setState(() {})),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) {
+          if (mounted) setState(() {});
+        }),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(

@@ -128,7 +128,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   }
 
   List<Venta> get _ventasFiltradas {
-    var resultado = _ventas;
+    var resultado = List<Venta>.from(_ventas);
 
     if (_filtroFechaActivo && (_fechaDesde != null || _fechaHasta != null)) {
       resultado = resultado.where((v) {
@@ -152,6 +152,8 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
       final q = _searchQuery.toLowerCase();
       resultado = resultado.where((v) => v.numero.toLowerCase().contains(q)).toList();
     }
+
+    resultado.sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
 
     return resultado;
   }
@@ -483,55 +485,129 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
   Widget _buildCompraCard(Venta venta) {
     final bool isAnulada = venta.estado == false;
     final String responsable = _getResponsableName(venta);
+    final String fecha = venta.fechaRegistro?.split('T')[0] ?? 'Sin fecha';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: isAnulada ? Colors.red.withOpacity(0.1) : const Color(0xFFD8B081).withOpacity(0.1),
-          child: Icon(
-            isAnulada ? Icons.close : Icons.shopping_bag,
-            color: isAnulada ? Colors.red : const Color(0xFFD8B081),
+    return GestureDetector(
+      onTap: () => _verDetallesCompra(venta),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isAnulada
+                ? Colors.red.withOpacity(0.5)
+                : Colors.grey.shade800,
           ),
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Responsable: $responsable',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Text(
-              AppFormat.cop(venta.total),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.confirmation_num_outlined, size: 13, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text('Ticket #${venta.numero}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(width: 12),
-                const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  venta.fechaRegistro?.split('T')[0] ?? 'Sin fecha',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              // Ícono izquierdo
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isAnulada
+                      ? Colors.red.withOpacity(0.12)
+                      : const Color(0xFFD8B081).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ],
-            ),
-          ],
+                child: Icon(
+                  isAnulada ? Icons.close_rounded : Icons.shopping_bag_outlined,
+                  color: isAnulada ? Colors.red : const Color(0xFFD8B081),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Contenido central
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ID + Número + badge ANULADA
+                    Row(
+                      children: [
+                        Text(
+                          'Nº${venta.id ?? '-'}',
+                          style: const TextStyle(
+                            color: Color(0xFFD8B081),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (isAnulada) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: Colors.red.withOpacity(0.5)),
+                            ),
+                            child: const Text(
+                              'ANULADA',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    // Nombre del responsable
+                    Text(
+                      responsable,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    // Fecha
+                    Text(
+                      fecha,
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Precio + flecha
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    AppFormat.cop(venta.total),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Icon(
+                    Icons.chevron_right,
+                    color: Colors.grey.shade600,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        onTap: () => _verDetallesCompra(venta),
       ),
     );
   }

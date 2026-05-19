@@ -54,7 +54,7 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   List<Venta> _getVentasFiltradas(List<Venta> ventas, Map<int, Cliente> catalogoClientes) {
-    var resultado = ventas;
+    var resultado = List<Venta>.from(ventas);
 
     if (_filtroEstado != 'Todas') {
       resultado = resultado.where((v) {
@@ -91,6 +91,8 @@ class _VentasScreenState extends State<VentasScreen> {
         return matchesNumero || nombreMostrado.contains(query);
       }).toList();
     }
+
+    resultado.sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
 
     return resultado;
   }
@@ -606,7 +608,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildVentaCard(Venta venta, Map<int, Cliente> catalogo) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
-    final String labelNumero = venta.numero.isNotEmpty ? '#${venta.numero}' : '#${venta.id}';
+    final String labelNumero = 'Nº ${venta.id}';
     final String labelCliente = _getNombreMostrar(venta, catalogo);
     final String labelPrecio = AppFormat.cop(venta.total);
     final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false) 

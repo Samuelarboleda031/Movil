@@ -15,6 +15,7 @@ class Venta {
   final double total;
   final String? estado;
   final String? clienteNombre; // Para clientes invitados (no registrados)
+  final double? saldoAFavorUsado;
   final String? responsableNombre;
   final String? barberoNombreStr;
   final Cliente? cliente;
@@ -35,6 +36,7 @@ class Venta {
     required this.total,
     this.estado,
     this.clienteNombre,
+    this.saldoAFavorUsado,
     this.responsableNombre,
     this.barberoNombreStr,
     this.cliente,
@@ -54,7 +56,7 @@ class Venta {
 
     return Venta(
       id: json['id'] ?? json['ID'],
-      numero: json['numero'] ?? json['Numero'] ?? '',
+      numero: json['numero'] ?? json['Numero'] ?? json['numeroRecibo'] ?? json['NumeroRecibo'] ?? '',
       fechaRegistro: json['fechaRegistro'] ?? json['FechaRegistro'] ?? json['fecha'] ?? json['Fecha'],
       clienteId: json['clienteId'] ?? json['ClienteId'] ?? json['ClienteID'] ?? 0,
       barberoId: json['barberoId'] ?? json['BarberoId'] ?? json['BarberoID'],
@@ -65,6 +67,7 @@ class Venta {
       total: (json['total'] ?? json['Total'] ?? 0).toDouble(),
       estado: json['estado']?.toString() ?? json['Estado']?.toString(),
       clienteNombre: json['clienteNombre'] ?? json['ClienteNombre'],
+      saldoAFavorUsado: (json['saldoAFavorUsado'] ?? json['SaldoAFavorUsado'])?.toDouble(),
       responsableNombre: rNombreStr,
       barberoNombreStr: bNombreStr,
       cliente: json['cliente'] is Map<String, dynamic> ? Cliente.fromJson(json['cliente']) : null,
@@ -78,7 +81,7 @@ class Venta {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
-      'NumeroRecibo': numero,
+      if (numero.isNotEmpty) 'NumeroRecibo': numero,
       'UsuarioId': usuarioId,
       'ClienteId': clienteId,
       if (barberoId != null) 'BarberoId': barberoId,
@@ -108,6 +111,7 @@ class Venta {
     double? total,
     String? estado,
     String? clienteNombre,
+    double? saldoAFavorUsado,
     String? responsableNombre,
     String? barberoNombreStr,
     Cliente? cliente,
@@ -128,6 +132,7 @@ class Venta {
       total: total ?? this.total,
       estado: estado ?? this.estado,
       clienteNombre: clienteNombre ?? this.clienteNombre,
+      saldoAFavorUsado: saldoAFavorUsado ?? this.saldoAFavorUsado,
       responsableNombre: responsableNombre ?? this.responsableNombre,
       barberoNombreStr: barberoNombreStr ?? this.barberoNombreStr,
       cliente: cliente ?? this.cliente,

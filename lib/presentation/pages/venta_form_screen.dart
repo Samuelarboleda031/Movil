@@ -56,7 +56,8 @@ class DetalleVentaItem {
   ItemVenta? itemSeleccionado;
   int cantidad;
   double precioUnitario;
-  int? stockDisponible; // ← NUEVO: para validar stock
+  int? stockDisponible;
+  final TextEditingController cantidadController;
 
   DetalleVentaItem({
     this.productoId,
@@ -66,7 +67,7 @@ class DetalleVentaItem {
     required this.cantidad,
     required this.precioUnitario,
     this.stockDisponible,
-  });
+  }) : cantidadController = TextEditingController(text: cantidad.toString());
 
   double get subtotal => cantidad * precioUnitario;
 }
@@ -117,8 +118,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   String _fechaCreacionTexto = '';
   bool _barberoBloqueado = false;
   String? _clienteNombreInvitado;
-
-  // ← NUEVO: Saldo a favor
+// ← NUEVO: Saldo a favor
   bool _usarSaldoAFavor = false;
   double _saldoDisponible = 0.0;
 
@@ -135,8 +135,11 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
 
+  bool _descuentoExcedido = false;
+
   // ─── CONTROLLERS ──────────────────────────────
   final _descuentoController = TextEditingController();
+  final _reciboController = TextEditingController();
 
   @override
   void initState() {
@@ -150,6 +153,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       curve: Curves.easeInOut,
     );
     _descuentoController.text = '0';
+    _reciboController.text = _numeroVentaFormateado;
     _cargarDatos();
   }
 
@@ -157,6 +161,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   void dispose() {
     _animController.dispose();
     _descuentoController.dispose();
+    _reciboController.dispose();
+    for (final d in _detalles) {
+      d.cantidadController.dispose();
+    }
     super.dispose();
   }
 
@@ -170,10 +178,12 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     }
   }
 
-  // ─── NÚMERO DE VENTA ──────────────────────────
-  // ← NUEVO
-  String get _numeroVentaFormateado =>
-      (_totalVentasCount + 1).toString().padLeft(3, '0');
+  String get _numeroVentaFormateado {
+    if (widget.venta != null) {
+      return widget.venta!.numero;
+    }
+    return (_totalVentasCount + 1).toString();
+  }
 
   // ─── TIPO DE VENTA AUTOMÁTICO ─────────────────
   // ← NUEVO
@@ -220,7 +230,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         ProductoService().getProductos(pageSize: 1000),
         _servicioService.obtenerServicios(),
         _paqueteService.obtenerPaquetes(),
-        _ventaService.obtenerVentas(), // ← NUEVO: para numerar ventas
+        _ventaService.obtenerVentas(pageSize: 50), // ← NUEVO: para numerar ventas
       ]);
 
       final clientes = results[0] as List<Cliente>;
@@ -239,6 +249,8 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       final barberoPropio = await _userContextService.obtenerBarberoActual(
         barberosCache: barberos,
       );
+
+      //
 
       // Ordenar listas
       clientes.sort(
@@ -294,7 +306,29 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         _productos = productos;
         _servicios = servicios;
         _paquetes = paquetes;
-        _totalVentasCount = paginacionVentas.totalCount; // ← NUEVO
+        
+        int maxNumVenta = 0;
+        if (paginacionVentas.items.isNotEmpty) {
+          for (var v in paginacionVentas.items) {
+            final int idVal = v.id ?? 0;
+            if (idVal > maxNumVenta) {
+              maxNumVenta = idVal;
+            }
+            
+            String clean = v.numero;
+            if (clean.contains('-')) {
+              clean = clean.split('-').last;
+            }
+            clean = clean.replaceAll(RegExp(r'\D'), '');
+            if (clean.isNotEmpty) {
+              final int? parsed = int.tryParse(clean);
+              if (parsed != null && parsed < 100000 && parsed > maxNumVenta) {
+                maxNumVenta = parsed;
+              }
+            }
+          }
+        }
+        _totalVentasCount = maxNumVenta > 0 ? maxNumVenta : paginacionVentas.totalCount;
 
         _rolActual = rolActual;
         _usuarioIdActual = usuarioActual?.id;
@@ -310,6 +344,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           _fechaCreacionTexto = DateFormat(
             'dd/MM/yyyy HH:mm',
           ).format(DateTime.now());
+        }
+
+        if (ventaFull == null) {
+          _reciboController.text = _numeroVentaFormateado;
         }
 
         _isLoadingData = false;
@@ -348,6 +386,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     _metodoPago = venta.metodoPago;
     _porcentajeDescuento = venta.porcentajeDescuento;
     _descuentoController.text = venta.porcentajeDescuento.toString();
+    _reciboController.text = venta.numero;
     _fechaCreacionTexto = _formatearFecha(venta.fechaRegistro);
   }
 
@@ -435,24 +474,22 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     final item = _servicioPaqueteParaAgregar!;
     final precio = _getPrecioItem(item);
 
+    final existente = _detalles.where((d) => d.itemSeleccionado == item).firstOrNull;
+    if (existente != null) {
+      _mostrarError('Este ${item.tipo.toLowerCase()} ya fue agregado.');
+      return;
+    }
     setState(() {
-      final existente = _detalles
-          .where((d) => d.itemSeleccionado == item)
-          .firstOrNull;
-      if (existente != null) {
-        existente.cantidad++;
-      } else {
-        _detalles.add(
-          DetalleVentaItem(
-            productoId: item.tipo == 'Producto' ? item.id : null,
-            servicioId: item.tipo == 'Servicio' ? item.id : null,
-            paqueteId: item.tipo == 'Paquete' ? item.id : null,
-            itemSeleccionado: item,
-            cantidad: 1,
-            precioUnitario: precio,
-          ),
-        );
-      }
+      _detalles.add(
+        DetalleVentaItem(
+          productoId: item.tipo == 'Producto' ? item.id : null,
+          servicioId: item.tipo == 'Servicio' ? item.id : null,
+          paqueteId: item.tipo == 'Paquete' ? item.id : null,
+          itemSeleccionado: item,
+          cantidad: 1,
+          precioUnitario: precio,
+        ),
+      );
       _servicioPaqueteParaAgregar = null;
     });
   }
@@ -468,6 +505,21 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         _paquetes.where((p) => p.id == item.id).firstOrNull?.precio ?? 0.0,
       _ => 0.0,
     };
+  }
+
+  String? _getImagenItem(DetalleVentaItem d) {
+    if (d.productoId != null) {
+      return _productos.where((p) => p.id == d.productoId).firstOrNull?.imagenProduc;
+    } else if (d.servicioId != null) {
+      return _servicios.where((s) => s.id == d.servicioId).firstOrNull?.imagen;
+    }
+    return null;
+  }
+
+  IconData _getIconItem(DetalleVentaItem d) {
+    if (d.productoId != null) return Icons.inventory_2_outlined;
+    if (d.servicioId != null) return Icons.content_cut;
+    return Icons.card_giftcard_outlined;
   }
 
   String _getNombreItem(DetalleVentaItem d) {
@@ -558,9 +610,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
       final venta = Venta(
         id: widget.venta?.id,
-        numero:
-            widget.venta?.numero ??
-            'V-${DateTime.now().millisecondsSinceEpoch}',
+        numero: _reciboController.text.trim(),
         fechaRegistro:
             widget.venta?.fechaRegistro ?? DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(DateTime.now()),
         clienteId: _clienteSeleccionado?.id ?? 0,
@@ -610,6 +660,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber],
       child: Scaffold(
         backgroundColor: AppColors.bg,
+        resizeToAvoidBottomInset: true,
         appBar: _buildAppBar(),
         body: _isLoadingData
             ? _buildLoading()
@@ -618,7 +669,12 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                 child: Form(
                   key: _formKey,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      100 + MediaQuery.of(context).viewInsets.bottom,
+                    ),
                     children: [
                       const SizedBox(height: 16),
                       // ── 1. CABECERA DE VENTA ───────────────────
@@ -714,36 +770,68 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       const Center(child: CircularProgressIndicator(color: AppColors.gold));
 
   // ─── CABECERA DE VENTA ────────────────────────
-  // ← NUEVO: Muestra número de venta, recibo, fecha y tipo
   Widget _buildVentaHeader() {
     return _buildCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: _buildChipInfo(
-              'N° Venta',
-              _numeroVentaFormateado,
-              Icons.tag,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _buildChipInfo(
+                  'N° Venta',
+                  _numeroVentaFormateado,
+                  Icons.tag,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildChipInfo(
+                  'Tipo',
+                  _tipoVenta == 'Venta Cliente' ? 'Cliente' : 'Invitado',
+                  Icons.person_outline,
+                  valueColor: _tipoVenta == 'Venta Cliente'
+                      ? AppColors.green
+                      : Colors.orange,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildChipInfo(
-              'N° Recibo',
-              _numeroVentaFormateado,
-              Icons.receipt_outlined,
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _reciboController,
+            style: const TextStyle(color: AppColors.whiteSecondary, fontSize: 14),
+            maxLength: 10,
+            inputFormatters: [LengthLimitingTextInputFormatter(10)],
+            decoration: InputDecoration(
+              labelText: 'N° Recibo *',
+              labelStyle: const TextStyle(color: AppColors.greyLight, fontSize: 12),
+              prefixIcon: const Icon(Icons.receipt_outlined, color: AppColors.gold, size: 18),
+              counterText: '',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.divider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.red),
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildChipInfo(
-              'Tipo',
-              _tipoVenta == 'Venta Cliente' ? 'Cliente' : 'Invitado',
-              Icons.person_outline,
-              valueColor: _tipoVenta == 'Venta Cliente'
-                  ? AppColors.green
-                  : Colors.orange,
-            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'El N° de recibo es obligatorio';
+              return null;
+            },
           ),
         ],
       ),
@@ -1006,50 +1094,49 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           _buildTituloSeccion('Configuración', Icons.settings_outlined),
           const SizedBox(height: 12),
 
-          // Barbero
-          SearchableSelector<Barbero>(
-            label: _barberoBloqueado
-                ? 'Barbero (asignado automáticamente)'
-                : _detalles.any((d) => d.servicioId != null)
-                ? 'Barbero * (requerido por servicio)'
-                : 'Barbero (opcional)',
-            hint: 'Buscar barbero...',
-            items: _barberos,
-            selectedItem: _barberoSeleccionado,
-            displayText: (b) => b.nombreCompleto,
-            searchText: (b) => '${b.nombreCompleto} ${b.documento}',
-            prefixIcon: Icons.badge_outlined,
-            enabled: !_barberoBloqueado,
-            renderItem: (b) => Row(
-              children: [
-                _buildImage(b.fotoPerfil, defaultIcon: Icons.badge_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        b.nombreCompleto,
-                        style: const TextStyle(
-                          color: AppColors.whiteSecondary,
-                          fontSize: 14,
+          // Barbero (solo visible para admin/manager)
+          if (!_barberoBloqueado) ...[
+            SearchableSelector<Barbero>(
+              label: _detalles.any((d) => d.servicioId != null)
+                  ? 'Barbero * (requerido por servicio)'
+                  : 'Barbero (opcional)',
+              hint: 'Buscar barbero...',
+              items: _barberos,
+              selectedItem: _barberoSeleccionado,
+              displayText: (b) => b.nombreCompleto,
+              searchText: (b) => '${b.nombreCompleto} ${b.documento}',
+              prefixIcon: Icons.badge_outlined,
+              renderItem: (b) => Row(
+                children: [
+                  _buildImage(b.fotoPerfil, defaultIcon: Icons.badge_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          b.nombreCompleto,
+                          style: const TextStyle(
+                            color: AppColors.whiteSecondary,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'Doc: ${b.documento}',
-                        style: const TextStyle(
-                          color: AppColors.greyLight,
-                          fontSize: 11,
+                        Text(
+                          'Doc: ${b.documento}',
+                          style: const TextStyle(
+                            color: AppColors.greyLight,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              onSelected: (b) => setState(() => _barberoSeleccionado = b),
             ),
-            onSelected: (b) => setState(() => _barberoSeleccionado = b),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
 
           // Método de pago
           _buildDropdownField(
@@ -1062,21 +1149,48 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           const SizedBox(height: 12),
 
           // Descuento
-          _buildTextField(
-            controller: _descuentoController,
-            label: 'Descuento (%)',
-            icon: Icons.local_offer_outlined,
-            hint: '0',
-            inputType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(
-                RegExp(r'^\d{0,3}(\.\d{0,2})?'),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTextField(
+                controller: _descuentoController,
+                label: 'Descuento (%)',
+                icon: Icons.local_offer_outlined,
+                hint: '0',
+                inputType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d{0,3}(\.\d{0,2})?'),
+                  ),
+                ],
+                onChanged: (v) {
+                  final n = double.tryParse(v) ?? 0.0;
+                  if (n > 100) {
+                    _descuentoController.value = TextEditingValue(
+                      text: '100',
+                      selection: const TextSelection.collapsed(offset: 3),
+                    );
+                    setState(() {
+                      _porcentajeDescuento = 100;
+                      _descuentoExcedido = true;
+                    });
+                  } else {
+                    setState(() {
+                      _porcentajeDescuento = n.clamp(0, 100);
+                      _descuentoExcedido = false;
+                    });
+                  }
+                },
               ),
+              if (_descuentoExcedido)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 4),
+                  child: Text(
+                    'El descuento no puede ser superior a 100',
+                    style: TextStyle(color: AppColors.red, fontSize: 11),
+                  ),
+                ),
             ],
-            onChanged: (v) {
-              final n = double.tryParse(v) ?? 0.0;
-              setState(() => _porcentajeDescuento = n.clamp(0, 100));
-            },
           ),
           const SizedBox(height: 12),
 
@@ -1272,100 +1386,209 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   Widget _buildDetalleCard(int index, DetalleVentaItem d) {
     final esProducto = d.productoId != null;
     final stockExcedido =
-        esProducto &&
-        d.stockDisponible != null &&
-        d.cantidad > d.stockDisponible!;
+        esProducto && d.stockDisponible != null && d.cantidad > d.stockDisponible!;
+    final imagenUrl = _getImagenItem(d);
+    final iconoDefault = _getIconItem(d);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: stockExcedido ? AppColors.red : AppColors.divider,
-        ),
+        border: Border.all(color: stockExcedido ? AppColors.red : AppColors.divider),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        title: Text(
-          _getNombreItem(d),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.whiteSecondary,
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
+      child: Row(
+        children: [
+          // Imagen
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: imagenUrl != null && imagenUrl.isNotEmpty
+                ? Image.network(
+                    imagenUrl.startsWith('http')
+                        ? imagenUrl
+                        : '${ApiConfig.baseUrl}$imagenUrl',
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildFallbackImage(iconoDefault, false),
+                  )
+                : _buildFallbackImage(iconoDefault, false),
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${AppFormat.cop(d.precioUnitario)} c/u  ·  Subtotal: ${AppFormat.cop(d.subtotal)}',
-              style: const TextStyle(color: AppColors.greyLight, fontSize: 12),
+          const SizedBox(width: 10),
+          // Info central
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getNombreItem(d),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.whiteSecondary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${AppFormat.cop(d.precioUnitario)} c/u  ·  Sub: ${AppFormat.cop(d.subtotal)}',
+                  style: const TextStyle(color: AppColors.greyLight, fontSize: 11),
+                ),
+                if (stockExcedido)
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 11, color: AppColors.red),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Stock máx: ${d.stockDisponible}',
+                        style: const TextStyle(color: AppColors.red, fontSize: 10),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-            // ← NUEVO: advertencia de stock
-            if (stockExcedido)
-              Row(
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    size: 12,
-                    color: AppColors.red,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Stock máximo: ${d.stockDisponible}',
-                    style: const TextStyle(color: AppColors.red, fontSize: 11),
-                  ),
-                ],
+          ),
+          const SizedBox(width: 8),
+          // Controles de cantidad
+          if (!esProducto)
+            // Servicios / Paquetes: cantidad fija en 1
+            Container(
+              width: 48,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.divider),
               ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildCantidadBtn(
-              icon: Icons.remove,
-              onTap: () {
-                setState(() {
-                  if (d.cantidad > 1) d.cantidad--;
-                });
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                '${d.cantidad}',
-                style: const TextStyle(
-                  color: AppColors.whiteSecondary,
+              child: const Text(
+                '1',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.greyLight,
                   fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
+            )
+          else
+            // Productos: editable con cap en 906
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildCantidadBtn(
+                  icon: Icons.remove,
+                  onTap: () {
+                    if (d.cantidad <= 1) return;
+                    setState(() {
+                      d.cantidad--;
+                      d.cantidadController.text = d.cantidad.toString();
+                    });
+                  },
+                ),
+                SizedBox(
+                  width: 48,
+                  child: TextFormField(
+                    controller: d.cantidadController,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
+                    style: TextStyle(
+                      color: d.cantidad >= 906 ? AppColors.red : AppColors.whiteSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(
+                          color: d.cantidad >= 906 ? AppColors.red : AppColors.divider,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(
+                          color: d.cantidad >= 906 ? AppColors.red : AppColors.divider,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(
+                          color: d.cantidad >= 906 ? AppColors.red : AppColors.gold,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: d.cantidad >= 906
+                          ? AppColors.red.withOpacity(0.08)
+                          : AppColors.surface,
+                    ),
+                    onChanged: (v) {
+                      final n = int.tryParse(v) ?? 1;
+                      // Cap en 906
+                      if (n > 906) {
+                        setState(() => d.cantidad = 906);
+                        d.cantidadController.value = const TextEditingValue(
+                          text: '906',
+                          selection: TextSelection.collapsed(offset: 3),
+                        );
+                        return;
+                      }
+                      // Cap por stock disponible
+                      if (d.stockDisponible != null && n > d.stockDisponible!) {
+                        _mostrarError('Stock máximo: ${d.stockDisponible}');
+                        setState(() => d.cantidad = d.stockDisponible!);
+                        d.cantidadController.text = d.stockDisponible.toString();
+                        return;
+                      }
+                      setState(() => d.cantidad = n < 1 ? 1 : n);
+                      if (n < 1) {
+                        d.cantidadController.text = '1';
+                        d.cantidadController.selection =
+                            const TextSelection.collapsed(offset: 1);
+                      }
+                    },
+                    onEditingComplete: () {
+                      final n = int.tryParse(d.cantidadController.text) ?? 1;
+                      if (n < 1) {
+                        setState(() => d.cantidad = 1);
+                        d.cantidadController.text = '1';
+                      }
+                      FocusScope.of(context).unfocus();
+                    },
+                  ),
+                ),
+                _buildCantidadBtn(
+                  icon: Icons.add,
+                  onTap: () {
+                    if (d.cantidad >= 906) return;
+                    if (d.stockDisponible != null && d.cantidad >= d.stockDisponible!) {
+                      _mostrarError('Stock máximo alcanzado.');
+                      return;
+                    }
+                    setState(() {
+                      d.cantidad++;
+                      d.cantidadController.text = d.cantidad.toString();
+                    });
+                  },
+                ),
+              ],
             ),
-            _buildCantidadBtn(
-              icon: Icons.add,
-              onTap: () {
-                if (esProducto &&
-                    d.stockDisponible != null &&
-                    d.cantidad >= d.stockDisponible!) {
-                  _mostrarError('Stock máximo alcanzado.');
-                  return;
-                }
-                setState(() => d.cantidad++);
-              },
-            ),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () => setState(() => _detalles.removeAt(index)),
-              child: const Icon(
-                Icons.delete_outline,
-                color: AppColors.red,
-                size: 20,
-              ),
-            ),
-          ],
-        ),
+          const SizedBox(width: 6),
+          // Eliminar
+          GestureDetector(
+            onTap: () {
+              d.cantidadController.dispose();
+              setState(() => _detalles.removeAt(index));
+            },
+            child: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
+          ),
+        ],
       ),
     );
   }
