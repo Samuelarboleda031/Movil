@@ -116,6 +116,7 @@ class Agendamiento {
                   documento: '',
                   nombre: (json['clienteNombre'] ?? json['ClienteNombre']).toString(),
                   apellido: '',
+                  email: (json['clienteEmail'] ?? json['ClienteEmail'])?.toString(),
                 )
               : null),
       barbero: json['barbero'] != null 

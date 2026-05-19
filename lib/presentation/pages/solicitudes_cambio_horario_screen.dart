@@ -135,11 +135,12 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
-          Padding(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(
               children: [
-                ...['Todas', 'Pendiente', 'Aprobada', 'Rechazada', 'Sugerida'].map((e) {
+                ...['Todas', 'Pendiente', 'Aprobada', 'Rechazada'].map((e) {
                   final sel = _filtroEstado == e;
                   return Padding(
                     padding: const EdgeInsets.only(right: 6),

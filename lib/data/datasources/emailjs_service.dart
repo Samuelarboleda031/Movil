@@ -39,15 +39,17 @@ class EmailJsService {
         body: jsonEncode(payload),
       );
 
+      print('📬 [EmailJsService] → ${uri} | status=${response.statusCode}');
+      print('📬 [EmailJsService] body=${response.body}');
       if (response.statusCode == 200) {
-        print('✅ Email enviado exitosamente vía backend proxy');
+        print('✅ [EmailJsService] Email enviado exitosamente');
         return true;
       } else {
-        print('❌ Error al enviar email vía backend proxy: ${response.statusCode} - ${response.body}');
+        print('❌ [EmailJsService] Backend respondió ${response.statusCode}: ${response.body}');
         return false;
       }
     } catch (e) {
-      print('❌ Excepción al enviar email vía backend proxy: $e');
+      print('❌ [EmailJsService] Excepción: $e');
       return false;
     }
   }

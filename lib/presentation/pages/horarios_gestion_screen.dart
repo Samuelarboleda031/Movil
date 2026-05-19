@@ -310,7 +310,18 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
     final String? horaFin = result['horaFin'];
     
     // Show loading
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.gold)));
+    BuildContext? dialogContext;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        dialogContext = dialogCtx;
+        return const PopScope(
+          canPop: false,
+          child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+        );
+      },
+    );
     
     try {
       final srv = AgendamientoService();
@@ -348,40 +359,44 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
         await srv.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
         canceladas++;
 
-        // Notificación asíncrona de cancelación al cliente
-        try {
-          final emailService = EmailJsService();
-          final clienteEmail = cita.cliente?.email ?? '';
-          if (clienteEmail.isNotEmpty) {
-            final bNombre = b.id != -1 ? b.nombre : (cita.barberoNombre ?? 'Barbero');
-            final cNombre = cita.cliente?.nombre ?? cita.clienteNombre ?? 'Cliente';
-            
-            String fechaStr = '${cita.fechaCita} ${cita.horaInicio ?? ''}'.trim();
-            try {
-              if (cita.fechaCita != null) {
-                final dt = DateTime.parse(cita.fechaCita!);
-                fechaStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${cita.horaInicio ?? ''}';
-              }
-            } catch (_) {}
+        // Notificación de cancelación al cliente vía backend SMTP
+        final clienteEmail = cita.cliente?.email ?? '';
+        print('📧 [CancelarDias] cita #${cita.id} → email="${clienteEmail}" cliente="${cita.clienteNombre}"');
+        if (clienteEmail.isNotEmpty) {
+          final bNombre = b.id != -1 ? b.nombre : (cita.barberoNombre ?? 'Barbero');
+          final cNombre = cita.cliente?.nombre ?? cita.clienteNombre ?? 'Cliente';
 
-            Future.microtask(() async {
-              try {
-                await emailService.notificarCancelacion(
-                  clienteNombre: cNombre,
-                  clienteEmail: clienteEmail,
-                  barberoNombre: bNombre,
-                  fechaOriginal: fechaStr,
-                  motivo: 'El día/horario ha sido cancelado por la administración.',
-                );
-              } catch (e) {
-                print('Error al enviar correo en cancelar dias: $e');
-              }
-            });
+          String fechaStr = '${cita.fechaCita} ${cita.horaInicio ?? ''}'.trim();
+          try {
+            if (cita.fechaCita != null) {
+              final dt = DateTime.parse(cita.fechaCita!);
+              fechaStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${cita.horaInicio ?? ''}';
+            }
+          } catch (_) {}
+
+          try {
+            final ok = await EmailJsService().notificarCancelacion(
+              clienteNombre: cNombre,
+              clienteEmail: clienteEmail,
+              barberoNombre: bNombre,
+              fechaOriginal: fechaStr,
+              motivo: 'El día/horario ha sido cancelado por la administración.',
+            );
+            print(ok
+                ? '✅ [CancelarDias] Email enviado a $clienteEmail'
+                : '❌ [CancelarDias] Backend rechazó el email para $clienteEmail');
+          } catch (e) {
+            print('❌ [CancelarDias] Excepción al enviar email: $e');
           }
-        } catch (_) {}
+        } else {
+          print('⚠️ [CancelarDias] cita #${cita.id} sin email de cliente — se omite notificación');
+        }
       }
 
-      if (mounted) Navigator.pop(context); // close loading
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.of(dialogContext!).pop();
+      }
+      
       if (mounted) {
         final String msg = modoHora
             ? 'Se cancelaron $canceladas cita(s) en ese rango horario.'
@@ -390,7 +405,9 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
         context.read<HorariosBloc>().add(LoadHorariosRequested());
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context); // close loading
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.of(dialogContext!).pop();
+      }
       if (mounted) AppToast.showError(context, 'Error al cancelar: $e');
     }
   }
