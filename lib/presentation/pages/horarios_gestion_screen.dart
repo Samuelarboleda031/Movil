@@ -10,12 +10,10 @@ import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
-import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
-import 'package:parte_movil/data/datasources/user_context_service.dart';
-import 'package:parte_movil/presentation/pages/agendamientos_screen.dart' show DaySelectorWidget;
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
+import 'package:parte_movil/presentation/pages/cancelar_dias_screen.dart';
 import 'dart:math' as math;
 import 'horario_form_screen.dart';
 import 'solicitudes_cambio_horario_screen.dart';
@@ -212,104 +210,22 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
   }
 
   Future<void> _cancelarDias() async {
-    Barbero? barberoSeleccionado;
-    bool esBarberoRol = _currentRole == AppRole.barber;
-    
-    if (esBarberoRol) {
-      final userContext = UserContextService();
-      final barberoActual = await userContext.obtenerBarberoActual();
-      if (barberoActual != null && barberoActual.id != null) {
-        barberoSeleccionado = barberoActual;
-      } else {
-        AppToast.showError(context, 'No se pudo obtener tu información de barbero');
-        return;
-      }
-    }
-
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (dialogCtx, setStateDialog) {
-            final esGlobal = barberoSeleccionado?.id == -1;
-            return AlertDialog(
-              backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFD8B081), width: 0.5)),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(esBarberoRol ? 'CANCELAR MIS CITAS' : (esGlobal ? 'CANCELACIÓN GLOBAL' : 'CANCELAR POR BARBERO'), 
-                    style: TextStyle(color: esGlobal ? Colors.orange : const Color(0xFFD8B081), fontSize: 14, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(esBarberoRol ? 'Selecciona los días a cancelar:' : 'Selecciona barbero y días:', 
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!esBarberoRol) ...[
-                        SearchableSelector<Barbero>(
-                          label: 'Barbero',
-                          hint: 'Seleccionar...',
-                          items: [Barbero(id: -1, nombre: 'Todos los barberos', apellido: '', documento: '', estado: true), ..._barberos],
-                          selectedItem: barberoSeleccionado,
-                          displayText: (b) => b.id == -1 ? b.nombre : b.nombreCompleto,
-                          searchText: (b) => b.id == -1 ? b.nombre : b.nombreCompleto,
-                          onSelected: (b) => setStateDialog(() => barberoSeleccionado = b),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (esBarberoRol && barberoSeleccionado != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.divider)),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.person, color: AppColors.gold),
-                              const SizedBox(width: 8),
-                              Text('Barbero: ${barberoSeleccionado?.nombreCompleto ?? 'Yo'}', style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                      if (esBarberoRol) const SizedBox(height: 16),
-                      DaySelectorWidget(
-                        isGlobal: esGlobal,
-                        onConfirm: (dates, motivo, {horaInicio, horaFin}) {
-                           if (barberoSeleccionado != null && dates.isNotEmpty) {
-                             Navigator.pop(dialogCtx, {
-                               'barbero': barberoSeleccionado, 
-                               'fechas': dates, 
-                               'motivo': motivo, 
-                               'horaInicio': horaInicio, 
-                               'horaFin': horaFin
-                             });
-                           } else {
-                             AppToast.showError(dialogCtx, 'Rellena todos los datos necesarios');
-                           }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-        );
-      }
+    // Navegar a la pantalla de cancelar días y esperar el resultado
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CancelarDiasScreen(role: _currentRole),
+      ),
     );
 
     if (result == null || !mounted) return;
+
     final Barbero b = result['barbero'];
     final List<DateTime> dates = result['fechas'];
-    final String motivo = result['motivo'] ?? '';
     final String? horaInicio = result['horaInicio'];
     final String? horaFin = result['horaFin'];
-    
-    // Show loading
+
+    // Mostrar loading
     BuildContext? dialogContext;
     showDialog(
       context: context,
@@ -322,27 +238,28 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
         );
       },
     );
-    
+
     try {
       final srv = AgendamientoService();
       final allApps = await srv.obtenerAgendamientos(page: 1, pageSize: 5000);
-      
-      final fechasObjetivo = dates.map((d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}').toSet();
+
+      final fechasObjetivo = dates
+          .map((d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}')
+          .toSet();
       final bool modoHora = horaInicio != null && horaFin != null;
-      
-      int _parseMinutes(String? time) {
+
+      int parseMinutes(String? time) {
         if (time == null || time.isEmpty) return 0;
         final parts = time.split(':');
         if (parts.length < 2) return 0;
         return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
       }
-      
-      final int startMin = modoHora ? _parseMinutes(horaInicio) : 0;
-      final int endMin = modoHora ? _parseMinutes(horaFin) : 0;
+
+      final int startMin = modoHora ? parseMinutes(horaInicio) : 0;
+      final int endMin = modoHora ? parseMinutes(horaFin) : 0;
 
       int canceladas = 0;
-      final now = DateTime.now();
-      
+
       for (final cita in allApps.items) {
         final fechaCita = cita.fechaCita ?? '';
         if (!fechasObjetivo.contains(fechaCita)) continue;
@@ -350,18 +267,17 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
         final est = (cita.estadoCita ?? '').toLowerCase().trim();
         if (est == 'cancelada' || est == 'cancelado' || est == 'completada' || est == 'finalizado') continue;
         if (cita.id == null) continue;
-        
+
         if (modoHora) {
-          final citaMin = _parseMinutes(cita.horaInicio);
+          final citaMin = parseMinutes(cita.horaInicio);
           if (citaMin < startMin || citaMin >= endMin) continue;
         }
 
         await srv.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
         canceladas++;
 
-        // Notificación de cancelación al cliente vía backend SMTP
+        // Notificación al cliente vía email
         final clienteEmail = cita.cliente?.email ?? '';
-        print('📧 [CancelarDias] cita #${cita.id} → email="${clienteEmail}" cliente="${cita.clienteNombre}"');
         if (clienteEmail.isNotEmpty) {
           final bNombre = b.id != -1 ? b.nombre : (cita.barberoNombre ?? 'Barbero');
           final cNombre = cita.cliente?.nombre ?? cita.clienteNombre ?? 'Cliente';
@@ -375,28 +291,21 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
           } catch (_) {}
 
           try {
-            final ok = await EmailJsService().notificarCancelacion(
+            await EmailJsService().notificarCancelacion(
               clienteNombre: cNombre,
               clienteEmail: clienteEmail,
               barberoNombre: bNombre,
               fechaOriginal: fechaStr,
               motivo: 'El día/horario ha sido cancelado por la administración.',
             );
-            print(ok
-                ? '✅ [CancelarDias] Email enviado a $clienteEmail'
-                : '❌ [CancelarDias] Backend rechazó el email para $clienteEmail');
-          } catch (e) {
-            print('❌ [CancelarDias] Excepción al enviar email: $e');
-          }
-        } else {
-          print('⚠️ [CancelarDias] cita #${cita.id} sin email de cliente — se omite notificación');
+          } catch (_) {}
         }
       }
 
       if (dialogContext != null && dialogContext!.mounted) {
         Navigator.of(dialogContext!).pop();
       }
-      
+
       if (mounted) {
         final String msg = modoHora
             ? 'Se cancelaron $canceladas cita(s) en ese rango horario.'

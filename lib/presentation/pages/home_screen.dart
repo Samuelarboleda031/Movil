@@ -92,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       List<Agendamiento> pasados = [];
       if (cliente != null && cliente.id != null) {
-        final paginacion = await AgendamientoService().obtenerAgendamientosPorCliente(cliente.id!, pageSize: 20);
+        final paginacion = await AgendamientoService().obtenerAgendamientosPorCliente(cliente.id!, pageSize: 2000);
         // Filtrar citas completadas
         pasados = paginacion.items.where((a) => a.estado?.toLowerCase() == 'completada').take(10).toList();
       }

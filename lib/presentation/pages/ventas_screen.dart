@@ -34,6 +34,9 @@ class VentasScreen extends StatefulWidget {
 }
 
 class _VentasScreenState extends State<VentasScreen> {
+  int _currentPage = 1;
+  static const int _pageSize = 10;
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _filtroEstado = 'Todas';
@@ -103,6 +106,7 @@ class _VentasScreenState extends State<VentasScreen> {
       _fechaHasta = null;
       _filtroFechaActivo = false;
       _periodoActivo = '';
+      _currentPage = 1;
     });
   }
 
@@ -127,6 +131,7 @@ class _VentasScreenState extends State<VentasScreen> {
         _fechaHasta = rango.end; 
         _filtroFechaActivo = true;
         _periodoActivo = '';
+        _currentPage = 1;
       });
     }
   }
@@ -136,18 +141,22 @@ class _VentasScreenState extends State<VentasScreen> {
     setState(() {
       _periodoActivo = periodo;
       _filtroFechaActivo = true;
+      _currentPage = 1;
       switch (periodo) {
         case 'hoy':
-          _fechaDesde = hoy;
-          _fechaHasta = hoy;
+          _fechaDesde = DateTime(hoy.year, hoy.month, hoy.day);
+          _fechaHasta = DateTime(hoy.year, hoy.month, hoy.day);
           break;
         case 'semanal':
-          _fechaDesde = hoy.subtract(Duration(days: hoy.weekday - 1));
-          _fechaHasta = hoy;
+          final inicioSemana = hoy.subtract(Duration(days: hoy.weekday - 1));
+          final finSemana = inicioSemana.add(const Duration(days: 6));
+          _fechaDesde = DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
+          _fechaHasta = DateTime(finSemana.year, finSemana.month, finSemana.day);
           break;
         case 'mensual':
+          final ultimoDiaMes = DateTime(hoy.year, hoy.month + 1, 0);
           _fechaDesde = DateTime(hoy.year, hoy.month, 1);
-          _fechaHasta = hoy;
+          _fechaHasta = DateTime(ultimoDiaMes.year, ultimoDiaMes.month, ultimoDiaMes.day);
           break;
       }
     });
@@ -250,7 +259,7 @@ class _VentasScreenState extends State<VentasScreen> {
                         child: FilterChip(
                           label: Text(estado, style: TextStyle(color: selected ? AppColors.bg : AppColors.greyLight, fontSize: 12, fontWeight: FontWeight.w600)),
                           selected: selected,
-                          onSelected: (_) => setState(() => _filtroEstado = estado),
+                          onSelected: (_) => setState(() { _filtroEstado = estado; _currentPage = 1; }),
                           selectedColor: AppColors.gold,
                           backgroundColor: AppColors.card,
                           side: BorderSide(color: selected ? AppColors.gold : AppColors.divider),
@@ -325,6 +334,11 @@ class _VentasScreenState extends State<VentasScreen> {
           }
 
           final ventasFiltradas = _getVentasFiltradas(ventas, catalogo);
+          final int totalItems = ventasFiltradas.length;
+          final int totalPagesLocal = totalItems == 0 ? 1 : (totalItems / _pageSize).ceil();
+          final int startIndex = (_currentPage - 1) * _pageSize;
+          final int endIndex = (startIndex + _pageSize < totalItems) ? startIndex + _pageSize : totalItems;
+          final pagedItems = startIndex < totalItems ? ventasFiltradas.sublist(startIndex, endIndex) : <Venta>[];
 
           // ── Barbero: diseño oscuro premium ──
           if (widget.role == AppRole.barber) {
@@ -356,16 +370,16 @@ class _VentasScreenState extends State<VentasScreen> {
                                   ? SliverToBoxAdapter(child: _buildEmptyStateDark())
                                   : SliverList(
                                       delegate: SliverChildBuilderDelegate(
-                                        (context, index) => _buildVentaCard(ventasFiltradas[index], catalogo),
-                                        childCount: ventasFiltradas.length,
+                                        (context, index) => _buildVentaCard(pagedItems[index], catalogo),
+                                        childCount: pagedItems.length,
                                       ),
                                     ),
                             // Paginación
-                            if (paginacion != null && paginacion.totalPages > 1)
+                            if (totalPagesLocal > 1)
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 20),
-                                  child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                                  child: _buildPaginationControls(totalPagesLocal, _currentPage),
                                 ),
                               ),
                             const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -413,7 +427,7 @@ class _VentasScreenState extends State<VentasScreen> {
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
+                    onChanged: (value) => setState(() { _searchQuery = value; _currentPage = 1; }),
                   ),
                 ),
                 _buildFiltrosVentas(),
@@ -428,12 +442,12 @@ class _VentasScreenState extends State<VentasScreen> {
                               },
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                                itemCount: ventasFiltradas.length + ((paginacion != null && paginacion.totalPages > 1) ? 1 : 0),
+                                itemCount: pagedItems.length + (totalPagesLocal > 1 ? 1 : 0),
                                 itemBuilder: (context, index) {
-                                  if (index == ventasFiltradas.length) {
-                                    return _buildPaginationControls(paginacion!.totalPages, currentPage);
+                                  if (index == pagedItems.length) {
+                                    return _buildPaginationControls(totalPagesLocal, _currentPage);
                                   }
-                                  return _buildVentaCard(ventasFiltradas[index], catalogo);
+                                  return _buildVentaCard(pagedItems[index], catalogo);
                                 },
                               ),
                             ),
@@ -453,7 +467,7 @@ class _VentasScreenState extends State<VentasScreen> {
         totalPages: totalPages,
         currentPage: currentPage,
         onPageChanged: (page) {
-          context.read<VentasBloc>().add(LoadVentasRequested(page: page));
+          setState(() => _currentPage = page);
         },
       ),
     );
@@ -516,7 +530,7 @@ class _VentasScreenState extends State<VentasScreen> {
                   focusedBorder: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 16),
                 ),
-                onChanged: (val) => setState(() => _searchQuery = val),
+                onChanged: (val) => setState(() { _searchQuery = val; _currentPage = 1; }),
               ),
             ),
             if (_searchQuery.isNotEmpty)

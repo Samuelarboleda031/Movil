@@ -80,7 +80,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         }
         
         final bool isWeekly = event.estaSemana ?? false;
-        const int pageSize = 10;
+        const int pageSize = 2000;
 
         final paginacion = await _agendamientoService.obtenerAgendamientosPorCliente(
           cliente.id!,

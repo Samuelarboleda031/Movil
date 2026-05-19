@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
@@ -910,142 +911,135 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   );
 
   /// Selector de semana + días
+  // ── Estado del calendario inline ──────────────────────────────────────────
+  late DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
   Widget _buildDaySelector() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final startOfCurrentWeek = today.subtract(
-      Duration(days: today.weekday - 1),
-    );
-    final startOfNextWeek = startOfCurrentWeek.add(const Duration(days: 7));
-    final fechaSelDate = DateTime(
-      _fechaSeleccionada.year,
-      _fechaSeleccionada.month,
-      _fechaSeleccionada.day,
-    );
-    final isNextWeek = !fechaSelDate.isBefore(startOfNextWeek);
-    final base = isNextWeek ? startOfNextWeek : startOfCurrentWeek;
-
-    final weekStart = base;
-    final weekEnd = base.add(const Duration(days: 6));
-    final monthFmt = DateFormat('d MMM', 'es_ES');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Nav semana
-        Row(
-          children: [
-            _WeekArrow(
-              icon: Icons.chevron_left,
-              onTap: isNextWeek
-                  ? () {
-                      setState(() {
-                        _fechaSeleccionada = startOfCurrentWeek.add(
-                          Duration(days: _fechaSeleccionada.weekday - 1),
-                        );
-                        _horaInicioSeleccionada = null;
-                        _horaFinSeleccionada = null;
-                      });
-                      _recalcularSlots();
-                    }
-                  : null,
-            ),
-            Expanded(
-              child: Center(
-                child: Text(
-                  '${monthFmt.format(weekStart)} – ${monthFmt.format(weekEnd)} ${weekEnd.year}',
-                  style: const TextStyle(color: _kTextDim, fontSize: 13),
-                ),
-              ),
-            ),
-            _WeekArrow(
-              icon: Icons.chevron_right,
-              onTap: !isNextWeek
-                  ? () {
-                      setState(() {
-                        _fechaSeleccionada = startOfNextWeek.add(
-                          Duration(days: _fechaSeleccionada.weekday - 1),
-                        );
-                        _horaInicioSeleccionada = null;
-                        _horaFinSeleccionada = null;
-                      });
-                      _recalcularSlots();
-                    }
-                  : null,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Grilla 7 días
-        Row(
-          children: List.generate(7, (i) {
-            final date = base.add(Duration(days: i));
-            final isPast = date.isBefore(today);
-            final isSelected = fechaSelDate == date;
-            final isToday = date == today;
-            const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+        _buildCalendarMonthNav(),
+        const SizedBox(height: 10),
+        _buildCalendarWeekHeader(),
+        const SizedBox(height: 6),
+        _buildCalendarMonthGrid(_calendarMonth),
+      ],
+    );
+  }
 
-            return Expanded(
-              child: GestureDetector(
-                onTap: isPast
-                    ? null
-                    : () {
-                        setState(() {
-                          _fechaSeleccionada = date;
-                          _horaInicioSeleccionada = null;
-                          _horaFinSeleccionada = null;
-                        });
-                        _recalcularSlots();
-                      },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? _kGoldTint : Colors.transparent,
-                    borderRadius: BorderRadius.circular(_kRadiusMd),
-                    border: Border.all(
-                      color: isSelected ? _kGoldDark : Colors.transparent,
-                      width: 0.5,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        dayNames[i],
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: isPast
-                              ? const Color(0xFF333333)
-                              : isSelected
-                              ? _kGoldText
-                              : _kTextDim,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${date.day}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isPast
-                              ? const Color(0xFF333333)
-                              : isSelected
-                              ? _kGold
-                              : isToday
-                              ? _kText
-                              : const Color(0xFF888888),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
+  Widget _buildCalendarMonthNav() {
+    const meses = [
+      'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+    ];
+    final label = '${meses[_calendarMonth.month - 1]} ${_calendarMonth.year}';
+    final now = DateTime.now();
+    final isCurrentMonth = _calendarMonth.year == now.year && _calendarMonth.month == now.month;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          onPressed: isCurrentMonth ? null : () => setState(() {
+            _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month - 1);
           }),
+          icon: Icon(Icons.chevron_left,
+              color: isCurrentMonth ? _kTextFaint : _kGoldMid, size: 22),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        Text(label,
+            style: const TextStyle(
+                color: _kText, fontSize: 14, fontWeight: FontWeight.w600)),
+        IconButton(
+          onPressed: () => setState(() {
+            _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1);
+          }),
+          icon: const Icon(Icons.chevron_right, color: _kGoldMid, size: 22),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         ),
       ],
+    );
+  }
+
+  Widget _buildCalendarWeekHeader() {
+    const days = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
+    return Row(
+      children: days.map((d) => Expanded(
+        child: Center(
+          child: Text(d,
+              style: const TextStyle(
+                  color: _kTextDim, fontSize: 11, fontWeight: FontWeight.w600)),
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _buildCalendarMonthGrid(DateTime month) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDay = DateTime(month.year, month.month, 1);
+    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
+    final offset = (firstDay.weekday - 1) % 7;
+    final fechaSelDate = DateTime(
+        _fechaSeleccionada.year, _fechaSeleccionada.month, _fechaSeleccionada.day);
+
+    final cells = <Widget>[];
+    for (int i = 0; i < offset; i++) cells.add(const SizedBox.shrink());
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      final date = DateTime(month.year, month.month, day);
+      final isPast = date.isBefore(today);
+      final isSelected = date == fechaSelDate;
+      final isToday = date == today;
+
+      cells.add(GestureDetector(
+        onTap: isPast ? null : () {
+          setState(() {
+            _fechaSeleccionada = date;
+            _horaInicioSeleccionada = null;
+            _horaFinSeleccionada = null;
+          });
+          _recalcularSlots();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: isSelected ? _kGoldTint : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected ? _kGoldDark : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '$day',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isPast
+                    ? const Color(0xFF333333)
+                    : isSelected
+                        ? _kGold
+                        : isToday
+                            ? _kGoldMid
+                            : const Color(0xFF888888),
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+
+    return GridView.count(
+      crossAxisCount: 7,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1,
+      children: cells,
     );
   }
 
@@ -1376,6 +1370,12 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                                   _horaInicioSeleccionada = null;
                                   _horaFinSeleccionada = null;
                                 });
+                                final nextWorkDay = _findFirstWorkingDay(_fechaSeleccionada);
+                                if (nextWorkDay != _fechaSeleccionada) {
+                                  setState(() {
+                                    _fechaSeleccionada = nextWorkDay;
+                                  });
+                                }
                                 _recalcularSlots();
                               },
                             ),
@@ -1442,15 +1442,10 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
                       _buildDivider(),
 
-                      // ── Fecha ──
-                      _sectionLabel('Fecha'),
-                      _buildDaySelector(),
+                      // ── Fecha y hora ──
+                      _sectionLabel('Fecha y hora'),
+                      _buildDateTimePickerCard(),
                       const SizedBox(height: 16),
-                      _sectionLabel('Horarios disponibles'),
-                      _buildSlots(),
-                      const SizedBox(height: 16),
-                      _buildTimeRow(),
-                      const SizedBox(height: 10),
                       _buildAmountBox(),
 
                       _buildDivider(),
@@ -1509,7 +1504,521 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     );
   }
 
-  Widget _buildDivider() => const Padding(
+  String formatSpanishDate(DateTime date) {
+    final raw = DateFormat("EEEE, d 'de' MMMM", 'es').format(date);
+    if (raw.isEmpty) return '';
+    return raw[0].toUpperCase() + raw.substring(1);
+  }
+
+  String _getBarberWorkHoursString(DateTime date) {
+    if (_barberoSeleccionado == null) return '';
+    final dartDow = date.weekday;
+    final fechaStr = DateFormat('yyyy-MM-dd').format(date);
+
+    final horarioSemanal = _todosLosHorarios.where((h) {
+      if (h.barberoId != (_barberoSeleccionado!.id ?? 0)) return false;
+      if (h.estado != 'Activo') return false;
+      if (h.fechaInicioSemana.compareTo(fechaStr) <= 0 && h.fechaFinSemana.compareTo(fechaStr) >= 0) return true;
+      return false;
+    }).toList();
+
+    final horariosBarbero = horarioSemanal.expand((h) => h.detalles).where((d) {
+      return d.diaSemana == dartDow || (dartDow == 7 && d.diaSemana == 0);
+    }).toList();
+
+    if (horariosBarbero.isEmpty) return 'No trabaja';
+
+    return horariosBarbero.map((d) => "${_toAmPm(d.horaInicio)} - ${_toAmPm(d.horaFin)}").join(', ');
+  }
+
+  DateTime _findFirstWorkingDay(DateTime start) {
+    if (_barberoSeleccionado == null) return start;
+    DateTime date = start;
+    for (int i = 0; i < 7; i++) {
+      if (_getBarberWorkHoursString(date) != 'No trabaja') {
+        return date;
+      }
+      date = date.add(const Duration(days: 1));
+    }
+    return start;
+  }
+
+
+  Widget _buildDateTimePickerCard() {
+    final dateStr = formatSpanishDate(_fechaSeleccionada);
+    
+    int durMin = 0;
+    if (_esServicio && _serviciosSeleccionados.isNotEmpty) {
+      durMin = _serviciosSeleccionados.fold(
+        0,
+        (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30),
+      );
+    } else if (!_esServicio && _paqueteSeleccionado != null) {
+      durMin = _paqueteSeleccionado!.duracionMinutos > 0
+          ? _paqueteSeleccionado!.duracionMinutos
+          : 60;
+    }
+    if (durMin == 0) durMin = 30;
+
+    String timeStr = 'Seleccionar hora';
+    if (_horaInicioSeleccionada != null) {
+      final startFormatted = _toAmPm(_horaInicioSeleccionada!);
+      if (_horaFinSeleccionada != null) {
+        final endFormatted = _toAmPm(_horaFinSeleccionada!);
+        timeStr = '$startFormatted - $endFormatted';
+      } else {
+        timeStr = startFormatted;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(_kRadius),
+        border: Border.all(color: _kBorder, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            color: _horaInicioSeleccionada != null ? _kGold : _kTextDim,
+            size: 20,
+          ),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () {
+              if (_barberoSeleccionado == null) {
+                _mostrarError("Selecciona un barbero primero");
+                return;
+              }
+              _showDatePickerSheet();
+            },
+            child: Text(
+              dateStr,
+              style: const TextStyle(
+                color: _kText,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            '|',
+            style: TextStyle(color: _kTextDim.withOpacity(0.3), fontSize: 14),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_barberoSeleccionado == null) {
+                  _mostrarError("Selecciona un barbero primero");
+                  return;
+                }
+                _showTimePickerSheet();
+              },
+              child: Text(
+                timeStr,
+                style: TextStyle(
+                  color: _horaInicioSeleccionada != null ? _kText : _kTextDim,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDatePickerSheet() {
+    final now = DateTime.now();
+    final todayNorm = DateTime(now.year, now.month, now.day);
+    DateTime temp = _fechaSeleccionada;
+    if (temp.isBefore(todayNorm)) {
+      temp = todayNorm;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          left: 12,
+          right: 12,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D2D2D),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              StatefulBuilder(builder: (ctx, setSheet) {
+                final workHours = _getBarberWorkHoursString(temp);
+                final worksThisDay = workHours != 'No trabaja';
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatSpanishDate(temp),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            worksThisDay
+                                ? "Horario de trabajo: $workHours"
+                                : "El barbero no trabaja este día",
+                            style: TextStyle(
+                              color: worksThisDay ? _kGoldMid : const Color(0xFFAA5E5E),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 220,
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.date,
+                        initialDateTime: temp,
+                        minimumDate: todayNorm,
+                        maximumDate: todayNorm.add(const Duration(days: 365)),
+                        minimumYear: todayNorm.year,
+                        maximumYear: todayNorm.year + 1,
+                        backgroundColor: Colors.transparent,
+                        onDateTimeChanged: (dt) {
+                          temp = dt;
+                          setSheet(() {});
+                        },
+                      ),
+                    ),
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Color(0xFF2D2D2D)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text(
+                                "Cancelar",
+                                style: TextStyle(color: _kGold, fontSize: 17),
+                              ),
+                            ),
+                          ),
+                          Container(width: 1, height: 48, color: const Color(0xFF2D2D2D)),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: !worksThisDay ? null : () {
+                                setState(() {
+                                  _fechaSeleccionada = temp;
+                                  _horaInicioSeleccionada = null;
+                                  _horaFinSeleccionada = null;
+                                });
+                                _recalcularSlots();
+                                Navigator.pop(ctx);
+                              },
+                              child: Text(
+                                "Aceptar",
+                                style: TextStyle(
+                                    color: worksThisDay ? _kGold : _kTextDim,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTimePickerSheet() {
+    final now = DateTime.now();
+    final todayNorm = DateTime(now.year, now.month, now.day);
+    
+    DateTime temp = _fechaSeleccionada;
+    if (_horaInicioSeleccionada != null) {
+      final parts = _horaInicioSeleccionada!.split(':');
+      temp = DateTime(
+        _fechaSeleccionada.year,
+        _fechaSeleccionada.month,
+        _fechaSeleccionada.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+    } else {
+      temp = DateTime(
+        _fechaSeleccionada.year,
+        _fechaSeleccionada.month,
+        _fechaSeleccionada.day,
+        now.hour,
+        ((now.minute + 15) ~/ 15) * 15,
+      );
+      if (temp.isBefore(now)) {
+        temp = temp.add(const Duration(minutes: 30));
+      }
+    }
+
+    int durMin = 0;
+    if (_esServicio && _serviciosSeleccionados.isNotEmpty) {
+      durMin = _serviciosSeleccionados.fold(
+        0,
+        (sum, s) => sum + (s.duracionMinutos > 0 ? s.duracionMinutos : 30),
+      );
+    } else if (!_esServicio && _paqueteSeleccionado != null) {
+      durMin = _paqueteSeleccionado!.duracionMinutos > 0
+          ? _paqueteSeleccionado!.duracionMinutos
+          : 60;
+    }
+    if (durMin == 0) durMin = 30;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          left: 12,
+          right: 12,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D2D2D),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              StatefulBuilder(builder: (ctx, setSheet) {
+                final timeInicioStr = "${temp.hour.toString().padLeft(2, '0')}:${temp.minute.toString().padLeft(2, '0')}";
+                final timeFinStr = _fromMinutes(_toMinutes(timeInicioStr) + durMin);
+                final previewLabel = "${formatSpanishDate(temp)}  ${_toAmPm(timeInicioStr)} - ${_toAmPm(timeFinStr)}";
+
+                // Consultar disponibilidad
+                final isWorkDay = _getBarberWorkHoursString(temp) != 'No trabaja';
+                
+                String statusMsg = '';
+                bool isAvailable = false;
+                Color statusColor = _kGoldMid;
+
+                if (!isWorkDay) {
+                  statusMsg = "El barbero no trabaja este día";
+                  statusColor = const Color(0xFFAA5E5E);
+                } else {
+                  final dartDow = temp.weekday;
+                  final fechaStr = DateFormat('yyyy-MM-dd').format(temp);
+                  final horarioSemanal = _todosLosHorarios.where((h) {
+                    if (h.barberoId != (_barberoSeleccionado!.id ?? 0)) return false;
+                    if (h.estado != 'Activo') return false;
+                    if (h.fechaInicioSemana.compareTo(fechaStr) <= 0 && h.fechaFinSemana.compareTo(fechaStr) >= 0) return true;
+                    return false;
+                  }).toList();
+
+                  final horariosBarbero = horarioSemanal.expand((h) => h.detalles).where((d) {
+                    return d.diaSemana == dartDow || (dartDow == 7 && d.diaSemana == 0);
+                  }).toList();
+
+                  final startMin = _toMinutes(timeInicioStr);
+                  final endMin = _toMinutes(timeFinStr);
+
+                  bool fitsWorkHours = false;
+                  for (final h in horariosBarbero) {
+                    final shiftStart = _toMinutes(h.horaInicio);
+                    final shiftEnd = _toMinutes(h.horaFin);
+                    if (startMin >= shiftStart && endMin <= shiftEnd) {
+                      fitsWorkHours = true;
+                      break;
+                    }
+                  }
+
+                  if (!fitsWorkHours) {
+                    final workingHoursStr = horariosBarbero.map((d) => "${_toAmPm(d.horaInicio)} - ${_toAmPm(d.horaFin)}").join(', ');
+                    statusMsg = "Fuera de horario (Trabaja: $workingHoursStr)";
+                    statusColor = const Color(0xFFAA5E5E);
+                  } else {
+                    final citasBarberoHoy = _todasLasCitas.where((c) {
+                      if (c.barberoId != _barberoSeleccionado!.id) return false;
+                      if (c.estado?.toLowerCase() == 'cancelada' ||
+                          c.estadoCita?.toLowerCase() == 'cancelada')
+                        return false;
+                      String fCita = c.fechaCita ?? '';
+                      if (fCita.isEmpty && c.fechaHora != null && c.fechaHora!.contains('T')) {
+                        fCita = c.fechaHora!.split('T')[0];
+                      }
+                      if (fCita != fechaStr) return false;
+                      if (c.id != null && widget.agendamiento != null && c.id == widget.agendamiento!.id)
+                        return false;
+                      return true;
+                    }).toList();
+
+                    bool overlaps = false;
+                    for (final c in citasBarberoHoy) {
+                      if (c.horaInicio == null || c.horaInicio!.isEmpty) continue;
+                      int startExist = _toMinutes(c.horaInicio!);
+                      int endExist = (c.horaFin != null && c.horaFin!.isNotEmpty)
+                          ? _toMinutes(c.horaFin!)
+                          : startExist + 60;
+                      if (startMin < endExist && startExist < endMin) {
+                        overlaps = true;
+                        break;
+                      }
+                    }
+
+                    if (overlaps) {
+                      statusMsg = "Ya tiene otra cita en este horario";
+                      statusColor = const Color(0xFFAA5E5E);
+                    } else {
+                      statusMsg = "Horario disponible";
+                      statusColor = const Color(0xFF5EAA7C);
+                      isAvailable = true;
+                    }
+                  }
+                }
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            previewLabel,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            statusMsg,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 220,
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.dateAndTime,
+                        initialDateTime: temp,
+                        minimumDate: todayNorm,
+                        maximumDate: todayNorm.add(const Duration(days: 365)),
+                        minimumYear: todayNorm.year,
+                        maximumYear: todayNorm.year + 1,
+                        backgroundColor: Colors.transparent,
+                        onDateTimeChanged: (dt) {
+                          temp = dt;
+                          setSheet(() {});
+                        },
+                      ),
+                    ),
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Color(0xFF2D2D2D)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text(
+                                "Cancelar",
+                                style: TextStyle(color: _kGold, fontSize: 17),
+                              ),
+                            ),
+                          ),
+                          Container(width: 1, height: 48, color: const Color(0xFF2D2D2D)),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: !isAvailable ? null : () {
+                                final selectedInicio = "${temp.hour.toString().padLeft(2, '0')}:${temp.minute.toString().padLeft(2, '0')}";
+                                final selectedFin = _fromMinutes(_toMinutes(selectedInicio) + durMin);
+
+                                setState(() {
+                                  _fechaSeleccionada = DateTime(temp.year, temp.month, temp.day);
+                                  _horaInicioSeleccionada = selectedInicio;
+                                  _horaFinSeleccionada = selectedFin;
+                                });
+                                Navigator.pop(ctx);
+                              },
+                              child: Text(
+                                "Aceptar",
+                                style: TextStyle(
+                                    color: isAvailable ? _kGold : _kTextDim,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }  Widget _buildDivider() => const Padding(
     padding: EdgeInsets.symmetric(vertical: 20),
     child: Divider(color: Color(0xFF1A1A1A), thickness: 0.5, height: 0),
   );
@@ -1645,29 +2154,4 @@ class _QtyBtn extends StatelessWidget {
   }
 }
 
-class _WeekArrow extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _WeekArrow({required this.icon, this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: _kSurface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _kBorder, width: 0.5),
-        ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: onTap != null ? const Color(0xFF888888) : _kTextFaint,
-        ),
-      ),
-    );
-  }
-}

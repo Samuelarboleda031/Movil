@@ -32,6 +32,9 @@ class AgendamientosScreen extends StatefulWidget {
 }
 
 class _AgendamientosScreenState extends State<AgendamientosScreen> {
+  int _currentPage = 1;
+  static const int _pageSize = 10;
+
   final TextEditingController _searchController = TextEditingController();
   final BarberoService _barberoService = BarberoService();
   String _searchQuery = '';
@@ -53,7 +56,13 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     var resultado = agendamientos;
 
     // Filtro estado Admin
-    if (_filtroEstadoAdmin != 'Todos') {
+    if (_filtroEstadoAdmin == 'Todos') {
+      // Por defecto: excluir canceladas
+      resultado = resultado.where((a) {
+        final estado = (a.estadoCita ?? '').toLowerCase().trim();
+        return estado != 'cancelada' && estado != 'cancelado';
+      }).toList();
+    } else {
       resultado = resultado.where((a) {
         final estado = (a.estadoCita ?? '').toLowerCase().trim();
         final filtro = _filtroEstadoAdmin.toLowerCase();
@@ -154,6 +163,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       _fechaDesde = null;
       _fechaHasta = null;
       _filtroFechaActivo = false;
+      _currentPage = 1;
     });
   }
 
@@ -169,7 +179,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       ),
     );
     if (rango != null) {
-      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; _filtroFechaActivo = true; });
+      setState(() { _fechaDesde = rango.start; _fechaHasta = rango.end; _filtroFechaActivo = true; _currentPage = 1; });
     }
   }
 
@@ -180,18 +190,22 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     setState(() {
       _periodoAdminActivo = periodo;
       _filtroFechaActivo = true;
+      _currentPage = 1;
       switch (periodo) {
         case 'hoy':
-          _fechaDesde = hoy;
-          _fechaHasta = hoy;
+          _fechaDesde = DateTime(hoy.year, hoy.month, hoy.day);
+          _fechaHasta = DateTime(hoy.year, hoy.month, hoy.day);
           break;
         case 'semanal':
-          _fechaDesde = hoy.subtract(Duration(days: hoy.weekday - 1));
-          _fechaHasta = hoy;
+          final inicioSemana = hoy.subtract(Duration(days: hoy.weekday - 1));
+          final finSemana = inicioSemana.add(const Duration(days: 6));
+          _fechaDesde = DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
+          _fechaHasta = DateTime(finSemana.year, finSemana.month, finSemana.day);
           break;
         case 'mensual':
+          final ultimoDiaMes = DateTime(hoy.year, hoy.month + 1, 0);
           _fechaDesde = DateTime(hoy.year, hoy.month, 1);
-          _fechaHasta = hoy;
+          _fechaHasta = DateTime(ultimoDiaMes.year, ultimoDiaMes.month, ultimoDiaMes.day);
           break;
       }
     });
@@ -214,7 +228,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                     child: FilterChip(
                       label: Text(e, style: TextStyle(color: sel ? AppColors.bg : AppColors.greyLight, fontSize: 11, fontWeight: FontWeight.w600)),
                       selected: sel,
-                      onSelected: (_) => setState(() => _filtroEstadoAdmin = e),
+                      onSelected: (_) => setState(() { _filtroEstadoAdmin = e; _currentPage = 1; }),
                       selectedColor: AppColors.gold,
                       backgroundColor: AppColors.card,
                       side: BorderSide(color: sel ? AppColors.gold : AppColors.divider),
@@ -248,7 +262,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                     const DropdownMenuItem<int?>(value: null, child: Text('Todos los barberos', style: TextStyle(color: AppColors.greyLight))),
                     ..._listaBarberos.map((b) => DropdownMenuItem<int?>(value: b.id, child: Text(b.nombreCompleto, overflow: TextOverflow.ellipsis))),
                   ],
-                  onChanged: (v) => setState(() => _filtroBarberoId = v),
+                  onChanged: (v) => setState(() { _filtroBarberoId = v; _currentPage = 1; }),
                 ),
               ),
             ),
@@ -371,6 +385,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       _filtroFechaActivo = false;
       // Volver al período mensual por defecto
       _periodoGanancia = 'mensual';
+      _currentPage = 1;
     });
   }
   
@@ -407,6 +422,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         _fechaDesde = rango.start;
         _fechaHasta = rango.end;
         _filtroFechaActivo = true;
+        _currentPage = 1;
         
         // Auto-detectar período según el rango seleccionado
         if (diff == 0) {
@@ -702,6 +718,11 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
             }
 
             final filtrados = _agendamientosFiltrados(agendamientos);
+            totalItems = filtrados.length;
+            final int totalPagesLocal = totalItems == 0 ? 1 : (totalItems / _pageSize).ceil();
+            final int startIndex = (_currentPage - 1) * _pageSize;
+            final int endIndex = (startIndex + _pageSize < totalItems) ? startIndex + _pageSize : totalItems;
+            final pagedItems = startIndex < totalItems ? filtrados.sublist(startIndex, endIndex) : <Agendamiento>[];
 
             return Column(
               children: [
@@ -723,7 +744,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                           : null,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    onChanged: (val) => setState(() => _searchQuery = val),
+                    onChanged: (val) => setState(() { _searchQuery = val; _currentPage = 1; }),
                   ),
                 ),
                 _buildFiltrosAdmin(),
@@ -742,15 +763,15 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                                   },
                                   child: ListView.builder(
                                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                                    itemCount: filtrados.length + ((paginacion != null && paginacion.totalPages > 1) ? 1 : 0),
+                                    itemCount: pagedItems.length + (totalPagesLocal > 1 ? 1 : 0),
                                     itemBuilder: (context, index) {
-                                      if (index == filtrados.length) {
+                                      if (index == pagedItems.length) {
                                         return Padding(
                                           padding: const EdgeInsets.only(top: 8, bottom: 8),
-                                          child: _buildPaginationControls(paginacion!.totalPages, currentPage),
+                                          child: _buildPaginationControls(totalPagesLocal, _currentPage),
                                         );
                                       }
-                                      final ag = filtrados[index];
+                                      final ag = pagedItems[index];
                                       return _buildAdminCitaCard(ag);
                                     },
                                   ),
@@ -1006,7 +1027,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         totalPages: totalPages,
         currentPage: currentPage,
         onPageChanged: (page) {
-          context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page, estaSemana: false));
+          setState(() => _currentPage = page);
         },
       ),
     );
@@ -1046,6 +1067,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
             
             // Ganancia total del historial filtrado
             final gananciasTotal = citasFiltradas.fold(0.0, (sum, a) => sum + (a.monto ?? a.precio ?? 0));
+            
+            final int totalItems = citasFiltradas.length;
+            final int totalPagesLocal = totalItems == 0 ? 1 : (totalItems / _pageSize).ceil();
+            final int startIndex = (_currentPage - 1) * _pageSize;
+            final int endIndex = (startIndex + _pageSize < totalItems) ? startIndex + _pageSize : totalItems;
+            final pagedItems = startIndex < totalItems ? citasFiltradas.sublist(startIndex, endIndex) : <Agendamiento>[];
 
             return SafeArea(
               child: isLoading
@@ -1075,17 +1102,17 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
                               : SliverList(
                                   delegate: SliverChildBuilderDelegate(
                                     (context, index) {
-                                      return _buildHistorialCard(citasFiltradas[index]);
+                                      return _buildHistorialCard(pagedItems[index]);
                                     },
-                                    childCount: citasFiltradas.length,
+                                    childCount: pagedItems.length,
                                   ),
                                 ),
                           // Paginación
-                          if (paginacion != null && paginacion.totalPages > 1)
+                          if (totalPagesLocal > 1)
                             SliverToBoxAdapter(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 20),
-                                child: _buildPaginationControls(paginacion.totalPages, currentPage),
+                                child: _buildPaginationControls(totalPagesLocal, _currentPage),
                               ),
                             ),
                           const SliverToBoxAdapter(

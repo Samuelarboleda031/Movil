@@ -562,7 +562,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             widget.venta?.numero ??
             'V-${DateTime.now().millisecondsSinceEpoch}',
         fechaRegistro:
-            widget.venta?.fechaRegistro ?? DateTime.now().toIso8601String(),
+            widget.venta?.fechaRegistro ?? DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(DateTime.now()),
         clienteId: _clienteSeleccionado?.id ?? 0,
         clienteNombre: _clienteNombreInvitado,
         barberoId: barberoFinal?.id,
