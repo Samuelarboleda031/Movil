@@ -361,11 +361,14 @@ class _InternalMultiDayViewPageState<T extends Object?>
                   ? scrollController
                   : widget.multiDayViewScrollController,
               physics: widget.scrollPhysics,
-              child: SizedBox(
-                height: widget.height,
-                width: widget.width,
-                child: Stack(
-                  children: [
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: SizedBox(
+                  height: widget.height,
+                  width: widget.width,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
                     CustomPaint(
                       size: Size(widget.width, widget.height),
                       painter: widget.hourLinePainter(
@@ -468,6 +471,42 @@ class _InternalMultiDayViewPageState<T extends Object?>
                                       date: widget.dates[index],
                                       minuteSlotSize: widget.minuteSlotSize,
                                     ),
+                                    Column(
+                                      children: List.generate(
+                                        (widget.endHour - widget.startHour) * 2,
+                                        (cellIndex) {
+                                          final now = DateTime.now();
+                                          final today = DateTime(now.year, now.month, now.day);
+                                          final dateNorm = DateTime(
+                                            filteredDates[index].year,
+                                            filteredDates[index].month,
+                                            filteredDates[index].day,
+                                          );
+                                          final isPast = dateNorm.isBefore(today);
+
+                                          return Container(
+                                            height: (30 * widget.heightPerMinute) - 3.0,
+                                            width: widget.weekTitleWidth,
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 2.0,
+                                              vertical: 1.5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isPast
+                                                  ? const Color(0xFF111111) // Negro si es día pasado / no disponible
+                                                  : const Color(0xFF2A2A2A), // Gris si está disponible
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: isPast
+                                                    ? const Color(0xFF1A1A1A)
+                                                    : const Color(0xFF3A3A3A),
+                                                width: 0.5,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
                                     EventGenerator<T>(
                                       height: widget.height,
                                       date: filteredDates[index],
@@ -554,6 +593,7 @@ class _InternalMultiDayViewPageState<T extends Object?>
               ),
             ),
           ),
+        ),
         ],
       ),
     );

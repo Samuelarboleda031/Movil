@@ -382,7 +382,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       hourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
       halfHourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
       startHour: 9,
-      endHour: 23,
+      endHour: 24,
       scrollPhysics: const BouncingScrollPhysics(),
       backgroundColor: AppColors.bg,
       weekNumberBuilder: (date) => Container(color: AppColors.surface),
@@ -418,7 +418,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       hourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
       halfHourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
       startHour: 9,
-      endHour: 23,
+      endHour: 24,
       scrollPhysics: const BouncingScrollPhysics(),
       backgroundColor: AppColors.bg,
       weekNumberBuilder: (date) => Container(color: AppColors.surface),
@@ -524,6 +524,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   Widget _buildTimeLine(DateTime date) {
     final hour = date.hour;
     final minute = date.minute;
+
+    // Ocultar etiquetas mayores a las 11:00 pm (23:00) para cumplir con el rango estricto de 9am a 11pm
+    if (hour > 23 || (hour == 23 && minute > 0)) {
+      return const SizedBox.shrink();
+    }
+
     final period = hour >= 12 ? 'pm' : 'am';
     final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     
@@ -542,7 +548,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       padding: const EdgeInsets.only(right: 8),
       alignment: Alignment.centerRight,
       child: Transform.translate(
-        offset: Offset(0, isHalfHour ? 42 : 18),
+        offset: Offset(0, isHalfHour ? 42.0 : 18.0),
         child: Text(
           timeText,
           style: const TextStyle(
