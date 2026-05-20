@@ -26,25 +26,26 @@ import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 
 // ─── Theme constants ─────────────────────────────────────────────────────────
+// Usando la paleta oficial del proyecto (AppColors / globals.css)
 
-const _kBg = Color(0xFF0A0A0A);
-const _kSurface = Color(0xFF141414);
-const _kSurface2 = Color(0xFF1A1A1A);
-const _kBorder = Color(0xFF252525);
-const _kBorderHover = Color(0xFF3A3A3A);
-const _kGold = Color(0xFFE0C070);
-const _kGoldMid = Color(0xFFC9A04E);
-const _kGoldDark = Color(0xFF9A6A25);
-const _kGoldTint = Color(0xFF1A1408);
-const _kGoldBorder = Color(0xFF4A3010);
-const _kGoldText = Color(0xFF9A7030);
-const _kText = Colors.white;
-const _kTextMuted = Color(0xFFAAAAAA);
-const _kTextDim = Color(0xFF666666);
-const _kTextFaint = Color(0xFF444444);
-const _kRadius = 14.0;
-const _kRadiusMd = 10.0;
-const _kRadiusSm = 8.0;
+const _kBg        = Color(0xFF111111);          // --black-secondary
+const _kSurface   = Color(0xFF1A1919);          // --gray-darkest  (cards)
+const _kSurface2  = Color(0xFF2A2A2A);          // --gray-darker
+const _kBorder    = Color(0xFF3A3A3A);          // --gray-dark
+const _kBorderHover = Color(0xFF4A4A4A);        // ligeramente más claro
+const _kGold      = Color(0xFFE0C080);          // goldLight
+const _kGoldMid   = Color(0xFFD8B081);          // --orange-primary
+const _kGoldDark  = Color(0xFF9A7040);          // goldDeep
+const _kGoldTint  = Color(0xFF2A1F0E);          // tinte dorado sobre card
+const _kGoldBorder = Color(0xFF5A3A18);         // borde dorado visible
+const _kGoldText  = Color(0xFFD8B081);          // --orange-primary
+const _kText      = Color(0xFFFFFFFF);          // --white-primary
+const _kTextMuted = Color(0xFFD0D0D0);          // --gray-lightest
+const _kTextDim   = Color(0xFFB0B0B0);          // --gray-lighter
+const _kTextFaint = Color(0xFF888888);          // --gray-light
+const _kRadius    = 14.0;
+const _kRadiusMd  = 10.0;
+const _kRadiusSm  = 8.0;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,16 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   Map<int, int> _productoCantidades = {};
   bool _esServicio = true;
 
+  // Buscador de servicios (igual que en paquetes)
+  final _buscarServicioAgendCtrl = TextEditingController();
+  String _busquedaServicioAgend = '';
+  bool _mostrarResultadosAgend = false;
+
+  // Buscador de productos
+  final _buscarProductoCtrl = TextEditingController();
+  String _busquedaProducto = '';
+  bool _mostrarResultadosProducto = false;
+
   DateTime _fechaSeleccionada = DateTime.now().add(const Duration(days: 1));
   String? _horaInicioSeleccionada;
   String? _horaFinSeleccionada;
@@ -127,20 +138,20 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   final List<Map<String, dynamic>> _estadosCita = [
     {
       'label': 'Pendiente',
-      'color': const Color(0xFF1E1810),
-      'textColor': _kGoldMid,
-      'border': const Color(0xFF4A3A15),
+      'color': const Color(0xFF2A1F0E),          // _kGoldTint
+      'textColor': const Color(0xFFD8B081),       // --orange-primary
+      'border': const Color(0xFF5A3A18),          // _kGoldBorder
     },
     {
       'label': 'Completada',
-      'color': const Color(0xFF0F1E14),
-      'textColor': const Color(0xFF5EAA7C),
+      'color': const Color(0xFF0F2018),
+      'textColor': const Color(0xFF7AAB8A),       // --status-green
       'border': const Color(0xFF1F5535),
     },
     {
       'label': 'Cancelada',
-      'color': const Color(0xFF1E0F0F),
-      'textColor': const Color(0xFFAA5E5E),
+      'color': const Color(0xFF2A1010),
+      'textColor': const Color(0xFFB07070),       // --status-red
       'border': const Color(0xFF552020),
     },
   ];
@@ -159,6 +170,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   @override
   void dispose() {
     _montoController.dispose();
+    _buscarServicioAgendCtrl.dispose();
+    _buscarProductoCtrl.dispose();
     super.dispose();
   }
 
@@ -543,9 +556,9 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         decoration: BoxDecoration(
           color: _kSurface2,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
+          border: Border.all(color: _kBorder, width: 0.5),
         ),
-        child: Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+        child: Icon(fallback, color: _kTextFaint, size: size * 0.5),
       );
     }
 
@@ -555,7 +568,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         foto,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) =>
-            Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+            Icon(fallback, color: _kTextFaint, size: size * 0.5),
       );
     } else {
       try {
@@ -565,12 +578,12 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
           base64Decode(cleanBase64),
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) =>
-              Icon(fallback, color: const Color(0xFF888888), size: size * 0.5),
+              Icon(fallback, color: _kTextFaint, size: size * 0.5),
         );
       } catch (_) {
         image = Icon(
           fallback,
-          color: const Color(0xFF888888),
+          color: _kTextFaint,
           size: size * 0.5,
         );
       }
@@ -582,7 +595,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       decoration: BoxDecoration(
         color: _kSurface2,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2D2D2D), width: 0.5),
+        border: Border.all(color: _kBorder, width: 0.5),
       ),
       child: ClipRRect(borderRadius: BorderRadius.circular(9.5), child: image),
     );
@@ -660,6 +673,9 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             _monto = null;
             _horaInicioSeleccionada = null;
             _horaFinSeleccionada = null;
+            _buscarServicioAgendCtrl.clear();
+            _busquedaServicioAgend = '';
+            _mostrarResultadosAgend = false;
           });
           _recalcularSlots();
         },
@@ -694,85 +710,172 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     );
   }
 
-  /// Selector de servicios searchable
-  Widget _buildServiciosList() => SearchableSelector<Servicio>(
-    label: '',
-    hint: 'Buscar y añadir servicios...',
-    items: _servicios,
-    selectedItem: null,
-    displayText: (s) => s.nombre,
-    searchText: (s) => s.nombre,
-    prefixIcon: Icons.cut,
-    required: _serviciosSeleccionados.isEmpty,
-    renderItem: (s) {
-      final isSelected = _serviciosSeleccionados.any((sel) => sel.id == s.id);
-      return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? _kGoldTint : _kSurface,
-          borderRadius: BorderRadius.circular(_kRadius),
-          border: Border.all(
-            color: isSelected ? _kGoldDark : _kBorder,
-            width: 0.5,
+  /// Selector de servicios - buscador con lista desplegable (igual que en paquetes)
+  Widget _buildServiciosList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_serviciosSeleccionados.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _serviciosSeleccionados.map((s) => _ServiceChip(
+              label: s.nombre,
+              onRemove: () {
+                setState(() {
+                  _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
+                  _calcularTotal();
+                  _horaInicioSeleccionada = null;
+                  _horaFinSeleccionada = null;
+                });
+                _recalcularSlots();
+              },
+            )).toList(),
+          ),
+          const SizedBox(height: 10),
+        ],
+        TextField(
+          controller: _buscarServicioAgendCtrl,
+          style: TextStyle(color: _kText, fontSize: 13),
+          onChanged: (val) => setState(() {
+            _busquedaServicioAgend = val;
+            _mostrarResultadosAgend = true;
+          }),
+          onTap: () => setState(() => _mostrarResultadosAgend = true),
+          decoration: InputDecoration(
+            hintText: 'Buscar servicio...',
+            hintStyle: TextStyle(color: _kTextFaint, fontSize: 13),
+            prefixIcon: Icon(Icons.search, color: _kGoldMid, size: 20),
+            suffixIcon: _buscarServicioAgendCtrl.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear, size: 18, color: _kTextFaint),
+                    onPressed: () => setState(() {
+                      _buscarServicioAgendCtrl.clear();
+                      _busquedaServicioAgend = '';
+                      _mostrarResultadosAgend = false;
+                    }),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _kBorder, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _kGoldDark, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+            ),
+            filled: true,
+            fillColor: _kSurface,
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? _kGoldMid : const Color(0xFF333333),
-              ),
+        if (_mostrarResultadosAgend) ...[
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 240),
+            decoration: BoxDecoration(
+              color: _kSurface,
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+              border: Border.all(color: _kBorder, width: 0.5),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.nombre,
-                    style: TextStyle(
-                      color: isSelected ? _kText : _kTextMuted,
-                      fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.w500
-                          : FontWeight.normal,
+            child: Builder(builder: (_) {
+              final query = _busquedaServicioAgend.toLowerCase();
+              final selIds = _serviciosSeleccionados.map((s) => s.id).toSet();
+              final resultados = _servicios
+                  .where((s) => (s.estado ?? true) &&
+                      (query.isEmpty || s.nombre.toLowerCase().contains(query)))
+                  .toList();
+              if (resultados.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('No se encontraron servicios',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _kTextFaint, fontSize: 13)),
+                );
+              }
+              return ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: resultados.length,
+                itemBuilder: (context, i) {
+                  final s = resultados[i];
+                  final yaSeleccionado = selIds.contains(s.id);
+                  return InkWell(
+                    onTap: yaSeleccionado ? null : () {
+                      setState(() {
+                        _serviciosSeleccionados.add(s);
+                        _buscarServicioAgendCtrl.clear();
+                        _busquedaServicioAgend = '';
+                        _mostrarResultadosAgend = false;
+                        _calcularTotal();
+                        _horaInicioSeleccionada = null;
+                        _horaFinSeleccionada = null;
+                      });
+                      _recalcularSlots();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          if (!yaSeleccionado) ...[
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _kSurface2,
+                                borderRadius: BorderRadius.circular(8),
+                                image: s.imagen != null && s.imagen!.isNotEmpty
+                                    ? DecorationImage(
+                                        image: NetworkImage(s.imagen!),
+                                        fit: BoxFit.cover)
+                                    : null,
+                              ),
+                              child: s.imagen == null || s.imagen!.isEmpty
+                                  ? Icon(Icons.content_cut, color: _kGoldMid, size: 18)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                          if (yaSeleccionado) const SizedBox(width: 50),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(s.nombre,
+                                    style: TextStyle(
+                                      color: yaSeleccionado ? _kTextFaint : _kText,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    )),
+                                const SizedBox(height: 2),
+                                Text(
+                                  yaSeleccionado
+                                      ? 'Ya esta en esta cita'
+                                      : '${s.duracionMinutos} min  \$${s.precio.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    color: yaSeleccionado ? _kGoldMid.withOpacity(0.6) : _kTextDim,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (yaSeleccionado)
+                            Icon(Icons.check_circle, color: _kGoldMid, size: 18)
+                          else
+                            Icon(Icons.add_circle_outline, color: _kGoldMid, size: 18),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${s.duracionMinutos} min · \$${s.precio.toStringAsFixed(0)}',
-                    style: const TextStyle(color: _kTextDim, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              isSelected ? Icons.check : Icons.add,
-              size: 16,
-              color: isSelected ? _kGoldMid : _kTextFaint,
-            ),
-          ],
-        ),
-      );
-    },
-    onSelected: (s) {
-      if (s != null) {
-        setState(() {
-          if (!_serviciosSeleccionados.any((sel) => sel.id == s.id)) {
-            _serviciosSeleccionados.add(s);
-            _calcularTotal();
-            _horaInicioSeleccionada = null;
-            _horaFinSeleccionada = null;
-          }
-        });
-        _recalcularSlots();
-      }
-    },
-  );
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ],
+    );
+  }
 
   /// Selector de paquete
   Widget _buildPaqueteSelector() => SearchableSelector<Paquete>(
@@ -823,92 +926,229 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     );
   }
 
-  /// Sección de productos
-  Widget _buildProductosSection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      SearchableSelector<Producto>(
-        label: '',
-        hint: 'Añadir producto...',
-        items: _productos,
-        selectedItem: null,
-        displayText: (p) => p.nombre,
-        searchText: (p) => p.nombre,
-        prefixIcon: Icons.shopping_bag_outlined,
-        required: false,
-        renderItem: (p) => Row(
-          children: [
-            Expanded(
-              child: Text(
-                p.nombre,
-                style: const TextStyle(color: _kText, fontSize: 14),
+  /// Seccion de productos - buscador con lista desplegable
+  Widget _buildProductosSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Productos seleccionados ──
+        if (_productoCantidades.isNotEmpty) ...[
+          ..._productoCantidades.entries.map((e) {
+            final p = _productos.firstWhere(
+              (prod) => prod.id == e.key,
+              orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
+            );
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kSurface,
+                borderRadius: BorderRadius.circular(_kRadiusMd),
+                border: Border.all(color: _kBorder, width: 0.5),
               ),
-            ),
-            Text(
-              '\$${p.precioVenta.toStringAsFixed(0)}',
-              style: const TextStyle(color: _kGoldText, fontSize: 12),
-            ),
-          ],
-        ),
-        onSelected: (p) {
-          if (p != null) {
-            setState(() {
-              _productoCantidades[p.id!] =
-                  (_productoCantidades[p.id!] ?? 0) + 1;
-              _calcularTotal();
-            });
-          }
-        },
-      ),
-      if (_productoCantidades.isNotEmpty) ...[
-        const SizedBox(height: 8),
-        ..._productoCantidades.entries.map((e) {
-          final p = _productos.firstWhere(
-            (prod) => prod.id == e.key,
-            orElse: () =>
-                Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
-          );
-          return Container(
-            margin: const EdgeInsets.only(bottom: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: _kSurface2, width: 0.5)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    p.nombre,
-                    style: const TextStyle(color: _kTextMuted, fontSize: 13),
+              child: Row(
+                children: [
+                  // Imagen del producto
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _kSurface2,
+                      borderRadius: BorderRadius.circular(8),
+                      image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
+                          ? DecorationImage(
+                              image: NetworkImage(p.imagenProduc!),
+                              fit: BoxFit.cover)
+                          : null,
+                    ),
+                    child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
+                        ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 18)
+                        : null,
                   ),
-                ),
-                Text(
-                  '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
-                  style: const TextStyle(color: _kTextDim, fontSize: 12),
-                ),
-                const SizedBox(width: 12),
-                _QtyControl(
-                  value: e.value,
-                  onDecrement: () => setState(() {
-                    if (e.value > 1) {
-                      _productoCantidades[e.key] = e.value - 1;
-                    } else {
-                      _productoCantidades.remove(e.key);
-                    }
-                    _calcularTotal();
-                  }),
-                  onIncrement: () => setState(() {
-                    _productoCantidades[e.key] = e.value + 1;
-                    _calcularTotal();
-                  }),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.nombre,
+                            style: TextStyle(
+                                color: _kText,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        Text(
+                          '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
+                          style: TextStyle(color: _kTextDim, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _QtyControl(
+                    value: e.value,
+                    onDecrement: () => setState(() {
+                      if (e.value > 1) {
+                        _productoCantidades[e.key] = e.value - 1;
+                      } else {
+                        _productoCantidades.remove(e.key);
+                      }
+                      _calcularTotal();
+                    }),
+                    onIncrement: () => setState(() {
+                      _productoCantidades[e.key] = e.value + 1;
+                      _calcularTotal();
+                    }),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 8),
+        ],
+
+        // ── Buscador ──
+        TextField(
+          controller: _buscarProductoCtrl,
+          style: TextStyle(color: _kText, fontSize: 13),
+          onChanged: (val) => setState(() {
+            _busquedaProducto = val;
+            _mostrarResultadosProducto = true;
+          }),
+          onTap: () => setState(() => _mostrarResultadosProducto = true),
+          decoration: InputDecoration(
+            hintText: 'Buscar producto...',
+            hintStyle: TextStyle(color: _kTextFaint, fontSize: 13),
+            prefixIcon: Icon(Icons.search, color: _kGoldMid, size: 20),
+            suffixIcon: _buscarProductoCtrl.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear, size: 18, color: _kTextFaint),
+                    onPressed: () => setState(() {
+                      _buscarProductoCtrl.clear();
+                      _busquedaProducto = '';
+                      _mostrarResultadosProducto = false;
+                    }),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _kBorder, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
             ),
-          );
-        }).toList(),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _kGoldDark, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+            ),
+            filled: true,
+            fillColor: _kSurface,
+          ),
+        ),
+
+        // ── Resultados ──
+        if (_mostrarResultadosProducto) ...[
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 240),
+            decoration: BoxDecoration(
+              color: _kSurface,
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+              border: Border.all(color: _kBorder, width: 0.5),
+            ),
+            child: Builder(builder: (_) {
+              final query = _busquedaProducto.toLowerCase();
+              final resultados = _productos
+                  .where((p) => query.isEmpty || p.nombre.toLowerCase().contains(query))
+                  .toList();
+
+              if (resultados.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('No se encontraron productos',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _kTextFaint, fontSize: 13)),
+                );
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: resultados.length,
+                itemBuilder: (context, i) {
+                  final p = resultados[i];
+                  final cantActual = _productoCantidades[p.id] ?? 0;
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _productoCantidades[p.id!] = cantActual + 1;
+                        _buscarProductoCtrl.clear();
+                        _busquedaProducto = '';
+                        _mostrarResultadosProducto = false;
+                        _calcularTotal();
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: _kSurface2,
+                              borderRadius: BorderRadius.circular(8),
+                              image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
+                                  ? DecorationImage(
+                                      image: NetworkImage(p.imagenProduc!),
+                                      fit: BoxFit.cover)
+                                  : null,
+                            ),
+                            child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
+                                ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 18)
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(p.nombre,
+                                    style: TextStyle(
+                                        color: _kText,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '\$${p.precioVenta.toStringAsFixed(0)}',
+                                  style: TextStyle(color: _kTextDim, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (cantActual > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _kGoldTint,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _kGoldBorder, width: 0.5),
+                              ),
+                              child: Text('x$cantActual',
+                                  style: TextStyle(
+                                      color: _kGoldMid,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold)),
+                            )
+                          else
+                            Icon(Icons.add_circle_outline, color: _kGoldMid, size: 18),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
       ],
-    ],
-  );
+    );
+  }
 
   /// Selector de semana + días
   // ── Estado del calendario inline ──────────────────────────────────────────
@@ -1021,12 +1261,12 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isPast
-                    ? const Color(0xFF333333)
+                    ? _kSurface2
                     : isSelected
                         ? _kGold
                         : isToday
                             ? _kGoldMid
-                            : const Color(0xFF888888),
+                            : _kTextFaint,
               ),
             ),
           ),
@@ -1077,7 +1317,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: sel ? FontWeight.w500 : FontWeight.normal,
-                color: sel ? _kGold : const Color(0xFF888888),
+                color: sel ? _kGold : _kTextFaint,
               ),
             ),
           ),
@@ -1206,7 +1446,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(_kRadius),
             ),
-            foregroundColor: const Color(0xFF888888),
+            foregroundColor: _kTextFaint,
           ),
           child: const Text(
             'Cancelar',
@@ -1287,7 +1527,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
           ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(0.5),
-            child: Container(height: 0.5, color: const Color(0xFF1F1F1F)),
+            child: Container(height: 0.5, color: _kSurface2),
           ),
           actions: [
             GestureDetector(
@@ -1432,7 +1672,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                       _esServicio
                           ? _buildServiciosList()
                           : _buildPaqueteSelector(),
-                      _buildServicioChips(),
 
                       _buildDivider(),
 
@@ -1653,7 +1892,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         ),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF1C1C1E),
+            color: const Color(0xFF1A1919),
             borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
           child: Column(
@@ -1664,7 +1903,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D2D2D),
+                  color: _kBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1693,7 +1932,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                                 ? "Horario de trabajo: $workHours"
                                 : "El barbero no trabaja este día",
                             style: TextStyle(
-                              color: worksThisDay ? _kGoldMid : const Color(0xFFAA5E5E),
+                              color: worksThisDay ? _kGoldMid : const Color(0xFFB07070),
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1734,7 +1973,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               ),
                             ),
                           ),
-                          Container(width: 1, height: 48, color: const Color(0xFF2D2D2D)),
+                          Container(width: 1, height: 48, color: _kBorder),
                           Expanded(
                             child: TextButton(
                               onPressed: !worksThisDay ? null : () {
@@ -1822,7 +2061,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         ),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF1C1C1E),
+            color: const Color(0xFF1A1919),
             borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
           child: Column(
@@ -1833,7 +2072,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D2D2D),
+                  color: _kBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1851,7 +2090,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
                 if (!isWorkDay) {
                   statusMsg = "El barbero no trabaja este día";
-                  statusColor = const Color(0xFFAA5E5E);
+                  statusColor = const Color(0xFFB07070);
                 } else {
                   final dartDow = temp.weekday;
                   final fechaStr = DateFormat('yyyy-MM-dd').format(temp);
@@ -1882,7 +2121,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                   if (!fitsWorkHours) {
                     final workingHoursStr = horariosBarbero.map((d) => "${_toAmPm(d.horaInicio)} - ${_toAmPm(d.horaFin)}").join(', ');
                     statusMsg = "Fuera de horario (Trabaja: $workingHoursStr)";
-                    statusColor = const Color(0xFFAA5E5E);
+                    statusColor = const Color(0xFFB07070);
                   } else {
                     final citasBarberoHoy = _todasLasCitas.where((c) {
                       if (c.barberoId != _barberoSeleccionado!.id) return false;
@@ -1914,7 +2153,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
                     if (overlaps) {
                       statusMsg = "Ya tiene otra cita en este horario";
-                      statusColor = const Color(0xFFAA5E5E);
+                      statusColor = const Color(0xFFB07070);
                     } else {
                       statusMsg = "Horario disponible";
                       statusColor = const Color(0xFF5EAA7C);
@@ -1983,7 +2222,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               ),
                             ),
                           ),
-                          Container(width: 1, height: 48, color: const Color(0xFF2D2D2D)),
+                          Container(width: 1, height: 48, color: _kBorder),
                           Expanded(
                             child: TextButton(
                               onPressed: !isAvailable ? null : () {
@@ -2020,7 +2259,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     );
   }  Widget _buildDivider() => const Padding(
     padding: EdgeInsets.symmetric(vertical: 20),
-    child: Divider(color: Color(0xFF1A1A1A), thickness: 0.5, height: 0),
+    child: Divider(color: const Color(0xFF3A3A3A), thickness: 0.5, height: 0),
   );
 }
 
@@ -2153,5 +2392,6 @@ class _QtyBtn extends StatelessWidget {
     );
   }
 }
+
 
 
