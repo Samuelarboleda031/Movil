@@ -148,7 +148,8 @@ class AgendamientoService {
     }
   }
 
-  Future<void> actualizarEstadoAgendamiento(int id, String estado) async {
+  // Devuelve el ventaId creado (si el backend lo incluye en el response).
+  Future<int?> actualizarEstadoAgendamiento(int id, String estado) async {
     try {
       final headers = await _getHeaders();
       final response = await http.patch(
@@ -160,12 +161,15 @@ class AgendamientoService {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al actualizar estado: ${response.statusCode} - ${response.body}');
       }
+
+      return _extraerVentaId(response.body);
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  Future<void> completarParcialmente(int id, List<int> serviciosCompletados, List<int> productosCompletados) async {
+  // Devuelve el ventaId creado (si el backend lo incluye en el response).
+  Future<int?> completarParcialmente(int id, List<int> serviciosCompletados, List<int> productosCompletados) async {
     try {
       final headers = await _getHeaders();
       final response = await http.post(
@@ -181,9 +185,31 @@ class AgendamientoService {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al completar parcialmente: ${response.statusCode} - ${response.body}');
       }
+
+      return _extraerVentaId(response.body);
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
+  }
+
+  // Intenta extraer el ID de la venta creada del cuerpo del response.
+  int? _extraerVentaId(String body) {
+    if (body.isEmpty) return null;
+    try {
+      final json = jsonDecode(body);
+      if (json is Map) {
+        // El backend puede devolver la venta directamente o anidada
+        final ventaId = json['ventaId'] ?? json['VentaId'] ?? json['venta']?['id'] ?? json['venta']?['Id'];
+        if (ventaId != null) return int.tryParse(ventaId.toString());
+        // Si devuelve la venta como objeto raíz
+        final id = json['id'] ?? json['Id'] ?? json['ID'];
+        if (id != null && (json.containsKey('numero') || json.containsKey('Numero') ||
+            json.containsKey('metodoPago') || json.containsKey('MetodoPago'))) {
+          return int.tryParse(id.toString());
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<List<Agendamiento>> obtenerCitasPorTerminar() async {

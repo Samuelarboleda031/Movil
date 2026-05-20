@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
+import 'package:calendar_view/src/theme/week_view_theme_data.dart';
+import 'package:calendar_view/src/theme/multi_day_view_theme_data.dart';
 import 'package:parte_movil/presentation/blocs/agendamientos/agendamientos_bloc.dart';
 import 'package:parte_movil/presentation/blocs/agendamientos/agendamientos_event.dart';
 import 'package:parte_movil/presentation/blocs/agendamientos/agendamientos_state.dart';
@@ -75,11 +77,138 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     if (estado == 'pendiente') {
       return AppColors.gold;
     } else if (estado == 'completada' || estado == 'completado' || estado == 'finalizado' || estado == 'finalizada') {
-      return AppColors.green;
+      return const Color(0xFF3B82F6);
     } else if (estado == 'cancelada' || estado == 'cancelado') {
       return AppColors.red.withValues(alpha: 0.8);
     }
     return AppColors.grey;
+  }
+
+  // ── Formato 12h (equivalente a formatHoraStr12 del web) ───────────────
+  String _formatHora12(DateTime dt) {
+    final h = dt.hour;
+    final m = dt.minute;
+    final ampm = h >= 12 ? 'pm' : 'am';
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    return m == 0 ? '$h12$ampm' : '$h12:${m.toString().padLeft(2, '0')}$ampm';
+  }
+
+  String _formatRangoHorario(DateTime start, DateTime end) {
+    return '${_formatHora12(start)} – ${_formatHora12(end)}';
+  }
+
+  // ── Quick-info sheet (equivalente al tooltip del web) ─────────────────
+  void _showQuickInfoSheet(Agendamiento ag, Color statusColor, DateTime? start, DateTime? end) {
+    final clienteNombre = ag.clienteNombre ?? ag.cliente?.nombreCompleto ?? 'Cliente';
+    final barberoNombre = ag.barbero?.nombreCompleto ?? ag.barberoNombre ?? '';
+    final servicio = ag.serviciosNombres.isNotEmpty
+        ? ag.serviciosNombres.join(' + ')
+        : ag.servicio?.nombre ?? '';
+    final rango = (start != null && end != null) ? _formatRangoHorario(start, end) : '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF121214),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.65), blurRadius: 24),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Barra + datos — igual que la tarjeta del web
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 3,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          clienteNombre,
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (rango.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            rango,
+                            style: TextStyle(
+                              color: AppColors.greyLight.withValues(alpha: 0.90),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        if (barberoNombre.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            barberoNombre,
+                            style: TextStyle(
+                              color: AppColors.greyLight.withValues(alpha: 0.65),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (servicio.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Divider(color: AppColors.divider.withValues(alpha: 0.6), height: 1),
+                const SizedBox(height: 10),
+                Text(
+                  servicio,
+                  style: TextStyle(
+                    color: AppColors.greyLight.withValues(alpha: 0.75),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _verDetalles(ag);
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: statusColor.withValues(alpha: 0.12),
+                    foregroundColor: statusColor,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Ver detalle completo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
 
@@ -154,26 +283,18 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       if (ag.horaInicio != null && ag.horaInicio!.isNotEmpty) {
         final parts = ag.horaInicio!.split(':');
         if (parts.length >= 2) {
-          startTime = DateTime(
-            fecha.year, fecha.month, fecha.day,
-            int.tryParse(parts[0]) ?? 9,
-            int.tryParse(parts[1]) ?? 0,
-          );
+          final h = int.tryParse(parts[0]) ?? 9;
+          final m = int.tryParse(parts[1]) ?? 0;
+          // Redondear al slot de 30 min hacia abajo: 0-29 → :00, 30-59 → :30
+          final slotMin = m < 30 ? 0 : 30;
+          startTime = DateTime(fecha.year, fecha.month, fecha.day, h, slotMin);
         }
       }
 
-      // Parsear hora fin (default +1h)
-      DateTime endTime = startTime.add(const Duration(hours: 1));
-      if (ag.horaFin != null && ag.horaFin!.isNotEmpty) {
-        final parts = ag.horaFin!.split(':');
-        if (parts.length >= 2) {
-          endTime = DateTime(
-            fecha.year, fecha.month, fecha.day,
-            int.tryParse(parts[0]) ?? startTime.hour + 1,
-            int.tryParse(parts[1]) ?? 0,
-          );
-        }
-      }
+      // 29 min (no 30) para que eventos consecutivos no compartan frontera
+      // y MergeEventArranger no los encadene en un tile gigante.
+      // Solo se fusionan eventos con exactamente el mismo startTime.
+      final DateTime endTime = startTime.add(const Duration(minutes: 29));
 
       // Nombre del cliente
       final nombreCliente = ag.clienteNombre ??
@@ -205,6 +326,10 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   // ── Custom Event Tile Builder ─────────────────────────────────────────
+  // Altura fija por fila dentro del tile (punto + texto).
+  static const double _rowH = 14.0;
+  static const double _overflowH = 12.0;
+
   Widget _eventTileBuilder(
     DateTime date,
     List<CalendarEventData<Agendamiento>> events,
@@ -213,67 +338,190 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     DateTime endDuration,
   ) {
     if (events.isEmpty) return const SizedBox.shrink();
-    final event = events.first;
-    final ag = event.event;
-    final statusColor = event.color;
 
-    // Nombre del barbero
-    String barberoLabel = '';
-    if (ag != null) {
-      barberoLabel = ag.barbero?.nombreCompleto ?? ag.barberoNombre ?? '';
-    }
+    // Color de fondo igual al de la celda: negro si es pasado, gris si es futuro
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final slotDate = DateTime(date.year, date.month, date.day);
+    final isDayPast = slotDate.isBefore(today);
+    final isToday = slotDate.isAtSameMomentAs(today);
+    final slotMinutes = startDuration.hour * 60 + startDuration.minute;
+    final nowMinutes = now.hour * 60 + now.minute;
+    final isPast = isDayPast || (isToday && slotMinutes < nowMinutes);
+    final tileBg = isPast ? const Color(0xFF111111) : const Color(0xFF2A2A2A);
+
+    final availH = boundary.height - 4; // padding top+bottom
+    // Cuántas filas de evento caben
+    int maxRows = (availH / _rowH).floor();
+    final needsOverflow = events.length > maxRows;
+    if (needsOverflow) maxRows = ((availH - _overflowH) / _rowH).floor().clamp(0, events.length);
+    final visibleEvents = events.take(maxRows.clamp(0, events.length)).toList();
+    final remaining = events.length - visibleEvents.length;
 
     return GestureDetector(
       onTap: () {
-        if (ag != null) _verDetalles(ag);
+        if (events.length == 1 && events.first.event != null) {
+          _verDetalles(events.first.event!);
+        } else {
+          _showOverflowSheet(events);
+        }
       },
       child: Container(
         width: boundary.width,
         height: boundary.height,
-        margin: const EdgeInsets.symmetric(horizontal: 1, vertical: 0.5),
+        margin: const EdgeInsets.symmetric(horizontal: 1),
         decoration: BoxDecoration(
-          color: statusColor.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(6),
-          border: Border(
-            left: BorderSide(color: statusColor, width: 3),
-          ),
+          color: tileBg,
+          borderRadius: BorderRadius.circular(4),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              event.title,
+            ...visibleEvents.map((e) => _buildEventRow(e)),
+            if (remaining > 0)
+              SizedBox(
+                height: _overflowH,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    '+$remaining más',
+                    style: TextStyle(
+                      color: AppColors.greyLight.withValues(alpha: 0.80),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventRow(CalendarEventData<Agendamiento> event) {
+    final ag = event.event;
+    final statusColor = event.color;
+    final horaLabel = event.startTime != null ? _formatHora12(event.startTime!) : '';
+    final barberoLabel = ag?.barbero?.nombreCompleto ?? ag?.barberoNombre ?? '';
+    final base = horaLabel.isNotEmpty ? '$horaLabel ${event.title}' : event.title;
+    final fullText = barberoLabel.isNotEmpty ? '$base - $barberoLabel' : base;
+
+    return SizedBox(
+      height: _rowH,
+      child: Row(
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(right: 3),
+            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+          ),
+          Expanded(
+            child: Text(
+              fullText,
               style: const TextStyle(
                 color: AppColors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                height: 1.0,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            if (boundary.height > 25 && event.description != null && event.description!.isNotEmpty)
-              Text(
-                event.description!,
-                style: TextStyle(
-                  color: AppColors.white.withValues(alpha: 0.7),
-                  fontSize: 9,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Overflow popup (equivalente al overflowPopup del web)
+  void _showOverflowSheet(List<CalendarEventData<Agendamiento>> events) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF121214),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider.withValues(alpha: 0.5)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.65), blurRadius: 24),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.6),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  border: Border(bottom: BorderSide(color: AppColors.divider.withValues(alpha: 0.4))),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (boundary.height > 40 && barberoLabel.isNotEmpty)
-              Text(
-                barberoLabel,
-                style: TextStyle(
-                  color: AppColors.gold.withValues(alpha: 0.8),
-                  fontSize: 8,
+                child: Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 14, color: AppColors.gold),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${events.length} citas en este horario',
+                      style: const TextStyle(
+                        color: AppColors.greyLightest,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-          ],
+              // Lista de todas las citas
+              ...events.map((event) {
+                final ag = event.event;
+                final color = event.color;
+                final horaLabel = event.startTime != null ? _formatHora12(event.startTime!) : '';
+                final barberoLabel = ag?.barbero?.nombreCompleto ?? ag?.barberoNombre ?? '';
+                return InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (ag != null) _verDetalles(ag);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            barberoLabel.isNotEmpty
+                                ? '$horaLabel ${event.title} - $barberoLabel'
+                                : '$horaLabel ${event.title}',
+                            style: const TextStyle(
+                              color: AppColors.greyLightest,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -371,12 +619,20 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   }
 
   Widget _buildWeekView() {
-    return WeekView<Agendamiento>(
+    return Theme(
+      data: Theme.of(context).copyWith(
+        extensions: [
+          WeekViewThemeData.dark().copyWith(
+            verticalLinesColor: AppColors.divider,
+          ),
+        ],
+      ),
+      child: WeekView<Agendamiento>(
       showWeekends: true,
       showLiveTimeLineInAllDays: false,
-      eventArranger: SideEventArranger<Agendamiento>(maxWidth: 30),
+      eventArranger: const MergeEventArranger<Agendamiento>(),
       timeLineWidth: 56,
-      heightPerMinute: 1.2,
+      heightPerMinute: 2.0,
       showHalfHours: true,
       minuteSlotSize: MinuteSlotSize.minutes30,
       hourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
@@ -399,20 +655,32 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         onlyShowToday: true,
       ),
       onEventTap: (events, date) {
-        if (events.isNotEmpty && events.first.event != null) {
+        if (events.isEmpty) return;
+        if (events.length == 1 && events.first.event != null) {
           _verDetalles(events.first.event!);
+        } else {
+          _showOverflowSheet(events);
         }
       },
+      ),
     );
   }
 
   Widget _buildMultiDayView() {
-    return MultiDayView<Agendamiento>(
+    return Theme(
+      data: Theme.of(context).copyWith(
+        extensions: [
+          MultiDayViewThemeData.dark().copyWith(
+            verticalLinesColor: AppColors.divider,
+          ),
+        ],
+      ),
+      child: MultiDayView<Agendamiento>(
       daysInView: 3,
       showLiveTimeLineInAllDays: false,
-      eventArranger: SideEventArranger<Agendamiento>(maxWidth: 30),
+      eventArranger: const MergeEventArranger<Agendamiento>(),
       timeLineWidth: 56,
-      heightPerMinute: 1.2,
+      heightPerMinute: 2.0,
       showHalfHours: true,
       minuteSlotSize: MinuteSlotSize.minutes30,
       hourIndicatorSettings: HourIndicatorSettings(color: AppColors.divider),
@@ -434,10 +702,14 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
         onlyShowToday: true,
       ),
       onEventTap: (events, date) {
-        if (events.isNotEmpty && events.first.event != null) {
+        if (events.isEmpty) return;
+        if (events.length == 1 && events.first.event != null) {
           _verDetalles(events.first.event!);
+        } else {
+          _showOverflowSheet(events);
         }
       },
+    ),
     );
   }
 
@@ -525,14 +797,13 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     final hour = date.hour;
     final minute = date.minute;
 
-    // Ocultar etiquetas mayores a las 11:00 pm (23:00) para cumplir con el rango estricto de 9am a 11pm
     if (hour > 23 || (hour == 23 && minute > 0)) {
       return const SizedBox.shrink();
     }
 
     final period = hour >= 12 ? 'pm' : 'am';
     final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    
+
     final String timeText;
     if (minute == 0) {
       timeText = '$displayHour$period';
@@ -540,21 +811,19 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       final displayMinute = minute.toString().padLeft(2, '0');
       timeText = '$displayHour:$displayMinute$period';
     }
-    final isHalfHour = minute != 0;
 
+    // Con heightPerMinute:2.0 cada celda de 30min mide 60px.
+    // La librería da un contenedor de hourHeight(120px) por etiqueta.
+    // Para centrar en la primera celda (0-60px): top = 30px - fontSize/2 ≈ 25px.
     return Container(
-      height: 36,
       width: 56,
-      padding: const EdgeInsets.only(right: 8),
-      alignment: Alignment.centerRight,
-      child: Transform.translate(
-        offset: Offset(0, isHalfHour ? 42.0 : 18.0),
-        child: Text(
-          timeText,
-          style: const TextStyle(
-            color: AppColors.grey,
-            fontSize: 10,
-          ),
+      padding: const EdgeInsets.only(right: 8, top: 25),
+      alignment: Alignment.topRight,
+      child: Text(
+        timeText,
+        style: const TextStyle(
+          color: AppColors.grey,
+          fontSize: 10,
         ),
       ),
     );

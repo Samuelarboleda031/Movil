@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
+import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/producto.dart';
@@ -97,11 +98,16 @@ class _ModalCompletarParcialmenteState extends State<ModalCompletarParcialmente>
         }
       }
 
-      await AgendamientoService().completarParcialmente(
+      final ventaId = await AgendamientoService().completarParcialmente(
         widget.cita.id!,
         _serviciosSeleccionados.toList(),
         productosACobrar,
       );
+
+      // Sincronizar NumeroRecibo con el número de la venta generada
+      if (ventaId != null) {
+        await VentaService().fijarNumeroRecibo(ventaId);
+      }
 
       if (!mounted) return;
       AppToast.showSuccess(context, 'Cita completada parcialmente. Se ha generado la venta.');

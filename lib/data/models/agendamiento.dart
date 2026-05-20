@@ -59,6 +59,40 @@ class Agendamiento {
     this.barberoNombre,
   });
 
+  static String _parseHoraFin(Map<String, dynamic> json, String horaInicio) {
+    // Intentar campo directo con varias claves
+    final raw = json['horaFin'] ?? json['HoraFin'] ?? json['horaTermino'] ??
+        json['HoraTermino'] ?? json['horaFinal'] ?? json['HoraFinal'] ?? '';
+    if (raw is String && raw.isNotEmpty) return raw;
+
+    // Calcular desde horaInicio + duracion si están disponibles
+    if (horaInicio.isNotEmpty) {
+      final durRaw = json['duracion'] ?? json['Duracion'] ?? json['duracionMinutos'] ?? json['DuracionMinutos'];
+      if (durRaw != null) {
+        int? mins;
+        if (durRaw is int) {
+          mins = durRaw;
+        } else {
+          // "195 minutos", "60", etc.
+          final match = RegExp(r'\d+').firstMatch(durRaw.toString());
+          if (match != null) mins = int.tryParse(match.group(0)!);
+        }
+        if (mins != null && mins > 0) {
+          try {
+            final parts = horaInicio.split(':');
+            final h = int.parse(parts[0]);
+            final m = int.parse(parts[1]);
+            final total = h * 60 + m + mins;
+            final fh = (total ~/ 60) % 24;
+            final fm = total % 60;
+            return '${fh.toString().padLeft(2, '0')}:${fm.toString().padLeft(2, '0')}';
+          } catch (_) {}
+        }
+      }
+    }
+    return '';
+  }
+
   factory Agendamiento.fromJson(Map<String, dynamic> json) {
     // Parseo de fecha y hora desde 'fechaHora' o individual
     String fHora = json['fechaHora'] ?? json['FechaHora'] ?? '';
@@ -100,7 +134,7 @@ class Agendamiento {
       productosNombres: (json['productosNombres'] ?? json['ProductosNombres'] ?? []).whereType<String>().toList(),
       fechaCita: fCita,
       horaInicio: hInic,
-      horaFin: json['horaFin'] ?? json['HoraFin'] ?? '',
+      horaFin: _parseHoraFin(json, hInic),
       estadoCita: json['estadoCita'] ?? json['EstadoCita'] ?? json['estado'] ?? json['Estado'] ?? 'Pendiente',
       monto: (json['monto'] ?? json['Monto'] ?? json['precio'] ?? json['Precio'] ?? 0.0).toDouble(),
       observaciones: json['observaciones'] ?? json['Observaciones'] ?? json['notas'] ?? json['Notas'],

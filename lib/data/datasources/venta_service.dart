@@ -152,6 +152,51 @@ class VentaService {
       throw Exception('Error al anular venta: $e');
     }
   }
+  // Sincroniza NumeroRecibo con el número propio de la venta.
+  // Intenta PATCH primero; si el API no lo soporta, hace GET + PUT.
+  Future<void> fijarNumeroRecibo(int ventaId) async {
+    try {
+      final headers = await _getHeaders();
+
+      // Obtener la venta para conocer su numero actual
+      final venta = await obtenerVentaPorId(ventaId);
+      // El numero de recibo debe ser el mismo numero de la venta.
+      // Si el backend aún no lo asignó, usamos el id como fallback.
+      final numeroRecibo = venta.numero.isNotEmpty
+          ? venta.numero
+          : ventaId.toString();
+
+      // Intentar PATCH /Ventas/{id}/numero-recibo
+      final patchResp = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId/numero-recibo'),
+        headers: headers,
+        body: jsonEncode({'NumeroRecibo': numeroRecibo}),
+      );
+
+      if (patchResp.statusCode == 200 || patchResp.statusCode == 204) return;
+
+      // Fallback: PATCH general a /Ventas/{id}
+      final patchGeneral = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId'),
+        headers: headers,
+        body: jsonEncode({'NumeroRecibo': numeroRecibo}),
+      );
+
+      if (patchGeneral.statusCode == 200 || patchGeneral.statusCode == 204) return;
+
+      // Fallback final: PUT con la venta completa
+      final ventaActualizada = venta.copyWith(numero: numeroRecibo);
+      await http.put(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId'),
+        headers: headers,
+        body: jsonEncode(ventaActualizada.toJson()),
+      );
+    } catch (e) {
+      // No interrumpir el flujo principal si falla la actualización del recibo
+      print('⚠️ [VentaService] No se pudo fijar NumeroRecibo en venta $ventaId: $e');
+    }
+  }
+
   Future<List<DetalleVenta>> obtenerDetallesVenta(int ventaId) async {
     try {
       final headers = await _getHeaders();

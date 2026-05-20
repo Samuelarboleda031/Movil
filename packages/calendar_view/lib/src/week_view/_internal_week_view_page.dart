@@ -486,7 +486,12 @@ class _InternalWeekViewPageState<T extends Object?>
                                             filteredDates[index].month,
                                             filteredDates[index].day,
                                           );
-                                          final isPast = dateNorm.isBefore(today);
+                                          final isDayPast = dateNorm.isBefore(today);
+                                          final isToday = dateNorm.isAtSameMomentAs(today);
+                                          // Slot en minutos desde medianoche
+                                          final slotStartMin = widget.startHour * 60 + cellIndex * 30;
+                                          final nowMin = now.hour * 60 + now.minute;
+                                          final isPast = isDayPast || (isToday && slotStartMin < nowMin);
 
                                           return Container(
                                             height: (30 * widget.heightPerMinute) - 3.0,
@@ -497,8 +502,8 @@ class _InternalWeekViewPageState<T extends Object?>
                                             ),
                                             decoration: BoxDecoration(
                                               color: isPast
-                                                  ? const Color(0xFF111111) // Negro si es día pasado / no disponible
-                                                  : const Color(0xFF2A2A2A), // Gris si está disponible
+                                                  ? const Color(0xFF111111)
+                                                  : const Color(0xFF2A2A2A),
                                               borderRadius: BorderRadius.circular(6),
                                               border: Border.all(
                                                 color: isPast

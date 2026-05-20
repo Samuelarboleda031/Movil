@@ -3,9 +3,11 @@ import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
-import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
+import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/datasources/servicio_service.dart';
+import 'package:parte_movil/data/datasources/cliente_service.dart';
+import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
@@ -49,8 +51,23 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
         ProductoService().getProductos(pageSize: 1000),
       ]);
 
+      Agendamiento ag = results[0] as Agendamiento;
+
+      // Cargar foto de cliente/barbero si el agendamiento no los trae
+      await Future.wait([
+        if (ag.cliente?.fotoPerfil == null && ag.clienteId != 0)
+          ClienteService().obtenerClientePorId(ag.clienteId).then((c) {
+            if (c != null) ag = ag.copyWith(cliente: c);
+          }).catchError((_) {}),
+        if (ag.barbero?.fotoPerfil == null && ag.barberoId != 0)
+          BarberoService().obtenerBarberos().then((lista) {
+            final b = lista.where((x) => x.id == ag.barberoId).firstOrNull;
+            if (b != null) ag = ag.copyWith(barbero: b);
+          }).catchError((_) {}),
+      ]);
+
       setState(() {
-        _currentAg = results[0] as Agendamiento;
+        _currentAg = ag;
         _catalogoServicios = results[1] as List<Servicio>;
         _catalogoProductos = results[2] as List<Producto>;
         _isLoading = false;
@@ -68,9 +85,10 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
       case 'en proceso':
         return Colors.orange;
       case 'completada':
+      case 'completado':
       case 'finalizado':
       case 'finalizada':
-        return const Color(0xFFD8B081);
+        return const Color(0xFF3B82F6);
       case 'cancelada':
       case 'cancelado':
         return Colors.red;
@@ -78,7 +96,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
         return Colors.redAccent;
       case 'pendiente':
       default:
-        return Colors.blueAccent;
+        return const Color(0xFFD8B081);
     }
   }
 
@@ -399,141 +417,77 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
-    if (widget.role == AppRole.client) {
-       return _currentAg.estadoCita?.toLowerCase() == 'pendiente' 
-        ? _buildClientCancelButton() 
-        : const SizedBox.shrink();
-    }
-
-    if (widget.role == AppRole.barber) {
-      final estado = (_currentAg.estadoCita ?? '').toLowerCase();
-      final puedeCancelar = estado != 'cancelada' && 
-                            estado != 'cancelado' && 
-                            estado != 'completada' && 
-                            estado != 'finalizado' && 
-                            estado != 'finalizada' && 
-                            estado != 'no asistio';
-
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -5))
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (puedeCancelar)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _cancelarComoCliente,
-                  icon: const Icon(Icons.cancel, color: Colors.white, size: 20),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  label: const Text(
-                    'CANCELAR CITA',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            if (estado == 'en proceso' || estado == 'confirmado' || estado == 'confirmada') ...[
-              if (puedeCancelar) const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _avisarTermino,
-                  icon: const Icon(Icons.notifications_active, color: Colors.white, size: 20),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  label: const Text(
-                    'AVISAR TÉRMINO',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+  // Retorna true si la hora de inicio de la cita es estrictamente en el futuro.
+  bool _esCitaFutura() {
+    try {
+      final fecha = DateTime.parse(_currentAg.fechaCita!);
+      final parts = (_currentAg.horaInicio ?? '09:00').split(':');
+      final citaStart = DateTime(
+        fecha.year, fecha.month, fecha.day,
+        int.tryParse(parts[0]) ?? 9,
+        int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0,
       );
+      return citaStart.isAfter(DateTime.now());
+    } catch (_) {
+      return false;
     }
+  }
+
+  Widget _buildActionButtons() {
+    // Cliente: solo cancelar su propia cita si está pendiente
+    if (widget.role == AppRole.client) {
+      return _currentAg.estadoCita?.toLowerCase() == 'pendiente'
+          ? _buildClientCancelButton()
+          : const SizedBox.shrink();
+    }
+
+    final estado = (_currentAg.estadoCita ?? '').toLowerCase();
+    final esTerminal = estado == 'cancelada' ||
+        estado == 'cancelado' ||
+        estado == 'completada' ||
+        estado == 'completado' ||
+        estado == 'finalizado' ||
+        estado == 'finalizada';
+
+    if (esTerminal) return const SizedBox.shrink();
+
+    final esAdmin = widget.role == AppRole.admin || widget.role == AppRole.manager;
+    // Citas futuras: solo se puede cancelar (para cualquier rol)
+    final soloCancel = _esCitaFutura();
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.black,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -5))
+          BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 10,
+              offset: const Offset(0, -5))
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _cambiarEstado,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    side: const BorderSide(color: Color(0xFFD8B081)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text(
-                    'CAMBIAR ESTADO',
-                    style: TextStyle(color: Color(0xFFD8B081), fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _editarCita,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD8B081),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text(
-                    'EDITAR CITA',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_currentAg.estadoCita?.toLowerCase() == 'en proceso' || _currentAg.estadoCita?.toLowerCase() == 'confirmado' || _currentAg.estadoCita?.toLowerCase() == 'confirmada') ...[
-            const SizedBox(height: 12),
+          if (esAdmin && !soloCancel) ...[
+            // COMPLETAR
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _terminarTemprano,
-                icon: const Icon(Icons.timer_off, color: Colors.white, size: 20),
+                icon: const Icon(Icons.check_circle, color: Colors.black, size: 20),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFFD8B081),
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                label: const Text(
-                  'TERMINAR COMPLETO',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                label: const Text('COMPLETAR',
+                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
+            // COMPLETAR PARCIALMENTE
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -544,13 +498,27 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                label: const Text(
-                  'COMPLETAR PARCIALMENTE',
-                  style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold),
-                ),
+                label: const Text('COMPLETAR PARCIALMENTE',
+                    style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
               ),
             ),
+            const SizedBox(height: 12),
           ],
+          // CANCELAR (siempre disponible para roles no-cliente mientras no sea terminal)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _cancelarComoCliente,
+              icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 20),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              label: const Text('CANCELAR CITA',
+                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            ),
+          ),
         ],
       ),
     );
@@ -572,61 +540,6 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
      );
   }
 
-  Future<void> _cambiarEstado() async {
-    final estados = ['Pendiente', 'Confirmado', 'En Proceso', 'Finalizado', 'No Asistio', 'Cancelado'];
-    
-    final nuevo = await showDialog<String>(
-      context: context,
-      builder: (context) => Theme(
-        data: ThemeData.dark(),
-        child: SimpleDialog(
-          title: const Text('Seleccionar Nuevo Estado', style: TextStyle(color: Color(0xFFD8B081))),
-          backgroundColor: const Color(0xFF111111),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          children: estados.map((e) => SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, e),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(e, style: TextStyle(
-                color: _currentAg.estadoCita == e ? const Color(0xFFD8B081) : Colors.white,
-                fontWeight: _currentAg.estadoCita == e ? FontWeight.bold : FontWeight.normal,
-                fontSize: 16,
-              )),
-            ),
-          )).toList(),
-        ),
-      ),
-    );
-
-    if (nuevo != null && nuevo != _currentAg.estadoCita) {
-      setState(() => _isLoading = true);
-      try {
-        final service = AgendamientoService();
-        // Usar el endpoint específico de cambio de estado (PATCH) en lugar de actualizar todo el agendamiento (PUT)
-        await service.actualizarEstadoAgendamiento(_currentAg.id!, nuevo);
-        AppToast.showSuccess(context, 'Cita actualizada a $nuevo');
-        _refreshData();
-      } catch (e) {
-        setState(() => _isLoading = false);
-        AppToast.showError(context, 'No se pudo actualizar: $e');
-      }
-    }
-  }
-
-  void _editarCita() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AgendamientoFormScreen(
-          agendamiento: _currentAg,
-          role: widget.role,
-        ),
-      ),
-    ).then((val) {
-      if (val == true) _refreshData();
-    });
-  }
-
   Future<void> _terminarTemprano() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -644,7 +557,11 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
     if (ok == true) {
       setState(() => _isLoading = true);
       try {
-        await AgendamientoService().actualizarEstadoAgendamiento(_currentAg.id!, 'Completada');
+        final ventaId = await AgendamientoService()
+            .actualizarEstadoAgendamiento(_currentAg.id!, 'Completada');
+        if (ventaId != null) {
+          await VentaService().fijarNumeroRecibo(ventaId);
+        }
         AppToast.showSuccess(context, 'Cita finalizada temprano');
         _refreshData();
       } catch (e) {
@@ -658,33 +575,6 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
     ModalCompletarParcialmente.show(context, _currentAg, () {
       _refreshData();
     });
-  }
-
-  Future<void> _avisarTermino() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
-        title: const Text('Avisar Término', style: TextStyle(color: Colors.white)),
-        content: const Text('¿Confirmas que terminaste la cita? Se enviará un aviso al administrador.', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('CONFIRMAR', style: TextStyle(color: AppColors.gold))),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      setState(() => _isLoading = true);
-      try {
-        await AgendamientoService().actualizarEstadoAgendamiento(_currentAg.id!, 'Terminado por Barbero');
-        AppToast.showSuccess(context, 'Aviso enviado al administrador');
-        _refreshData();
-      } catch (e) {
-        setState(() => _isLoading = false);
-        AppToast.showError(context, 'Error al enviar aviso: $e');
-      }
-    }
   }
 
   Future<void> _cancelarComoCliente() async {
