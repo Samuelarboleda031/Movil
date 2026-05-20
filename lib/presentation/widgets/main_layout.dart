@@ -213,19 +213,6 @@ class _MainLayoutState extends State<MainLayout> {
           child: const Icon(Icons.add, color: Color(0xFF111111)),
         ),
       );
-    } else if (_currentIndex == 3 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
-      floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ServicioFormScreen())).then((_) {
-          if (mounted) setState(() {});
-        }),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: Container(
-          width: 56, height: 56,
-          decoration: BoxDecoration(gradient: goldGradient, shape: BoxShape.circle),
-          child: const Icon(Icons.add, color: Color(0xFF111111)),
-        ),
-      );
     } else if (_currentIndex == 4 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductoFormScreen())).then((_) {

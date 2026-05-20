@@ -37,8 +37,20 @@ class ServicioService {
         List<dynamic> data;
         if (rawData is List) {
           data = rawData;
-        } else if (rawData is Map && rawData.containsKey('items')) {
-          data = rawData['items'];
+        } else if (rawData is Map) {
+          if (rawData.containsKey('items') && rawData['items'] is List) {
+            data = rawData['items'];
+          } else if (rawData.containsKey('Items') && rawData['Items'] is List) {
+            data = rawData['Items'];
+          } else if (rawData.containsKey('data') && rawData['data'] is List) {
+            data = rawData['data'];
+          } else if (rawData.containsKey('Data') && rawData['Data'] is List) {
+            data = rawData['Data'];
+          } else {
+            final List<dynamic>? firstList = rawData.values
+                .firstWhere((v) => v is List, orElse: () => null) as List<dynamic>?;
+            data = firstList ?? [];
+          }
         } else {
           data = [];
         }
