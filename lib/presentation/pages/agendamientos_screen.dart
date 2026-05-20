@@ -345,7 +345,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     final slotDate = DateTime(date.year, date.month, date.day);
     final isDayPast = slotDate.isBefore(today);
     final isToday = slotDate.isAtSameMomentAs(today);
-    final slotMinutes = startDuration.hour * 60 + startDuration.minute;
+    // startDuration de la librería es relativo al startHour, no es hora real del reloj.
+    // Usar el startTime del evento (hora absoluta) para comparar correctamente.
+    final eventStart = events.first.startTime;
+    final slotMinutes = eventStart != null
+        ? eventStart.hour * 60 + eventStart.minute
+        : startDuration.hour * 60 + startDuration.minute;
     final nowMinutes = now.hour * 60 + now.minute;
     final isPast = isDayPast || (isToday && slotMinutes < nowMinutes);
     final tileBg = isPast ? const Color(0xFF111111) : const Color(0xFF2A2A2A);
@@ -537,6 +542,18 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
           const SizedBox(width: 8),
           _buildToggleBtn('3 Días', 1, Icons.view_day_outlined),
           const Spacer(),
+          // Recargar calendario
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.grey, size: 22),
+            onPressed: () {
+              final state = context.read<AgendamientosBloc>().state;
+              final page = state is AgendamientosLoaded ? state.currentPage : 1;
+              final weekly = state is AgendamientosLoaded ? state.isWeeklyMode : false;
+              context.read<AgendamientosBloc>().add(LoadAgendamientosRequested(page: page, estaSemana: weekly));
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
           // Filtro de estado rápido
           PopupMenuButton<String>(
             icon: Icon(

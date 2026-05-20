@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
@@ -55,7 +56,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       emit(const AgendamientosActionSuccess('Estado actualizado'));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
-      emit(AgendamientosError('Error al cambiar estado: $e'));
+      emit(AgendamientosError(limpiarError(e)));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }
@@ -167,7 +168,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         ));
       }
     } catch (e) {
-      emit(AgendamientosError('Error al cargar agendamientos: $e'));
+      emit(AgendamientosError(limpiarError(e)));
     }
   }
 
@@ -207,7 +208,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       emit(const AgendamientosActionSuccess('Agendamiento cancelado'));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
-      emit(AgendamientosError('Error al cancelar: $e'));
+      emit(AgendamientosError(limpiarError(e)));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }
@@ -272,7 +273,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
-      emit(AgendamientosError('Error al cancelar días: $e'));
+      emit(AgendamientosError(limpiarError(e)));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
@@ -90,7 +91,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
       }
 
     } catch (e) {
-      emit(VentasError('Error al cargar ventas: $e'));
+      emit(VentasError(limpiarError(e)));
     }
   }
 
@@ -111,7 +112,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
       
       add(LoadVentasRequested(page: page));
     } catch (e) {
-      emit(VentasError('Error al anular venta: $e'));
+      emit(VentasError(limpiarError(e)));
       add(LoadVentasRequested(page: page));
     }
   }

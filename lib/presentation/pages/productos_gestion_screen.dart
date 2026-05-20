@@ -9,6 +9,7 @@ import 'producto_form_screen.dart';
 import 'producto_detalle_screen.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
@@ -74,7 +75,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        AppToast.showError(context, 'Error al cargar: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }
@@ -219,7 +220,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
           if (isConflict) {
             AppToast.showError(context, 'El producto tiene conexiones y no puede ser eliminado permanentemente. Se desactivará al editar.');
           } else {
-            AppToast.showError(context, 'Error al eliminar: $e');
+            AppToast.showError(context, limpiarError(e));
           }
         }
       }
@@ -392,7 +393,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                                                 });
                                               }
                                             } catch (e) {
-                                              if (context.mounted) AppToast.showError(context, 'Error: $e');
+                                              if (context.mounted) AppToast.showError(context, limpiarError(e));
                                             }
                                           },
                                         ),

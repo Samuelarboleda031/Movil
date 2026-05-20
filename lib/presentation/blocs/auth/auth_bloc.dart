@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 
 import 'auth_event.dart';
@@ -36,7 +37,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on FirebaseAuthException catch (e) {
       emit(AuthError(e.message ?? 'Error en autenticación'));
     } catch (e) {
-      emit(AuthError('Error inesperado: $e'));
+      emit(AuthError(limpiarError(e)));
     }
   }
 
@@ -51,7 +52,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on FirebaseAuthException catch (e) {
       emit(AuthError(e.message ?? 'Error en autenticación con Google'));
     } catch (e) {
-      emit(AuthError('Error inesperado con Google: $e'));
+      emit(AuthError(limpiarError(e)));
     }
   }
 
@@ -64,7 +65,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _logoutUseCase();
       emit(AuthInitial());
     } catch (e) {
-      emit(AuthError('Error al cerrar sesión: $e'));
+      emit(AuthError(limpiarError(e)));
     }
   }
 }

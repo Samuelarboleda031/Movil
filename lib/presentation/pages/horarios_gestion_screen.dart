@@ -11,6 +11,7 @@ import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/presentation/pages/cancelar_dias_screen.dart';
@@ -317,7 +318,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
       if (dialogContext != null && dialogContext!.mounted) {
         Navigator.of(dialogContext!).pop();
       }
-      if (mounted) AppToast.showError(context, 'Error al cancelar: $e');
+      if (mounted) AppToast.showError(context, limpiarError(e));
     }
   }
 

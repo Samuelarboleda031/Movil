@@ -12,6 +12,7 @@ import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
 
@@ -566,7 +567,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
         _refreshData();
       } catch (e) {
         setState(() => _isLoading = false);
-        AppToast.showError(context, 'Error al actualizar: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }
@@ -598,7 +599,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
         _refreshData();
       } catch (e) {
         setState(() => _isLoading = false);
-        AppToast.showError(context, 'Error al cancelar: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }

@@ -43,6 +43,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   late final HorariosBloc _horariosBloc;
   late final VentasBloc _ventasBloc;
+  List<Widget>? _screens;
 
   @override
   void initState() {
@@ -172,7 +173,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = _getScreens();
+    final screens = _screens ??= _getScreens();
     
     // Configuración del FAB según el rol y la pantalla actual
     Widget? floatingActionButton;
@@ -184,8 +185,8 @@ class _MainLayoutState extends State<MainLayout> {
 
     if (_currentIndex == 1 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((_) {
-          if (mounted) setState(() {});
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AgendamientoFormScreen())).then((value) {
+          if (mounted && value == true) context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
         }),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -241,8 +242,8 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) {
-          if (mounted) setState(() {});
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((value) {
+          if (mounted && value == true) context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
         }),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -254,8 +255,8 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.barber) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((_) {
-          if (mounted) setState(() {});
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((value) {
+          if (mounted && value == true) context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
         }),
         backgroundColor: Colors.transparent,
         elevation: 0,

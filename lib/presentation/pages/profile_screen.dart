@@ -15,6 +15,7 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 // Colores centralizados — ver core/themes/app_colors.dart
@@ -71,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         } catch (_) { _entidadActual = null; }
       }
     } catch (e) {
-      if (mounted) AppToast.showError(context, 'Error al cargar perfil: $e');
+      if (mounted) AppToast.showError(context, limpiarError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -554,7 +555,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        AppToast.showError(context, 'Error al guardar: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }
@@ -587,7 +588,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
           if (mounted) AppToast.showError(context, 'No se pudo obtener el ID de usuario.');
         }
       } catch (e) {
-        if (mounted) AppToast.showError(context, 'Error al subir la foto: $e');
+        if (mounted) AppToast.showError(context, limpiarError(e));
       } finally {
         if (mounted) setState(() => _saving = false);
       }

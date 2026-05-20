@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
@@ -24,6 +25,7 @@ import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 
 // ─── Theme constants ─────────────────────────────────────────────────────────
 // Usando la paleta oficial del proyecto (AppColors / globals.css)
@@ -121,9 +123,15 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   String _busquedaProducto = '';
   bool _mostrarResultadosProducto = false;
 
-  DateTime _fechaSeleccionada = DateTime.now().add(const Duration(days: 1));
-  String? _horaInicioSeleccionada;
-  String? _horaFinSeleccionada;
+  static DateTime _defaultFecha() {
+    final now = DateTime.now();
+    if (now.hour >= 23) return DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime _fechaSeleccionada = _defaultFecha();
+  String? _horaInicioSeleccionada = DateTime.now().hour >= 23 ? '10:30' : null;
+  String? _horaFinSeleccionada = DateTime.now().hour >= 23 ? '11:00' : null;
   List<String> _slotsDisponibles = [];
 
   String _estadoCita = 'Pendiente';
@@ -236,7 +244,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingData = false);
-      _mostrarError('Error al cargar datos: $e');
+      _mostrarError(limpiarError(e));
     }
   }
 
@@ -399,7 +407,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       final end = _toMinutes(h.horaFin);
       while (cursor + durMin <= end) {
         bool solapa = false;
-        if (isToday && cursor <= currentMin + 30) solapa = true;
+        if (isToday && cursor < currentMin + 30) solapa = true;
         if (!solapa) {
           final endCursor = cursor + durMin;
           for (final c in citasBarberoHoy) {
@@ -474,6 +482,20 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       return;
     }
 
+    // Validar anticipación de 30 minutos para citas de hoy
+    final now = DateTime.now();
+    final isToday = _fechaSeleccionada.year == now.year &&
+        _fechaSeleccionada.month == now.month &&
+        _fechaSeleccionada.day == now.day;
+    if (isToday) {
+      final startMin = _toMinutes(_horaInicioSeleccionada!);
+      final currentMin = now.hour * 60 + now.minute;
+      if (startMin < currentMin + 30) {
+        _mostrarError('Las citas para hoy deben ser con al menos 30 min de anticipación', centered: true);
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
     final navigator = Navigator.of(context);
 
@@ -515,7 +537,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         navigator.pop(true);
       }
     } catch (e) {
-      _mostrarError('Error al guardar: $e');
+      _mostrarError(limpiarError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -526,10 +548,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     AppToast.showSuccess(context, msg);
   }
 
-  void _mostrarError(String msg) {
+  void _mostrarError(String msg, {bool centered = false}) {
     if (!mounted) return;
-    AppToast.showError(context, msg);
+    AppToast.showError(context, msg, centered: centered);
   }
+
 
   // ─── UI Helpers ────────────────────────────────────────────────────────────
 
@@ -546,6 +569,141 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       ),
     ),
   );
+
+  void _recalculateSlotsAndRefresh() {
+    _recalcularSlots();
+  }
+
+  void _showClienteSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: _kBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _kBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Seleccionar Cliente',
+              style: TextStyle(
+                color: _kText,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _clientes.length,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemBuilder: (context, index) {
+                  final c = _clientes[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    leading: _buildAvatar(c.fotoPerfil, Icons.person_outline, size: 40),
+                    title: Text(
+                      c.nombreCompleto,
+                      style: const TextStyle(color: _kText, fontSize: 16),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _clienteSeleccionado = c;
+                      });
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBarberoSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: _kBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _kBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Seleccionar Barbero',
+              style: TextStyle(
+                color: _kText,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _barberos.length,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemBuilder: (context, index) {
+                  final b = _barberos[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    leading: _buildAvatar(b.fotoPerfil, Icons.cut, size: 40),
+                    title: Text(
+                      b.nombreCompleto,
+                      style: const TextStyle(color: _kText, fontSize: 16),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _barberoSeleccionado = b;
+                        _horaInicioSeleccionada = null;
+                        _horaFinSeleccionada = null;
+                      });
+                      final nextWorkDay = _findFirstWorkingDay(_fechaSeleccionada);
+                      if (nextWorkDay != _fechaSeleccionada) {
+                        setState(() {
+                          _fechaSeleccionada = nextWorkDay;
+                        });
+                      }
+                      _recalculateSlotsAndRefresh();
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// Avatar o icono fallback
   Widget _buildAvatar(String? foto, IconData fallback, {double size = 36}) {
@@ -676,6 +834,10 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             _buscarServicioAgendCtrl.clear();
             _busquedaServicioAgend = '';
             _mostrarResultadosAgend = false;
+            _productoCantidades.clear();
+            _buscarProductoCtrl.clear();
+            _busquedaProducto = '';
+            _mostrarResultadosProducto = false;
           });
           _recalcularSlots();
         },
@@ -715,25 +877,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_serviciosSeleccionados.isNotEmpty) ...[
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _serviciosSeleccionados.map((s) => _ServiceChip(
-              label: s.nombre,
-              onRemove: () {
-                setState(() {
-                  _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
-                  _calcularTotal();
-                  _horaInicioSeleccionada = null;
-                  _horaFinSeleccionada = null;
-                });
-                _recalcularSlots();
-              },
-            )).toList(),
-          ),
-          const SizedBox(height: 10),
-        ],
         TextField(
           controller: _buscarServicioAgendCtrl,
           style: TextStyle(color: _kText, fontSize: 13),
@@ -755,7 +898,15 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                       _mostrarResultadosAgend = false;
                     }),
                   )
-                : null,
+                : _mostrarResultadosAgend
+                    ? IconButton(
+                        icon: Icon(Icons.keyboard_arrow_up, color: _kTextFaint, size: 22),
+                        onPressed: () => setState(() => _mostrarResultadosAgend = false),
+                      )
+                    : IconButton(
+                        icon: Icon(Icons.keyboard_arrow_down, color: _kTextFaint, size: 22),
+                        onPressed: () => setState(() => _mostrarResultadosAgend = true),
+                      ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             enabledBorder: OutlineInputBorder(
               borderSide: BorderSide(color: _kBorder, width: 0.5),
@@ -785,6 +936,16 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                   .where((s) => (s.estado ?? true) &&
                       (query.isEmpty || s.nombre.toLowerCase().contains(query)))
                   .toList();
+              
+              // Ordenar: No seleccionados primero, seleccionados al final
+              resultados.sort((a, b) {
+                final aSel = selIds.contains(a.id);
+                final bSel = selIds.contains(b.id);
+                if (aSel && !bSel) return 1;
+                if (!aSel && bSel) return -1;
+                return 0;
+              });
+
               if (resultados.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
@@ -873,6 +1034,25 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             }),
           ),
         ],
+        if (_serviciosSeleccionados.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _serviciosSeleccionados.map((s) => _ServiceChip(
+              label: s.nombre,
+              onRemove: () {
+                setState(() {
+                  _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
+                  _calcularTotal();
+                  _horaInicioSeleccionada = null;
+                  _horaFinSeleccionada = null;
+                });
+                _recalcularSlots();
+              },
+            )).toList(),
+          ),
+        ],
       ],
     );
   }
@@ -931,79 +1111,6 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Productos seleccionados ──
-        if (_productoCantidades.isNotEmpty) ...[
-          ..._productoCantidades.entries.map((e) {
-            final p = _productos.firstWhere(
-              (prod) => prod.id == e.key,
-              orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
-            );
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _kSurface,
-                borderRadius: BorderRadius.circular(_kRadiusMd),
-                border: Border.all(color: _kBorder, width: 0.5),
-              ),
-              child: Row(
-                children: [
-                  // Imagen del producto
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _kSurface2,
-                      borderRadius: BorderRadius.circular(8),
-                      image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
-                          ? DecorationImage(
-                              image: NetworkImage(p.imagenProduc!),
-                              fit: BoxFit.cover)
-                          : null,
-                    ),
-                    child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
-                        ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 18)
-                        : null,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(p.nombre,
-                            style: TextStyle(
-                                color: _kText,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
-                        Text(
-                          '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
-                          style: TextStyle(color: _kTextDim, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _QtyControl(
-                    value: e.value,
-                    onDecrement: () => setState(() {
-                      if (e.value > 1) {
-                        _productoCantidades[e.key] = e.value - 1;
-                      } else {
-                        _productoCantidades.remove(e.key);
-                      }
-                      _calcularTotal();
-                    }),
-                    onIncrement: () => setState(() {
-                      _productoCantidades[e.key] = e.value + 1;
-                      _calcularTotal();
-                    }),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          const SizedBox(height: 8),
-        ],
-
         // ── Buscador ──
         TextField(
           controller: _buscarProductoCtrl,
@@ -1026,7 +1133,15 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                       _mostrarResultadosProducto = false;
                     }),
                   )
-                : null,
+                : _mostrarResultadosProducto
+                    ? IconButton(
+                        icon: Icon(Icons.keyboard_arrow_up, color: _kTextFaint, size: 22),
+                        onPressed: () => setState(() => _mostrarResultadosProducto = false),
+                      )
+                    : IconButton(
+                        icon: Icon(Icons.keyboard_arrow_down, color: _kTextFaint, size: 22),
+                        onPressed: () => setState(() => _mostrarResultadosProducto = true),
+                      ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             enabledBorder: OutlineInputBorder(
               borderSide: BorderSide(color: _kBorder, width: 0.5),
@@ -1053,9 +1168,19 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             ),
             child: Builder(builder: (_) {
               final query = _busquedaProducto.toLowerCase();
+              final selIds = _productoCantidades.keys.toSet();
               final resultados = _productos
-                  .where((p) => query.isEmpty || p.nombre.toLowerCase().contains(query))
+                  .where((p) => (query.isEmpty || p.nombre.toLowerCase().contains(query)))
                   .toList();
+
+              // Ordenar: No seleccionados primero, seleccionados al final
+              resultados.sort((a, b) {
+                final aSel = selIds.contains(a.id);
+                final bSel = selIds.contains(b.id);
+                if (aSel && !bSel) return 1;
+                if (!aSel && bSel) return -1;
+                return 0;
+              });
 
               if (resultados.isEmpty) {
                 return Padding(
@@ -1145,6 +1270,117 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
               );
             }),
           ),
+        ],
+
+        const SizedBox(height: 12),
+
+        // ── Productos seleccionados ──
+        if (_productoCantidades.isNotEmpty) ...[
+          ..._productoCantidades.entries.map((e) {
+            final p = _productos.firstWhere(
+              (prod) => prod.id == e.key,
+              orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
+            );
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kSurface,
+                borderRadius: BorderRadius.circular(_kRadiusMd),
+                border: Border.all(color: _kBorder, width: 0.5),
+              ),
+              child: Row(
+                children: [
+                  // Imagen del producto
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _kSurface2,
+                      borderRadius: BorderRadius.circular(8),
+                      image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
+                          ? DecorationImage(
+                              image: NetworkImage(p.imagenProduc!),
+                              fit: BoxFit.cover)
+                          : null,
+                    ),
+                    child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
+                        ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 18)
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.nombre,
+                            style: TextStyle(
+                                color: _kText,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        Text(
+                          '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
+                          style: TextStyle(color: _kTextDim, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _QtyControl(
+                     productId: e.key,
+                     value: e.value,
+                     isError: e.value >= 9999,
+                    onDecrement: () => setState(() {
+                      if (e.value > 1) {
+                        _productoCantidades[e.key] = e.value - 1;
+                      } else {
+                        _productoCantidades.remove(e.key);
+                      }
+                      _calcularTotal();
+                    }),
+                    onIncrement: () {
+                      if (e.value >= 9999) {
+                        _mostrarError('La cantidad máxima es 9999', centered: true);
+                        return;
+                      }
+                      setState(() {
+                        _productoCantidades[e.key] = e.value + 1;
+                        _calcularTotal();
+                      });
+                    },
+                    onChanged: (val) {
+                      if (val.length > 4) {
+                        _mostrarError('Máximo 4 dígitos permitidos', centered: true);
+                        final trimmed = val.substring(0, 4);
+                        setState(() {
+                          _productoCantidades[e.key] = int.parse(trimmed);
+                          _calcularTotal();
+                        });
+                        return;
+                      }
+                      final newVal = int.tryParse(val);
+                      if (newVal != null && newVal > 0) {
+                        setState(() {
+                          _productoCantidades[e.key] = newVal > 9999 ? 9999 : newVal;
+                          _calcularTotal();
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18, color: Color(0xFFB07070)),
+                    onPressed: () => setState(() {
+                      _productoCantidades.remove(e.key);
+                      _calcularTotal();
+                    }),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 8),
         ],
       ],
     );
@@ -1383,11 +1619,15 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   /// Badge de estado tap-able
   Widget _buildEstadoBadge() {
     final estado = _estadosCita[_estadoIndex];
+    final isRestrictedRole = widget.role == AppRole.client || widget.role == AppRole.barber;
+
     return GestureDetector(
-      onTap: () => setState(() {
-        _estadoIndex = (_estadoIndex + 1) % _estadosCita.length;
-        _estadoCita = _estadosCita[_estadoIndex]['label'] as String;
-      }),
+      onTap: isRestrictedRole
+          ? null
+          : () => setState(() {
+                _estadoIndex = (_estadoIndex + 1) % _estadosCita.length;
+                _estadoCita = _estadosCita[_estadoIndex]['label'] as String;
+              }),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -1402,31 +1642,39 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
               'Estado de la cita',
               style: TextStyle(color: _kTextMuted, fontSize: 14),
             ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Container(
-                key: ValueKey(_estadoIndex),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: estado['color'] as Color,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: estado['border'] as Color,
-                    width: 0.5,
+            Row(
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    key: ValueKey(_estadoIndex),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: estado['color'] as Color,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: estado['border'] as Color,
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      estado['label'] as String,
+                      style: TextStyle(
+                        color: estado['textColor'] as Color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
-                child: Text(
-                  estado['label'] as String,
-                  style: TextStyle(
-                    color: estado['textColor'] as Color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
+                if (!isRestrictedRole) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.keyboard_arrow_down, color: _kTextFaint, size: 20),
+                ],
+              ],
             ),
           ],
         ),
@@ -1578,47 +1826,55 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               onTap: null,
                               locked: true,
                             )
-                          : SearchableSelector<Barbero>(
-                              label: '',
-                              hint: 'Selecciona un barbero...',
-                              items: _barberos,
-                              selectedItem: _barberoSeleccionado,
-                              displayText: (b) => b.nombreCompleto,
-                              searchText: (b) => b.nombreCompleto,
-                              prefixIcon: Icons.badge_outlined,
-                              required: true,
-                              renderItem: (b) => Row(
-                                children: [
-                                  _buildAvatar(
-                                    b.fotoPerfil,
-                                    Icons.cut,
-                                    size: 30,
+                          : _barberoSeleccionado != null
+                              ? _buildSelectorCard(
+                                  icon: Icons.cut,
+                                  name: _barberoSeleccionado!.nombreCompleto,
+                                  hint: 'Barbero seleccionado',
+                                  foto: _barberoSeleccionado!.fotoPerfil,
+                                  onTap: () => _showBarberoSelector(),
+                                )
+                              : SearchableSelector<Barbero>(
+                                  label: '',
+                                  hint: 'Selecciona un barbero...',
+                                  items: _barberos,
+                                  selectedItem: _barberoSeleccionado,
+                                  displayText: (b) => b.nombreCompleto,
+                                  searchText: (b) => b.nombreCompleto,
+                                  prefixIcon: Icons.badge_outlined,
+                                  required: true,
+                                  renderItem: (b) => Row(
+                                    children: [
+                                      _buildAvatar(
+                                        b.fotoPerfil,
+                                        Icons.cut,
+                                        size: 30,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        b.nombreCompleto,
+                                        style: const TextStyle(
+                                          color: _kText,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    b.nombreCompleto,
-                                    style: const TextStyle(
-                                      color: _kText,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              onSelected: (b) {
-                                setState(() {
-                                  _barberoSeleccionado = b;
-                                  _horaInicioSeleccionada = null;
-                                  _horaFinSeleccionada = null;
-                                });
-                                final nextWorkDay = _findFirstWorkingDay(_fechaSeleccionada);
-                                if (nextWorkDay != _fechaSeleccionada) {
-                                  setState(() {
-                                    _fechaSeleccionada = nextWorkDay;
-                                  });
-                                }
-                                _recalcularSlots();
-                              },
-                            ),
+                                  onSelected: (b) {
+                                    setState(() {
+                                      _barberoSeleccionado = b;
+                                      _horaInicioSeleccionada = null;
+                                      _horaFinSeleccionada = null;
+                                    });
+                                    final nextWorkDay = _findFirstWorkingDay(_fechaSeleccionada);
+                                    if (nextWorkDay != _fechaSeleccionada) {
+                                      setState(() {
+                                        _fechaSeleccionada = nextWorkDay;
+                                      });
+                                    }
+                                    _recalculateSlotsAndRefresh();
+                                  },
+                                ),
                       const SizedBox(height: 20),
 
                       // ── Cliente ──
@@ -1633,35 +1889,43 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               onTap: null,
                               locked: true,
                             )
-                          : SearchableSelector<Cliente>(
-                              label: '',
-                              hint: 'Selecciona un cliente...',
-                              items: _clientes,
-                              selectedItem: _clienteSeleccionado,
-                              displayText: (c) => c.nombreCompleto,
-                              searchText: (c) => c.nombreCompleto,
-                              prefixIcon: Icons.person_outline,
-                              required: true,
-                              renderItem: (c) => Row(
-                                children: [
-                                  _buildAvatar(
-                                    c.fotoPerfil,
-                                    Icons.person_outline,
-                                    size: 30,
+                          : _clienteSeleccionado != null
+                              ? _buildSelectorCard(
+                                  icon: Icons.person_outline,
+                                  name: _clienteSeleccionado!.nombreCompleto,
+                                  hint: 'Cliente seleccionado',
+                                  foto: _clienteSeleccionado!.fotoPerfil,
+                                  onTap: () => _showClienteSelector(),
+                                )
+                              : SearchableSelector<Cliente>(
+                                  label: '',
+                                  hint: 'Selecciona un cliente...',
+                                  items: _clientes,
+                                  selectedItem: _clienteSeleccionado,
+                                  displayText: (c) => c.nombreCompleto,
+                                  searchText: (c) => c.nombreCompleto,
+                                  prefixIcon: Icons.person_outline,
+                                  required: true,
+                                  renderItem: (c) => Row(
+                                    children: [
+                                      _buildAvatar(
+                                        c.fotoPerfil,
+                                        Icons.person_outline,
+                                        size: 30,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        c.nombreCompleto,
+                                        style: const TextStyle(
+                                          color: _kText,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    c.nombreCompleto,
-                                    style: const TextStyle(
-                                      color: _kText,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              onSelected: (c) =>
-                                  setState(() => _clienteSeleccionado = c),
-                            ),
+                                  onSelected: (c) =>
+                                      setState(() => _clienteSeleccionado = c),
+                                ),
 
                       _buildDivider(),
 
@@ -1675,11 +1939,13 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
                       _buildDivider(),
 
-                      // ── Productos ──
-                      _sectionLabel('Productos (opcional)'),
-                      _buildProductosSection(),
-
-                      _buildDivider(),
+                      // ── Productos (solo si hay servicio o paquete seleccionado) ──
+                      if (_serviciosSeleccionados.isNotEmpty || _paqueteSeleccionado != null) ...[
+                        _sectionLabel('Productos (opcional)'),
+                        _buildProductosSection(),
+                        _buildDivider(),
+                      ] else
+                        _buildDivider(),                      _buildDivider(),
 
                       // ── Fecha y hora ──
                       _sectionLabel('Fecha y hora'),
@@ -1810,65 +2076,110 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: _kSurface,
-        borderRadius: BorderRadius.circular(_kRadius),
-        border: Border.all(color: _kBorder, width: 0.5),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.calendar_today_outlined,
-            color: _horaInicioSeleccionada != null ? _kGold : _kTextDim,
-            size: 20,
-          ),
-          const SizedBox(width: 14),
-          GestureDetector(
-            onTap: () {
-              if (_barberoSeleccionado == null) {
-                _mostrarError("Selecciona un barbero primero");
-                return;
-              }
-              _showDatePickerSheet();
-            },
-            child: Text(
-              dateStr,
-              style: const TextStyle(
-                color: _kText,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
+    final now = DateTime.now();
+    final isToday = _fechaSeleccionada.year == now.year &&
+        _fechaSeleccionada.month == now.month &&
+        _fechaSeleccionada.day == now.day;
+    
+    bool isTimeInvalid = false;
+    if (isToday && _horaInicioSeleccionada != null) {
+      final startMin = _toMinutes(_horaInicioSeleccionada!);
+      final currentMin = now.hour * 60 + now.minute;
+      if (startMin < currentMin + 30) {
+        isTimeInvalid = true;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: _kSurface,
+            borderRadius: BorderRadius.circular(_kRadius),
+            border: Border.all(
+              color: isTimeInvalid ? const Color(0xFFB07070) : _kBorder,
+              width: 0.5,
             ),
           ),
-          const SizedBox(width: 14),
-          Text(
-            '|',
-            style: TextStyle(color: _kTextDim.withOpacity(0.3), fontSize: 14),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (_barberoSeleccionado == null) {
-                  _mostrarError("Selecciona un barbero primero");
-                  return;
-                }
-                _showTimePickerSheet();
-              },
-              child: Text(
-                timeStr,
-                style: TextStyle(
-                  color: _horaInicioSeleccionada != null ? _kText : _kTextDim,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+          child: Row(
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                color: _horaInicioSeleccionada != null ? _kGold : _kTextDim,
+                size: 20,
+              ),
+              const SizedBox(width: 14),
+              GestureDetector(
+                onTap: () {
+                  if (_barberoSeleccionado == null) {
+                    _mostrarError("Selecciona un barbero primero");
+                    return;
+                  }
+                  _showDatePickerSheet();
+                },
+                child: Text(
+                  dateStr,
+                  style: const TextStyle(
+                    color: _kText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 14),
+              Text(
+                '|',
+                style: TextStyle(color: _kTextDim.withOpacity(0.3), fontSize: 14),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    if (_barberoSeleccionado == null) {
+                      _mostrarError("Selecciona un barbero primero");
+                      return;
+                    }
+                    _showTimePickerSheet();
+                  },
+                  child: Text(
+                    timeStr,
+                    style: TextStyle(
+                      color: isTimeInvalid 
+                          ? const Color(0xFFB07070) 
+                          : (_horaInicioSeleccionada != null ? _kText : _kTextDim),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isToday) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 14,
+                color: isTimeInvalid ? const Color(0xFFB07070) : _kGoldMid,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Se requiere 30 min de anticipación para hoy',
+                style: TextStyle(
+                  color: isTimeInvalid ? const Color(0xFFB07070) : _kGoldMid,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
-      ),
+      ],
     );
   }
 
@@ -2030,8 +2341,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         now.hour,
         ((now.minute + 15) ~/ 15) * 15,
       );
-      if (temp.isBefore(now)) {
-        temp = temp.add(const Duration(minutes: 30));
+      if (temp.isBefore(now.add(const Duration(minutes: 30)))) {
+        temp = now.add(const Duration(minutes: 30));
+        // Ajustar a los próximos 15 minutos para que se vea limpio
+        int nextMin = ((temp.minute + 14) ~/ 15) * 15;
+        temp = DateTime(temp.year, temp.month, temp.day, temp.hour, nextMin);
       }
     }
 
@@ -2108,6 +2422,9 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                   final startMin = _toMinutes(timeInicioStr);
                   final endMin = _toMinutes(timeFinStr);
 
+                  final isToday = temp.year == now.year && temp.month == now.month && temp.day == now.day;
+                  final currentMin = now.hour * 60 + now.minute;
+
                   bool fitsWorkHours = false;
                   for (final h in horariosBarbero) {
                     final shiftStart = _toMinutes(h.horaInicio);
@@ -2118,7 +2435,11 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                     }
                   }
 
-                  if (!fitsWorkHours) {
+                  if (isToday && startMin < currentMin + 30) {
+                    statusMsg = "Solo se puede hacer una cita con 30 min de anticipación";
+                    statusColor = const Color(0xFFB07070);
+                    isAvailable = false;
+                  } else if (!fitsWorkHours) {
                     final workingHoursStr = horariosBarbero.map((d) => "${_toAmPm(d.horaInicio)} - ${_toAmPm(d.horaFin)}").join(', ');
                     statusMsg = "Fuera de horario (Trabaja: $workingHoursStr)";
                     statusColor = const Color(0xFFB07070);
@@ -2339,32 +2660,86 @@ class _TimeBox extends StatelessWidget {
   }
 }
 
-class _QtyControl extends StatelessWidget {
+class _QtyControl extends StatefulWidget {
+  final int productId;
   final int value;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+  final ValueChanged<String>? onChanged;
+  final bool isError;
+
   const _QtyControl({
+    required this.productId,
     required this.value,
     required this.onDecrement,
     required this.onIncrement,
+    this.onChanged,
+    this.isError = false,
   });
 
   @override
+  State<_QtyControl> createState() => _QtyControlState();
+}
+
+class _QtyControlState extends State<_QtyControl> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toString());
+  }
+
+  @override
+  void didUpdateWidget(_QtyControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value.toString() != _controller.text) {
+      _controller.text = widget.value.toString();
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final textLen = widget.value.toString().length;
+    final width = 24.0 + (textLen * 8.0);
+
     return Row(
       children: [
-        _QtyBtn(icon: Icons.remove, onTap: onDecrement),
-        const SizedBox(width: 6),
-        Text(
-          '$value',
-          style: const TextStyle(
-            color: _kText,
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
+        _QtyBtn(icon: Icons.remove, onTap: widget.onDecrement),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: width.clamp(32.0, 60.0),
+          child: TextFormField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: widget.isError ? const Color(0xFFB07070) : _kText,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 4),
+              border: InputBorder.none,
+            ),
+            onChanged: widget.onChanged,
           ),
         ),
-        const SizedBox(width: 6),
-        _QtyBtn(icon: Icons.add, onTap: onIncrement),
+        const SizedBox(width: 4),
+        _QtyBtn(icon: Icons.add, onTap: widget.onIncrement),
       ],
     );
   }

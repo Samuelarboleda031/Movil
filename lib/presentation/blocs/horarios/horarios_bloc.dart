@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/datasources/horario_barbero_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -51,7 +52,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
         emit(HorariosLoaded(horarios: horarios));
       }
     } catch (e) {
-      emit(HorariosError(message: 'Error al cargar horarios: $e'));
+      emit(HorariosError(message: limpiarError(e)));
     }
   }
 
@@ -62,7 +63,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       emit(const HorarioActionSuccess(message: 'Horario semanal creado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al crear horario semanal: $e'));
+      emit(HorariosError(message: limpiarError(e)));
       add(LoadHorariosRequested());
     }
   }
@@ -74,7 +75,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       emit(const HorarioActionSuccess(message: 'Horario semanal actualizado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al actualizar horario semanal: $e'));
+      emit(HorariosError(message: limpiarError(e)));
       add(LoadHorariosRequested());
     }
   }
@@ -86,7 +87,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       emit(const HorarioActionSuccess(message: 'Horario semanal eliminado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al eliminar horario semanal: $e'));
+      emit(HorariosError(message: limpiarError(e)));
       add(LoadHorariosRequested());
     }
   }
@@ -135,7 +136,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       emit(const HorarioActionSuccess(message: 'Estado cambiado exitosamente'));
       add(LoadHorariosRequested());
     } catch (e) {
-      emit(HorariosError(message: 'Error al cambiar estado: $e'));
+      emit(HorariosError(message: limpiarError(e)));
       add(LoadHorariosRequested());
     }
   }

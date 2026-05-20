@@ -23,6 +23,7 @@ import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 
@@ -355,7 +356,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       });
     } catch (e) {
       setState(() => _isLoadingData = false);
-      if (mounted) _mostrarError('Error al cargar datos: $e');
+      if (mounted) _mostrarError(limpiarError(e));
     }
   }
 
@@ -639,7 +640,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         Navigator.of(context).pop(true);
       }
     } catch (e) {
-      _mostrarError('Error al guardar la venta: $e');
+      _mostrarError(limpiarError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -792,7 +793,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                   Icons.person_outline,
                   valueColor: _tipoVenta == 'Venta Cliente'
                       ? AppColors.green
-                      : Colors.orange,
+                      : AppColors.gold,
                 ),
               ),
             ],
@@ -891,6 +892,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             searchText: (c) => '${c.nombreCompleto} ${c.documento}',
             prefixIcon: Icons.person_outline,
             required: false,
+            selectedPrefixBuilder: (c) => _buildImage(
+              c.fotoPerfil,
+              defaultIcon: Icons.person_outline,
+            ),
             renderItem: (c) => Row(
               children: [
                 _buildImage(c.fotoPerfil, defaultIcon: Icons.person_outline),
@@ -957,14 +962,14 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                   const Icon(
                     Icons.info_outline,
                     size: 13,
-                    color: Colors.orange,
+                    color: AppColors.gold,
                   ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Se registrará como invitado: "$_clienteNombreInvitado"',
                       style: const TextStyle(
-                        color: Colors.orange,
+                        color: AppColors.gold,
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                       ),
@@ -1106,6 +1111,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
               displayText: (b) => b.nombreCompleto,
               searchText: (b) => '${b.nombreCompleto} ${b.documento}',
               prefixIcon: Icons.badge_outlined,
+              selectedPrefixBuilder: (b) => _buildImage(
+                b.fotoPerfil,
+                defaultIcon: Icons.badge_outlined,
+              ),
               renderItem: (b) => Row(
                 children: [
                   _buildImage(b.fotoPerfil, defaultIcon: Icons.badge_outlined),
@@ -1195,12 +1204,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           const SizedBox(height: 12),
 
           // Garantía (solo lectura)
-          _buildTextField(
-            label: 'Garantía',
-            icon: Icons.verified_outlined,
-            hint: '15 días (fijo)',
-            initialValue: '15 días (fijo)',
-            readOnly: true,
+          _buildChipInfo(
+            'Garantía',
+            '15 días',
+            Icons.verified_outlined,
           ),
         ],
       ),
@@ -1626,7 +1633,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             _buildFilaResumen(
               'Descuento (${_porcentajeDescuento.toStringAsFixed(1)}%)',
               '- ${AppFormat.cop(_descuento)}',
-              color: Colors.orange,
+              color: AppColors.gold,
             ),
           _buildFilaResumen(
             'IVA',
@@ -1637,7 +1644,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             _buildFilaResumen(
               'Saldo a Favor aplicado',
               '- ${AppFormat.cop(_saldoAplicado)}',
-              color: Colors.blue,
+              color: AppColors.greyLight,
             ),
           const Divider(color: AppColors.divider, thickness: 1),
           Row(
@@ -1666,21 +1673,21 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.08),
+              color: AppColors.greyMedium.withOpacity(0.3),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              border: Border.all(color: AppColors.divider),
             ),
             child: Row(
               children: [
                 const Icon(
                   Icons.verified_outlined,
                   size: 14,
-                  color: Colors.blue,
+                  color: AppColors.greyLight,
                 ),
                 const SizedBox(width: 6),
                 const Text(
                   'Garantía: 15 días',
-                  style: TextStyle(color: Colors.blue, fontSize: 12),
+                  style: TextStyle(color: AppColors.greyLight, fontSize: 12),
                 ),
                 const Spacer(),
                 Text(

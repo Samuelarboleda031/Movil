@@ -18,6 +18,9 @@ class SearchableSelector<T> extends StatefulWidget {
   final bool enabled;
   final IconData? prefixIcon;
   final String? Function(T?)? validator;
+  /// Widget que se muestra como prefijo cuando hay un item seleccionado.
+  /// Si es null, se usa el [prefixIcon] normal.
+  final Widget Function(T item)? selectedPrefixBuilder;
 
   const SearchableSelector({
     super.key,
@@ -34,6 +37,7 @@ class SearchableSelector<T> extends StatefulWidget {
     this.enabled = true,
     this.prefixIcon,
     this.validator,
+    this.selectedPrefixBuilder,
   });
 
   @override
@@ -308,10 +312,18 @@ class _SearchableSelectorState<T> extends State<SearchableSelector<T>> {
                 fillColor: const Color(0xFF141414), // _kSurface
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 14),
-                prefixIcon: widget.prefixIcon != null
-                    ? Icon(widget.prefixIcon,
-                        size: 18, color: const Color(0xFF888888))
-                    : null,
+                prefixIcon: widget.selectedItem != null &&
+                        widget.selectedPrefixBuilder != null
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
+                        child: widget.selectedPrefixBuilder!(
+                            widget.selectedItem as T),
+                      )
+                    : widget.prefixIcon != null
+                        ? Icon(widget.prefixIcon,
+                            size: 18, color: const Color(0xFF888888))
+                        : null,
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

@@ -11,6 +11,7 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
@@ -796,7 +797,7 @@ class _MiniGananciaPillState extends State<_MiniGananciaPill> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        AppToast.showError(context, 'No se pudo cargar: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }

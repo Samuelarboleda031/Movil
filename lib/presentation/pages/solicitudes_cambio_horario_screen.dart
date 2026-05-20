@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/solicitud_cambio_horario_service.dart';
@@ -52,7 +53,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
       );
       if (mounted) setState(() { _solicitudes = list; _isLoading = false; });
     } catch (e) {
-      if (mounted) { setState(() => _isLoading = false); AppToast.showError(context, 'Error: $e'); }
+      if (mounted) { setState(() => _isLoading = false); AppToast.showError(context, limpiarError(e)); }
     }
   }
 
@@ -340,7 +341,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
       AppToast.showSuccess(context, 'Solicitud aprobada');
       _cargar();
     } catch (e) {
-      AppToast.showError(context, 'Error: $e');
+      AppToast.showError(context, limpiarError(e));
     }
   }
 
@@ -372,7 +373,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
                 AppToast.showSuccess(context, 'Solicitud rechazada');
                 _cargar();
               } catch (e) {
-                AppToast.showError(context, 'Error: $e');
+                AppToast.showError(context, limpiarError(e));
               }
             },
             child: const Text('Rechazar'),
@@ -388,7 +389,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
       AppToast.showSuccess(context, acepta ? 'Propuesta aceptada' : 'Propuesta rechazada');
       _cargar();
     } catch (e) {
-      AppToast.showError(context, 'Error: $e');
+      AppToast.showError(context, limpiarError(e));
     }
   }
 
@@ -481,7 +482,7 @@ class _NuevaSolicitudFormState extends State<_NuevaSolicitudForm> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        AppToast.showError(context, 'Error: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }

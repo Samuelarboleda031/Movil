@@ -5,6 +5,7 @@ import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/datasources/media_service.dart';
 import 'package:parte_movil/data/datasources/servicio_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 
@@ -102,7 +103,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
       }
     } catch (e) {
       if (mounted) {
-        AppToast.showError(context, 'Error: $e');
+        AppToast.showError(context, limpiarError(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

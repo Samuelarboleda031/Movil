@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
@@ -115,7 +116,7 @@ class _ModalCompletarParcialmenteState extends State<ModalCompletarParcialmente>
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      AppToast.showError(context, 'Error al procesar: $e');
+      AppToast.showError(context, limpiarError(e));
       setState(() => _isSubmitting = false);
     }
   }
