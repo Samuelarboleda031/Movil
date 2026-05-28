@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/categoria.dart';
+import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 
 class ProductoService {
@@ -45,25 +46,44 @@ class ProductoService {
   }
 
   // ================= PRODUCTOS =================
-  Future<List<Producto>> getProductos({int page = 1, int pageSize = 5}) async {
+  Future<Paginacion<Producto>> getProductos({
+    int page = 1,
+    int pageSize = 8,
+    String? q,
+  }) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.productos}?page=$page&pageSize=$pageSize';
-      
-      final response = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 30));
+      var url = '${ApiConfig.baseUrl}${ApiConfig.productos}?page=$page&pageSize=$pageSize';
+      if (q != null && q.trim().isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q.trim())}';
+      }
+
+      final response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        if (response.body.isEmpty) return [];
+        if (response.body.isEmpty) return Paginacion.empty();
         final dynamic rawData = jsonDecode(response.body);
-        
-        List<dynamic> data = [];
-        if (rawData is List) {
-          data = rawData;
-        } else if (rawData is Map && rawData.containsKey('items')) {
-          data = rawData['items'];
-        }
 
-        return data.map((json) => Producto.fromJson(json)).toList();
+        if (rawData is Map && rawData.containsKey('items')) {
+          return Paginacion<Producto>.fromJson(
+            rawData as Map<String, dynamic>,
+            (j) => Producto.fromJson(j),
+          );
+        } else if (rawData is List) {
+          final items = rawData.map((j) => Producto.fromJson(j)).toList();
+          return Paginacion<Producto>(
+            items: items,
+            totalCount: items.length,
+            pageSize: pageSize,
+            currentPage: page,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
+        }
+        return Paginacion.empty();
       } else {
         throw Exception('Error al obtener productos: ${response.statusCode}');
       }

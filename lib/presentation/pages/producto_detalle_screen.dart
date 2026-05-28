@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/app_role.dart';
+import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'producto_form_screen.dart';
-
-// ─── TOKENS ────────────────────────────────────────────────────────────────
-// Colores centralizados — ver core/themes/app_colors.dart
 import 'package:parte_movil/core/themes/app_colors.dart';
 
 
@@ -25,9 +25,15 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
 
+  final ProductoService _service = ProductoService();
+
+  /// Copia local del producto — se actualiza al volver del formulario.
+  late Producto _producto;
+
   @override
   void initState() {
     super.initState();
+    _producto = widget.producto;
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -42,6 +48,18 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
   void dispose() {
     _animCtrl.dispose();
     super.dispose();
+  }
+
+  /// Abre el formulario y recarga el producto desde el servidor al volver.
+  Future<void> _abrirEdicion() async {
+    final editado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ProductoFormScreen(producto: _producto)),
+    );
+    if (editado == true && _producto.id != null) {
+      final fresco = await _service.getProductoById(_producto.id!);
+      if (fresco != null && mounted) setState(() => _producto = fresco);
+    }
   }
 
   @override
@@ -82,7 +100,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                           ],
 
                           const SizedBox(height: 14),
-                          if (widget.producto.descripcion != null && widget.producto.descripcion!.isNotEmpty)
+                          if (_producto.descripcion != null && _producto.descripcion!.isNotEmpty)
                             _buildDescriptionCard(),
                         ],
                       ),
@@ -105,11 +123,11 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
 
   Widget _buildSliverAppBar(BuildContext context, bool isAdmin) {
     String? imageUrl;
-    if (widget.producto.imagenProduc != null && widget.producto.imagenProduc!.isNotEmpty) {
-      if (widget.producto.imagenProduc!.startsWith('http')) {
-        imageUrl = widget.producto.imagenProduc;
+    if (_producto.imagenProduc != null && _producto.imagenProduc!.isNotEmpty) {
+      if (_producto.imagenProduc!.startsWith('http')) {
+        imageUrl = _producto.imagenProduc;
       } else {
-        imageUrl = '${ApiConfig.baseUrl}${widget.producto.imagenProduc}';
+        imageUrl = '${ApiConfig.baseUrl}${_producto.imagenProduc}';
       }
     }
 
@@ -131,7 +149,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
         ),
       ),
       title: Text(
-        isAdmin ? 'Detalle del Producto' : widget.producto.nombre,
+        isAdmin ? 'Detalle del Producto' : _producto.nombre,
         style: const TextStyle(
           color: AppColors.white,
           fontWeight: FontWeight.bold,
@@ -150,12 +168,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
             ),
             child: IconButton(
               icon: const Icon(Icons.edit_outlined, color: AppColors.gold, size: 18),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ProductoFormScreen(producto: widget.producto)),
-                ).then((_) => setState(() {}));
-              },
+              onPressed: _abrirEdicion,
               padding: EdgeInsets.zero,
             ),
           ),
@@ -213,7 +226,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.producto.nombre,
+          _producto.nombre,
           style: const TextStyle(
             color: AppColors.white,
             fontWeight: FontWeight.bold,
@@ -225,7 +238,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
         Row(
           children: [
             Text(
-              AppFormat.cop(widget.producto.precioVenta),
+              AppFormat.cop(_producto.precioVenta),
               style: const TextStyle(
                 color: AppColors.gold,
                 fontSize: 22,
@@ -234,11 +247,11 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
             ),
             if (isAdmin) ...[
               const SizedBox(width: 12),
-              _categoryChip(widget.producto.categoria?.nombre ?? 'Sin Categoría'),
+              _categoryChip(_producto.categoria?.nombre ?? 'Sin Categoría'),
               const SizedBox(width: 8),
               _statusChip(
-                widget.producto.activo ? 'Activo' : 'Inactivo',
-                widget.producto.activo ? AppColors.green : AppColors.red
+                _producto.activo ? 'Activo' : 'Inactivo',
+                _producto.activo ? AppColors.green : AppColors.red
               ),
             ],
           ],
@@ -294,7 +307,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
   }
 
   Widget _buildAvailabilityCard() {
-    final totalStock = widget.producto.stockVentas;
+    final stock = _producto.cantidad;
     return _gradientCard(
       iconData: Icons.check_circle_outline,
       title: 'Disponibilidad',
@@ -303,9 +316,9 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
         children: [
           const Text('Unidades disponibles', style: TextStyle(color: AppColors.grey, fontSize: 15)),
           Text(
-            totalStock > 0 ? '$totalStock' : 'Agotado',
+            stock > 0 ? '$stock' : 'Agotado',
             style: TextStyle(
-              color: totalStock > 0 ? AppColors.green : AppColors.red,
+              color: stock > 0 ? AppColors.green : AppColors.red,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -316,28 +329,29 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
   }
 
   Widget _buildInventoryCard() {
-    final totalStock = widget.producto.stockVentas + widget.producto.stockInsumos;
-    final useLabel = widget.producto.usoProducto == 'solo_venta' ? 'Solo Venta' : 'Venta e Insumos';
-    
+    final stock = _producto.cantidad;
+    final stockBajo = stock < 5;
+
     return _gradientCard(
       iconData: Icons.bar_chart_rounded,
       title: 'Inventario',
       child: Column(
         children: [
-          _infoRow('Stock Total',   totalStock.toString(), isHighlight: true),
-          _divider(),
-          _infoRow('Stock Ventas',  widget.producto.stockVentas.toString()),
-          _divider(),
-          _infoRow('Stock Insumos', widget.producto.stockInsumos.toString()),
-          _divider(),
-          _infoRow('Uso',           useLabel),
+          _infoRow('Stock disponible', stock.toString(),
+              isHighlight: true,
+              valueColor: stockBajo ? AppColors.red : null),
+          if (stockBajo) ...[
+            _divider(),
+            _infoRow('Alerta', 'Stock bajo (menos de 5 unidades)',
+                valueColor: AppColors.red),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildFinancesCard() {
-    final ganancia = widget.producto.precioVenta - widget.producto.precioCompra;
+    final ganancia = _producto.precioVenta - _producto.precioCompra;
     
     return _gradientCard(
       iconData: Icons.account_balance_wallet_outlined,
@@ -349,7 +363,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
               Expanded(
                 child: _priceBox(
                   label: 'Precio Venta',
-                  amount: AppFormat.cop(widget.producto.precioVenta),
+                  amount: AppFormat.cop(_producto.precioVenta),
                   color: AppColors.gold,
                   bgColor: const Color(0xFF3D2B10),
                 ),
@@ -358,7 +372,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
               Expanded(
                 child: _priceBox(
                   label: 'Precio Compra',
-                  amount: AppFormat.cop(widget.producto.precioCompra),
+                  amount: AppFormat.cop(_producto.precioCompra),
                   color: AppColors.greyLight,
                   bgColor: const Color(0xFF252525),
                 ),
@@ -367,7 +381,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
           ),
           const SizedBox(height: 14),
           _divider(),
-          _infoRow('Marca', widget.producto.marca ?? 'Genérico'),
+          _infoRow('Marca', _producto.marca ?? 'Genérico'),
           _divider(),
           _infoRow('Ganancia', AppFormat.cop(ganancia), valueColor: AppColors.green),
         ],
@@ -411,7 +425,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
       iconData: Icons.description_outlined,
       title: 'Descripción',
       child: Text(
-        widget.producto.descripcion!,
+        _producto.descripcion!,
         style: const TextStyle(
           color: AppColors.greyLight,
           fontSize: 14,
@@ -534,12 +548,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
           const SizedBox(width: 12),
           Expanded(
             child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ProductoFormScreen(producto: widget.producto)),
-                ).then((_) => setState(() {}));
-              },
+              onTap: _abrirEdicion,
               child: Container(
                 height: 54,
                 decoration: BoxDecoration(
@@ -625,7 +634,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
   void _showDeleteDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogCtx) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
           padding: const EdgeInsets.all(24),
@@ -641,7 +650,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.red.withOpacity(0.12),
+                  color: AppColors.red.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.delete_outline, color: AppColors.red, size: 28),
@@ -653,7 +662,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                '¿Estás seguro que deseas eliminar "${widget.producto.nombre}"? Esta acción no se puede deshacer.',
+                '¿Estás seguro que deseas eliminar "${_producto.nombre}"?\nEsta acción no se puede deshacer.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.grey, fontSize: 14, height: 1.5),
               ),
@@ -662,7 +671,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.pop(dialogCtx),
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
@@ -671,7 +680,10 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                           border: Border.all(color: AppColors.divider),
                         ),
                         child: const Center(
-                          child: Text('Cancelar', style: TextStyle(color: AppColors.greyLight, fontWeight: FontWeight.w600)),
+                          child: Text('Cancelar',
+                              style: TextStyle(
+                                  color: AppColors.greyLight,
+                                  fontWeight: FontWeight.w600)),
                         ),
                       ),
                     ),
@@ -679,33 +691,40 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pop(context); // Volver a la lista
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: AppColors.red,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            content: const Row(
-                              children: [
-                                Icon(Icons.check, color: Colors.white),
-                                SizedBox(width: 8),
-                                Text('Producto eliminado', style: TextStyle(fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        );
+                      onTap: () async {
+                        Navigator.pop(dialogCtx);
+                        if (_producto.id == null) return;
+                        try {
+                          await _service.deleteProducto(_producto.id!);
+                          if (context.mounted) {
+                            AppToast.showSuccess(context, 'Producto eliminado.');
+                            Navigator.pop(context); // volver a la lista
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            final isConflict = e.toString().toLowerCase().contains('conflict') ||
+                                e.toString().toLowerCase().contains('referenc');
+                            AppToast.showError(
+                              context,
+                              isConflict
+                                  ? 'El producto tiene referencias y no puede eliminarse. Desactívalo en su lugar.'
+                                  : limpiarError(e),
+                            );
+                          }
+                        }
                       },
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppColors.red.withOpacity(0.18),
+                          color: AppColors.red.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.red.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.red.withValues(alpha: 0.5)),
                         ),
                         child: const Center(
-                          child: Text('Eliminar', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.bold)),
+                          child: Text('Eliminar',
+                              style: TextStyle(
+                                  color: AppColors.red,
+                                  fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ),

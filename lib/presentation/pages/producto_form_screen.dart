@@ -5,11 +5,11 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/categoria.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/data/datasources/media_service.dart';
-import 'package:parte_movil/data/datasources/media_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
+import 'package:parte_movil/core/themes/app_colors.dart';
 
 class ProductoFormScreen extends StatefulWidget {
   final Producto? producto;
@@ -22,87 +22,69 @@ class ProductoFormScreen extends StatefulWidget {
 
 class _ProductoFormScreenState extends State<ProductoFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ProductoService _productoService = ProductoService();
-  final MediaService _mediaService = MediaService();
-  
+  final _service = ProductoService();
+  final _mediaService = MediaService();
+
   final _nombreCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _precioVentaCtrl = TextEditingController();
   final _precioCompraCtrl = TextEditingController();
-  final _stockVentasCtrl = TextEditingController();
-  final _stockInsumosCtrl = TextEditingController();
-  final _stockTotalCtrl = TextEditingController();
-  final _minCantidadCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController();
   final _marcaCtrl = TextEditingController();
+  final _categoriaSearchCtrl = TextEditingController();
 
   bool _loading = false;
-  bool _isNew = true;
+  bool get _isNew => widget.producto == null;
+
   String? _imagenUrl;
   XFile? _imagenFile;
   Uint8List? _imageBytesPreview;
 
   List<Categoria> _categorias = [];
+  List<Categoria> _categoriasFiltradas = [];
   int? _selectedCategoriaId;
-  String _usoProducto = 'venta_e_insumo';
+  String? _selectedCategoriaNombre;
 
   @override
   void initState() {
     super.initState();
-    _isNew = widget.producto == null;
-    _cargarCategorias();
 
     if (!_isNew) {
       final p = widget.producto!;
       _nombreCtrl.text = p.nombre;
       _descripcionCtrl.text = p.descripcion ?? '';
-      _precioVentaCtrl.text = p.precioVenta.toString();
-      _precioCompraCtrl.text = p.precioCompra.toString();
-      _stockVentasCtrl.text = p.stockVentas.toString();
-      _stockInsumosCtrl.text = p.stockInsumos.toString();
-      _stockTotalCtrl.text = (p.stockVentas + p.stockInsumos).toString();
-      _minCantidadCtrl.text = p.minCantidad.toString();
+      _precioVentaCtrl.text = p.precioVenta.toStringAsFixed(0);
+      _precioCompraCtrl.text = p.precioCompra.toStringAsFixed(0);
+      _stockCtrl.text = p.cantidad.toString();
       _marcaCtrl.text = p.marca ?? '';
-      final usageValue = p.usoProducto;
-      if (usageValue == 'solo_venta' || usageValue == 'venta_e_insumo') {
-        _usoProducto = usageValue;
-      } else {
-        _usoProducto = 'venta_e_insumo';
-      }
       _imagenUrl = p.imagenProduc;
       _selectedCategoriaId = p.categoriaId != 0 ? p.categoriaId : p.categoria?.id;
-      
-      // Listeners para actualizar Stock Total
-      _stockVentasCtrl.addListener(_updateTotalStock);
-      _stockInsumosCtrl.addListener(_updateTotalStock);
+      _selectedCategoriaNombre = p.categoria?.nombre;
     } else {
       _precioVentaCtrl.text = '0';
       _precioCompraCtrl.text = '0';
-      _stockVentasCtrl.text = '0';
-      _stockInsumosCtrl.text = '0';
-      _stockTotalCtrl.text = '0';
-      _minCantidadCtrl.text = '0';
+      _stockCtrl.text = '0';
     }
-  }
 
-  void _updateTotalStock() {
-    final v = int.tryParse(_stockVentasCtrl.text) ?? 0;
-    final i = int.tryParse(_stockInsumosCtrl.text) ?? 0;
-    _stockTotalCtrl.text = (v + i).toString();
+    _cargarCategorias();
   }
 
   Future<void> _cargarCategorias() async {
     try {
-      final cats = await _productoService.getCategorias();
+      final cats = await _service.getCategorias();
       if (mounted) {
         setState(() {
           _categorias = cats;
-          if (_categorias.isNotEmpty && _selectedCategoriaId == null) {
-            // Default select
-            _selectedCategoriaId = _categorias.first.id;
-          } else if (_categorias.isNotEmpty && _selectedCategoriaId != null) {
-            // Check if exists
-            bool exists = _categorias.any((c) => c.id == _selectedCategoriaId);
-            if (!exists) _selectedCategoriaId = _categorias.first.id;
+          _categoriasFiltradas = cats;
+          if (_selectedCategoriaId == null && cats.isNotEmpty) {
+            _selectedCategoriaId = cats.first.id;
+            _selectedCategoriaNombre = cats.first.nombre;
+          } else if (_selectedCategoriaId != null) {
+            final existe = cats.any((c) => c.id == _selectedCategoriaId);
+            if (!existe && cats.isNotEmpty) {
+              _selectedCategoriaId = cats.first.id;
+              _selectedCategoriaNombre = cats.first.nombre;
+            }
           }
         });
       }
@@ -117,30 +99,163 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     _descripcionCtrl.dispose();
     _precioVentaCtrl.dispose();
     _precioCompraCtrl.dispose();
-    _stockVentasCtrl.dispose();
-    _stockInsumosCtrl.dispose();
-    _stockTotalCtrl.dispose();
-    _minCantidadCtrl.dispose();
+    _stockCtrl.dispose();
     _marcaCtrl.dispose();
+    _categoriaSearchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final bytes = await image.readAsBytes();
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
       setState(() {
-        _imagenFile = image;
+        _imagenFile = picked;
         _imageBytesPreview = bytes;
       });
     }
   }
 
+  void _filtrarCategorias(String query) {
+    setState(() {
+      _categoriasFiltradas = _categorias
+          .where((c) => c.nombre.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    });
+  }
+
+  Future<void> _mostrarSelectorCategoria() async {
+    _categoriaSearchCtrl.clear();
+    _categoriasFiltradas = List.from(_categorias);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.6,
+              maxChildSize: 0.85,
+              minChildSize: 0.4,
+              builder: (_, scrollCtrl) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Column(
+                    children: [
+                      // Handle
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const Text(
+                        'Seleccionar Categoría',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Buscador
+                      TextField(
+                        controller: _categoriaSearchCtrl,
+                        style: const TextStyle(color: AppColors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar categoría...',
+                          hintStyle: const TextStyle(color: AppColors.grey),
+                          prefixIcon: const Icon(Icons.search, color: AppColors.grey),
+                          filled: true,
+                          fillColor: AppColors.inputBg,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.inputBorder),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.inputBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.gold),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                        ),
+                        onChanged: (q) {
+                          setModalState(() {
+                            _categoriasFiltradas = _categorias
+                                .where((c) => c.nombre
+                                    .toLowerCase()
+                                    .contains(q.toLowerCase()))
+                                .toList();
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      // Lista
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollCtrl,
+                          itemCount: _categoriasFiltradas.length,
+                          itemBuilder: (_, i) {
+                            final cat = _categoriasFiltradas[i];
+                            final isSelected = cat.id == _selectedCategoriaId;
+                            return ListTile(
+                              title: Text(
+                                cat.nombre,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? AppColors.gold
+                                      : AppColors.white,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle,
+                                      color: AppColors.gold, size: 20)
+                                  : null,
+                              onTap: () {
+                                setState(() {
+                                  _selectedCategoriaId = cat.id;
+                                  _selectedCategoriaNombre = cat.nombre;
+                                });
+                                Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoriaId == null) {
-      AppToast.showError(context, 'Debe seleccionar una categoría');
+      AppToast.showError(context, 'Selecciona una categoría');
       return;
     }
 
@@ -149,281 +264,199 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       String? imagenFinal = _imagenUrl;
       if (_imagenFile != null && _imageBytesPreview != null) {
         imagenFinal = await _mediaService.subirImagen(
-          _imagenFile!.path, 
-          imageBytes: _imageBytesPreview, 
-          fileName: _imagenFile!.name
+          _imagenFile!.path,
+          imageBytes: _imageBytesPreview,
+          fileName: _imagenFile!.name,
         );
       }
 
-      final sv = int.parse(_stockVentasCtrl.text.isEmpty ? '0' : _stockVentasCtrl.text);
-      int si = int.parse(_stockInsumosCtrl.text.isEmpty ? '0' : _stockInsumosCtrl.text);
-      if (_usoProducto == 'solo_venta') {
-        si = 0; // forzar a 0
-      }
-
+      final stock = int.tryParse(_stockCtrl.text) ?? 0;
       final cat = _categorias.firstWhere((c) => c.id == _selectedCategoriaId);
 
       final p = Producto(
         id: widget.producto?.id,
         nombre: _nombreCtrl.text.trim(),
-        descripcion: _descripcionCtrl.text.trim().isEmpty ? null : _descripcionCtrl.text.trim(),
+        descripcion: _descripcionCtrl.text.trim().isEmpty
+            ? null
+            : _descripcionCtrl.text.trim(),
         categoriaId: cat.id ?? 0,
         categoria: cat,
-        precioVenta: double.parse(_precioVentaCtrl.text),
-        precioCompra: double.parse(_precioCompraCtrl.text),
-        stockVentas: sv,
-        stockInsumos: si,
-        cantidad: sv + si,
-        minCantidad: int.parse(_minCantidadCtrl.text),
+        precioVenta: double.tryParse(_precioVentaCtrl.text) ?? 0,
+        precioCompra: double.tryParse(_precioCompraCtrl.text) ?? 0,
+        cantidad: stock,
         marca: _marcaCtrl.text.trim().isEmpty ? null : _marcaCtrl.text.trim(),
         activo: widget.producto?.activo ?? true,
-        usoProducto: _usoProducto,
-        tipo: _usoProducto,
         imagenProduc: imagenFinal,
       );
 
       if (_isNew) {
-        await _productoService.createProducto(p);
+        await _service.createProducto(p);
       } else {
-        await _productoService.updateProducto(p);
+        await _service.updateProducto(p);
       }
 
       if (mounted) {
-        AppToast.showSuccess(context, _isNew ? '✅ Producto creado' : '✅ Producto actualizado');
+        AppToast.showSuccess(
+          context,
+          _isNew ? 'Producto creado correctamente' : 'Producto actualizado',
+        );
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
-        AppToast.showError(context, limpiarError(e));
-      }
+      if (mounted) AppToast.showError(context, limpiarError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return SessionGuard(
       allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
-        appBar: AppBar(title: Text(_isNew ? 'Nuevo Producto' : 'Editar Producto')),
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(
+          backgroundColor: AppColors.bg,
+          elevation: 0,
+          title: Text(
+            _isNew ? 'Nuevo Producto' : 'Editar Producto',
+            style: const TextStyle(
+              color: AppColors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: AppColors.white),
+        ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
+                // ── Imagen ──────────────────────────────────────────────
+                _buildImagePicker(),
+                const SizedBox(height: 24),
+
+                // ── Nombre ──────────────────────────────────────────────
+                _field(
                   controller: _nombreCtrl,
-                  decoration: const InputDecoration(labelText: 'Nombre *', border: OutlineInputBorder()),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Requerido' : null,
+                  label: 'Nombre *',
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Requerido' : null,
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: _selectedCategoriaId,
-                  decoration: const InputDecoration(labelText: 'Categoría *', border: OutlineInputBorder()),
-                  items: _categorias.map((c) => DropdownMenuItem(value: c.id, child: Text(c.nombre))).toList(),
-                  onChanged: (val) => setState(() => _selectedCategoriaId = val),
-                  validator: (val) => val == null ? 'Requerida' : null,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _usoProducto,
-                  decoration: const InputDecoration(labelText: 'Uso del Producto *', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'venta_e_insumo', child: Text('Venta e Insumos')),
-                    DropdownMenuItem(value: 'solo_venta', child: Text('Solo Venta')),
-                  ],
-                  onChanged: (val) => setState(() {
-                    if (val != null) {
-                      _usoProducto = val;
-                      if (_usoProducto == 'solo_venta') {
-                        _stockInsumosCtrl.text = '0';
-                        _updateTotalStock();
-                      }
-                    }
-                  }),
-                ),
-                const SizedBox(height: 16),
-                
-                if (!_isNew) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _precioVentaCtrl,
-                          decoration: const InputDecoration(labelText: 'Precio Venta (\$)', border: OutlineInputBorder()),
-                          keyboardType: TextInputType.number,
-                          validator: (val) {
-                            if (val == null || val.isEmpty) return 'Requerido';
-                            if (double.tryParse(val) == null) return 'Inválido';
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _precioCompraCtrl,
-                          decoration: const InputDecoration(labelText: 'Precio Compra (\$)', border: OutlineInputBorder()),
-                          keyboardType: TextInputType.number,
-                          validator: (val) {
-                            if (val == null || val.isEmpty) return 'Requerido';
-                            if (double.tryParse(val) == null) return 'Inválido';
-                            return null;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
 
-                if (!_isNew) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockTotalCtrl,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Stock Total', 
-                            border: OutlineInputBorder(),
-                            fillColor: Colors.black26,
-                            filled: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockVentasCtrl,
-                          decoration: const InputDecoration(labelText: 'Stock Ventas', border: OutlineInputBorder()),
-                          keyboardType: TextInputType.number,
-                          validator: (val) {
-                            if (val != null && val.isNotEmpty && int.tryParse(val) == null) return 'Inválido';
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockInsumosCtrl,
-                          enabled: _usoProducto == 'venta_e_insumo',
-                          decoration: InputDecoration(
-                            labelText: 'Stock Insumos', 
-                            border: const OutlineInputBorder(),
-                            fillColor: _usoProducto == 'solo_venta' ? Colors.black26 : null,
-                            filled: _usoProducto == 'solo_venta',
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (val) {
-                            if (val != null && val.isNotEmpty && int.tryParse(val) == null) return 'Inválido';
-                            return null;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                // ── Categoría (buscador + selector) ─────────────────────
+                _buildCategoriaSelector(),
+                const SizedBox(height: 16),
 
-                Row(
-                  children: [
+                // ── Campos solo en edición ───────────────────────────────
+                if (!_isNew) ...[
+                  _sectionLabel('Precios'),
+                  const SizedBox(height: 10),
+                  Row(children: [
                     Expanded(
-                      child: TextFormField(
-                        controller: _marcaCtrl,
-                        decoration: const InputDecoration(labelText: 'Marca', border: OutlineInputBorder()),
+                      child: _field(
+                        controller: _precioVentaCtrl,
+                        label: 'Precio Venta (\$)',
+                        keyboard: TextInputType.number,
+                        validator: _validarNumero,
                       ),
                     ),
-                  ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _field(
+                        controller: _precioCompraCtrl,
+                        label: 'Precio Compra (\$)',
+                        keyboard: TextInputType.number,
+                        validator: _validarNumero,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  _sectionLabel('Stock'),
+                  const SizedBox(height: 10),
+                  _field(
+                    controller: _stockCtrl,
+                    label: 'Stock',
+                    keyboard: TextInputType.number,
+                    validator: _validarEntero,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // ── Marca ───────────────────────────────────────────────
+                _field(
+                  controller: _marcaCtrl,
+                  label: 'Marca (opcional)',
                 ),
                 const SizedBox(height: 16),
 
-                TextFormField(
+                // ── Descripción ─────────────────────────────────────────
+                _field(
                   controller: _descripcionCtrl,
-                  decoration: const InputDecoration(labelText: 'Descripción', border: OutlineInputBorder()),
+                  label: 'Descripción (opcional)',
                   maxLines: 3,
                 ),
-                const SizedBox(height: 16),
-
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    height: 180,
-                    width: double.infinity,
-                    clipBehavior: Clip.hardEdge,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey),
-                    ),
-                    child: _imageBytesPreview != null
-                        ? Image.memory(_imageBytesPreview!, fit: BoxFit.cover)
-                        : (_imagenUrl != null && _imagenUrl!.isNotEmpty)
-                            ? Image.network(_imagenUrl!, fit: BoxFit.cover)
-                            : const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                                  SizedBox(height: 8),
-                                  Text('Añadir imagen (Opcional)', style: TextStyle(color: Colors.grey)),
-                                ],
-                              ),
-                  ),
-                ),
-                if (_imageBytesPreview != null || (_imagenUrl != null && _imagenUrl!.isNotEmpty))
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _imagenFile = null;
-                          _imageBytesPreview = null;
-                          _imagenUrl = null;
-                        });
-                      },
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      label: const Text('Quitar imagen', style: TextStyle(color: Colors.red)),
-                    ),
-                  ),
-                
                 const SizedBox(height: 32),
-                GestureDetector(
-                  onTap: _loading ? null : _guardar,
-                  child: Container(
+
+                // ── Botón centrado ──────────────────────────────────────
+                Center(
+                  child: SizedBox(
+                    width: 220,
                     height: 54,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF9A7040), Color(0xFFC9A96E), Color(0xFFE0C080)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFC9A96E).withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                    child: GestureDetector(
+                      onTap: _loading ? null : _guardar,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          gradient: _loading
+                              ? null
+                              : const LinearGradient(
+                                  colors: [
+                                    AppColors.goldDeep,
+                                    AppColors.goldMid,
+                                    AppColors.goldLight,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                          color: _loading ? AppColors.surface : null,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: _loading
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: AppColors.gold.withValues(alpha: 0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                         ),
-                      ],
-                    ),
-                    child: Center(
-                      child: _loading
-                          ? const SizedBox(
-                              width: 24, height: 24,
-                              child: CircularProgressIndicator(color: Color(0xFF111111), strokeWidth: 2.5),
-                            )
-                          : const Text(
-                              'Guardar Producto',
-                              style: TextStyle(color: Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
+                        child: Center(
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.gold, strokeWidth: 2.5),
+                                )
+                              : Text(
+                                  _isNew ? 'Crear' : 'Guardar Cambios',
+                                  style: const TextStyle(
+                                    color: AppColors.bg,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -432,6 +465,160 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── Selector de categoría ─────────────────────────────────────────────────
+
+  Widget _buildCategoriaSelector() {
+    return GestureDetector(
+      onTap: _mostrarSelectorCategoria,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.inputBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _selectedCategoriaNombre ?? 'Seleccionar categoría *',
+                style: TextStyle(
+                  color: _selectedCategoriaNombre != null
+                      ? AppColors.white
+                      : AppColors.grey,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const Icon(Icons.search, color: AppColors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Helpers de UI ─────────────────────────────────────────────────────────
+
+  Widget _sectionLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: AppColors.gold,
+        fontWeight: FontWeight.bold,
+        fontSize: 13,
+        letterSpacing: 0.6,
+      ),
+    );
+  }
+
+  InputDecoration _inputDeco(String label, {bool filled = false}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.grey),
+      filled: true,
+      fillColor: filled ? AppColors.surface : AppColors.inputBg,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.inputBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.red),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    TextInputType keyboard = TextInputType.text,
+    bool readOnly = false,
+    bool filled = false,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboard,
+      readOnly: readOnly,
+      maxLines: maxLines,
+      style: TextStyle(
+        color: readOnly ? AppColors.grey : AppColors.white,
+      ),
+      decoration: _inputDeco(label, filled: filled || readOnly),
+      validator: validator,
+    );
+  }
+
+  String? _validarNumero(String? v) {
+    if (v == null || v.isEmpty) return 'Requerido';
+    if (double.tryParse(v) == null) return 'Número inválido';
+    return null;
+  }
+
+  String? _validarEntero(String? v) {
+    if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
+      return 'Entero inválido';
+    }
+    return null;
+  }
+
+  Widget _buildImagePicker() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickImage,
+          child: Container(
+            height: 170,
+            width: double.infinity,
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.inputBorder),
+            ),
+            child: _imageBytesPreview != null
+                ? Image.memory(_imageBytesPreview!, fit: BoxFit.cover)
+                : (_imagenUrl?.isNotEmpty ?? false)
+                    ? Image.network(_imagenUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _imagePlaceholder())
+                    : _imagePlaceholder(),
+          ),
+        ),
+        if (_imageBytesPreview != null || (_imagenUrl?.isNotEmpty ?? false))
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => setState(() {
+                _imagenFile = null;
+                _imageBytesPreview = null;
+                _imagenUrl = null;
+              }),
+              icon: const Icon(Icons.delete_outline,
+                  color: AppColors.red, size: 18),
+              label: const Text('Quitar imagen',
+                  style: TextStyle(color: AppColors.red, fontSize: 13)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return const Center(
+      child: Icon(Icons.add, size: 38, color: AppColors.grey),
     );
   }
 }

@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:parte_movil/data/models/venta.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/producto.dart';
+import 'package:parte_movil/data/models/paginacion.dart';
+import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -14,7 +16,6 @@ import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_bloc.dart';
 import 'package:parte_movil/presentation/blocs/ventas/ventas_event.dart';
-import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
 class VentaDetalleScreen extends StatefulWidget {
@@ -62,7 +63,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       if (mounted) {
         setState(() {
           _ventaCompleta = results[0] as Venta;
-          _productos = results[1] as List<Producto>;
+          _productos = (results[1] as Paginacion<Producto>).items;
           _servicios = results[2] as List<Servicio>;
           _paquetes = results[3] as List<Paquete>;
           _isLoading = false;
@@ -218,6 +219,13 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     final String metodoPago = venta.metodoPago ?? 'N/A';
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
 
+    final bool isVentaBarbero =
+        (venta.tipoVenta ?? '').toLowerCase().contains('barbero') ||
+        (venta.metodoPago ?? '').toLowerCase() == 'creditobarbero' ||
+        (venta.clienteId == 0 &&
+            barberoMostrar != 'Sin asignar' &&
+            barberoMostrar.isNotEmpty);
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -226,10 +234,17 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       crossAxisSpacing: 10,
       childAspectRatio: 2.2,
       children: [
-        _buildInfoCard('Cliente', labelCliente),
+        if (isVentaBarbero) ...[
+          _buildInfoCard('Barbero (Comprador)', barberoMostrar,
+              valueColor: const Color(0xFFD8B081)),
+        ] else ...[
+          _buildInfoCard('Cliente', labelCliente),
+        ],
         _buildInfoCard('Fecha', fecha),
         _buildInfoCard('Responsable', responsableMostrar),
-        if (barberoMostrar != 'Sin asignar' && barberoMostrar.isNotEmpty) ...[
+        if (!isVentaBarbero &&
+            barberoMostrar != 'Sin asignar' &&
+            barberoMostrar.isNotEmpty) ...[
           _buildInfoCard('Barbero', barberoMostrar),
         ],
         _buildInfoCard('Método de Pago', metodoPago),
@@ -562,9 +577,37 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   }
 
   void _showDeleteDialog(BuildContext context, Venta venta) {
+    // Validación 1: No se puede anular después de 3 días
+    if (venta.fechaRegistro != null && venta.fechaRegistro!.isNotEmpty) {
+      try {
+        final fecha = DateTime.parse(venta.fechaRegistro!);
+        final diasTranscurridos = DateTime.now().difference(fecha).inDays;
+        if (diasTranscurridos > 3) {
+          AppToast.showError(
+            this.context,
+            'No se puede anular: han transcurrido $diasTranscurridos días '
+            'desde el registro (máximo permitido: 3 días).',
+          );
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Validación 2: No se puede anular si tiene crédito barbero aplicado
+    final creditoAplicado = venta.creditoBarberoUsado ?? 0;
+    if (creditoAplicado > 0) {
+      AppToast.showError(
+        this.context,
+        'No se puede anular: esta venta tiene crédito barbero aplicado '
+        '(${AppFormat.cop(creditoAplicado)}). '
+        'Anula primero los abonos en Crédito Barberos.',
+      );
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF111111),
         title: const Text('¿Anular venta?'),
         content: const Text(
@@ -572,14 +615,14 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () {
               final bloc = this.context.read<VentasBloc>();
-              Navigator.pop(context); // popup
-              Navigator.pop(this.context); // detalle view
+              Navigator.pop(dialogCtx); // cierra el popup
+              Navigator.pop(this.context); // cierra la pantalla de detalle
               bloc.add(DeleteVentaRequested(venta.id!));
             },
             child: const Text(

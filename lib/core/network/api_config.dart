@@ -24,5 +24,6 @@ class ApiConfig {
   static const String categorias = '/Categorias';
   static const String solicitudesCambioHorario = '/SolicitudesCambioHorario';
   static const String dashboard = '/Dashboard';
+  static const String creditoBarbero = '/credito-barbero';
 }
 

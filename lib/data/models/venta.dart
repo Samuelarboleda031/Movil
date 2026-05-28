@@ -18,6 +18,15 @@ class Venta {
   final double? saldoAFavorUsado;
   final String? responsableNombre;
   final String? barberoNombreStr;
+  /// Barbero que prestó el crédito (puede ser distinto al que atendió).
+  final int? barberoPrestadorId;
+  final String? barberoPrestadorNombre;
+  /// Plazo en días del crédito de barbero usado en esta venta.
+  final int? plazoDias;
+  /// Monto de crédito del barbero utilizado en esta venta.
+  final double? creditoBarberoUsado;
+  /// Tipo de venta: "Venta Cliente", "Venta Invitado", "Venta Barbero".
+  final String? tipoVenta;
   final Cliente? cliente;
   final Barbero? barbero;
   final Usuario? usuario;
@@ -39,6 +48,11 @@ class Venta {
     this.saldoAFavorUsado,
     this.responsableNombre,
     this.barberoNombreStr,
+    this.barberoPrestadorId,
+    this.barberoPrestadorNombre,
+    this.plazoDias,
+    this.creditoBarberoUsado,
+    this.tipoVenta,
     this.cliente,
     this.barbero,
     this.usuario,
@@ -70,10 +84,15 @@ class Venta {
       saldoAFavorUsado: (json['saldoAFavorUsado'] ?? json['SaldoAFavorUsado'])?.toDouble(),
       responsableNombre: rNombreStr,
       barberoNombreStr: bNombreStr,
+      barberoPrestadorId: json['barberoPrestadorId'] ?? json['BarberoPrestadorId'],
+      barberoPrestadorNombre: json['barberoPrestadorNombreCompleto'] ?? json['BarberoPrestadorNombreCompleto'],
+      plazoDias: json['plazoDias'] ?? json['PlazoDias'],
+      creditoBarberoUsado: (json['creditoBarberoUsado'] ?? json['CreditoBarberoUsado'])?.toDouble(),
+      tipoVenta: json['tipoVenta'] ?? json['TipoVenta'],
       cliente: json['cliente'] is Map<String, dynamic> ? Cliente.fromJson(json['cliente']) : null,
       barbero: json['barbero'] is Map<String, dynamic> ? Barbero.fromJson(json['barbero']) : null,
       usuario: json['usuario'] is Map<String, dynamic> ? Usuario.fromJson(json['usuario']) : null,
-      detalles: detallesList != null 
+      detalles: detallesList != null
           ? detallesList.map((d) => DetalleVenta.fromJson(d)).toList()
           : null,
     );
@@ -83,11 +102,15 @@ class Venta {
     final Map<String, dynamic> data = {
       if (numero.isNotEmpty) 'NumeroRecibo': numero,
       'UsuarioId': usuarioId,
-      'ClienteId': clienteId,
+      // Omitir ClienteId cuando es 0 (venta invitado o venta barbero) para evitar FK inválida
+      if (clienteId > 0) 'ClienteId': clienteId,
       if (barberoId != null) 'BarberoId': barberoId,
+      if (barberoPrestadorId != null) 'BarberoPrestadorId': barberoPrestadorId,
       'MetodoPago': metodoPago,
       'Descuento': porcentajeDescuento,
+      if (tipoVenta != null) 'TipoVenta': tipoVenta,
       if (clienteNombre != null) 'ClienteNombre': clienteNombre,
+      if (plazoDias != null) 'PlazoDias': plazoDias,
       'Detalles': detalles?.map((d) => d.toJson()).toList() ?? [],
     };
 
@@ -114,6 +137,11 @@ class Venta {
     double? saldoAFavorUsado,
     String? responsableNombre,
     String? barberoNombreStr,
+    int? barberoPrestadorId,
+    String? barberoPrestadorNombre,
+    int? plazoDias,
+    double? creditoBarberoUsado,
+    String? tipoVenta,
     Cliente? cliente,
     Barbero? barbero,
     Usuario? usuario,
@@ -135,6 +163,11 @@ class Venta {
       saldoAFavorUsado: saldoAFavorUsado ?? this.saldoAFavorUsado,
       responsableNombre: responsableNombre ?? this.responsableNombre,
       barberoNombreStr: barberoNombreStr ?? this.barberoNombreStr,
+      barberoPrestadorId: barberoPrestadorId ?? this.barberoPrestadorId,
+      barberoPrestadorNombre: barberoPrestadorNombre ?? this.barberoPrestadorNombre,
+      plazoDias: plazoDias ?? this.plazoDias,
+      creditoBarberoUsado: creditoBarberoUsado ?? this.creditoBarberoUsado,
+      tipoVenta: tipoVenta ?? this.tipoVenta,
       cliente: cliente ?? this.cliente,
       barbero: barbero ?? this.barbero,
       usuario: usuario ?? this.usuario,

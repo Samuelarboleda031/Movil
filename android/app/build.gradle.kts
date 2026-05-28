@@ -31,6 +31,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Necesario cuando el total de métodos supera 64K (Firebase + plugins).
+        multiDexEnabled = true
     }
 
     buildTypes {

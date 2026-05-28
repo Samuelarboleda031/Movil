@@ -17,6 +17,16 @@ class Paginacion<T> {
     required this.hasNextPage,
   });
 
+  factory Paginacion.empty() => Paginacion<T>(
+        items: [],
+        totalCount: 0,
+        pageSize: 0,
+        currentPage: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      );
+
   factory Paginacion.fromJson(Map<String, dynamic> json, T Function(Map<String, dynamic>) fromJsonT) {
     var list = json['items'] as List;
     List<T> itemsList = list.map((i) => fromJsonT(i)).toList();

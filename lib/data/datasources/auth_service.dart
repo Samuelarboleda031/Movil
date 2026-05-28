@@ -152,6 +152,29 @@ class AuthService {
     }
   }
 
+  /// Sincroniza la nueva contraseña con la API (tabla Usuarios) después de un
+  /// reset de Firebase. Debe llamarse una vez que el usuario inicia sesión con
+  /// la contraseña nueva para mantener el hash en SQL actualizado.
+  Future<bool> actualizarContrasenaPropia(String nuevaContrasena) async {
+    final token = await getToken();
+    if (token == null) return false;
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usuarios}/contrasena-propia'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'NuevaContrasena': nuevaContrasena}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('[AuthService] Error actualizando contraseña en API: $e');
+      return false;
+    }
+  }
+
   // Envia verificación de correo al usuario actual
   Future<void> sendEmailVerification() async {
     final user = _auth.currentUser;

@@ -14,6 +14,48 @@ class DevolucionService {
     };
   }
 
+  /// Registra una devolución simple. [barberoId] debe enviarse cuando la venta
+  /// original fue con crédito de barbero, para que la API descuente la deuda.
+  Future<Map<String, dynamic>?> registrarDevolucion({
+    required int usuarioId,
+    required int productoId,
+    required int cantidad,
+    int? ventaId,
+    int? clienteId,
+    int? barberoId,
+    String? motivoCategoria,
+    String? motivoDetalle,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final body = <String, dynamic>{
+        'UsuarioId': usuarioId,
+        'ProductoId': productoId,
+        'Cantidad': cantidad,
+        ?'VentaId': ventaId,
+        ?'ClienteId': clienteId,
+        ?'BarberoId': barberoId,
+        ?'MotivoCategoria': motivoCategoria,
+        ?'MotivoDetalle': motivoDetalle,
+      };
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/Devoluciones'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error al registrar devolución: $e');
+      return null;
+    }
+  }
+
   Future<double> obtenerSaldoAFavor(int clienteId) async {
     try {
       final headers = await _getHeaders();

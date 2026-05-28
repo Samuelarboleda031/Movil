@@ -88,7 +88,7 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
 
       try {
         final productos = await ProductoService().getProductos(pageSize: 1000);
-        for (var p in productos) {
+        for (var p in productos.items) {
           if (p.id != null) _nombresProductos[p.id!] = p.nombre;
         }
         

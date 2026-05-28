@@ -17,9 +17,11 @@ import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
+import 'package:parte_movil/presentation/widgets/credito_notification_bell.dart';
 import 'package:parte_movil/data/datasources/dashboard_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
+import 'package:parte_movil/data/datasources/credito_barbero_service.dart';
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/servicio.dart';
@@ -46,12 +48,62 @@ class _VentasScreenState extends State<VentasScreen> {
   String _periodoActivo = '';
   bool _filtroFechaActivo = false;
 
+  // Barbero: vista switcher y crédito
+  String _barberoVista = 'ganancias'; // 'ganancias' | 'compras'
+  int? _barberoId;
+  CreditoBarberoInfo? _creditoInfo;
+  bool _loadingCredito = false;
+
+  final CreditoBarberoService _creditoBarberoService = CreditoBarberoService();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  // Extrae el barberoId de las ventas cargadas (más confiable que buscar por email)
+  void _onVentasCargadas(List<Venta> ventas) {
+    if (_barberoId != null) return;
+    final venta = ventas.where((v) => v.barberoId != null).isNotEmpty
+        ? ventas.firstWhere((v) => v.barberoId != null)
+        : null;
+    if (venta?.barberoId != null) {
+      _barberoId = venta!.barberoId;
+      _cargarCredito(_barberoId!);
+    }
+  }
+
+  Future<void> _cargarCredito(int barberoId) async {
+    if (!mounted) return;
+    setState(() => _loadingCredito = true);
+    try {
+      final info = await _creditoBarberoService.obtenerPorBarbero(barberoId);
+      if (mounted) setState(() { _creditoInfo = info; _loadingCredito = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingCredito = false);
+    }
+  }
+
   String _getNombreMostrar(Venta venta, Map<int, Cliente> catalogoClientes) {
+    // Detectar Venta Barbero por tipoVenta, por método de pago o por ausencia de cliente con barbero presente
+    final esVentaBarbero = (venta.tipoVenta ?? '').toLowerCase().contains('barbero')
+        || venta.metodoPago.toLowerCase() == 'creditobarbero'
+        || (venta.clienteId == 0
+            && venta.cliente == null
+            && venta.clienteNombre == null
+            && venta.barberoId != null);
+
+    if (esVentaBarbero) {
+      final nombreBarbero = venta.barberoNombreStr?.isNotEmpty == true
+          ? venta.barberoNombreStr!
+          : venta.barbero?.nombreCompleto;
+      if (nombreBarbero != null && nombreBarbero.isNotEmpty) return nombreBarbero;
+    }
     if (venta.cliente != null && venta.cliente!.nombre.isNotEmpty) return venta.cliente!.nombreCompleto;
     final clienteEnCatalogo = catalogoClientes[venta.clienteId];
     if (clienteEnCatalogo != null) return clienteEnCatalogo.nombreCompleto;
     if (venta.clienteNombre != null && venta.clienteNombre!.isNotEmpty) return venta.clienteNombre!;
-    return 'Cliente #ID:${venta.clienteId}';
+    return 'Sin cliente';
   }
 
   List<Venta> _getVentasFiltradas(List<Venta> ventas, Map<int, Cliente> catalogoClientes) {
@@ -320,6 +372,8 @@ class _VentasScreenState extends State<VentasScreen> {
             AppToast.showError(context, state.message);
           } else if (state is VentasActionSuccess) {
             AppToast.showSuccess(context, state.message);
+          } else if (state is VentasLoaded && widget.role == AppRole.barber) {
+            _onVentasCargadas(state.ventas);
           }
         },
         builder: (context, state) {
@@ -345,6 +399,23 @@ class _VentasScreenState extends State<VentasScreen> {
 
           // ── Barbero: diseño oscuro premium ──
           if (widget.role == AppRole.barber) {
+            // Filtrar por vista seleccionada
+            final ventasVista = ventasFiltradas.where((v) {
+              final esCompra = (v.tipoVenta ?? '').toLowerCase().contains('barbero')
+                  || v.metodoPago.toLowerCase() == 'creditobarbero'
+                  || (v.clienteId == 0
+                      && v.cliente == null
+                      && v.clienteNombre == null
+                      && v.barberoId != null);
+              return _barberoVista == 'compras' ? esCompra : !esCompra;
+            }).toList();
+
+            final int totalVistaItems = ventasVista.length;
+            final int totalVistaPagesLocal = totalVistaItems == 0 ? 1 : (totalVistaItems / _pageSize).ceil();
+            final int vistaStart = (_currentPage - 1) * _pageSize;
+            final int vistaEnd = (vistaStart + _pageSize < totalVistaItems) ? vistaStart + _pageSize : totalVistaItems;
+            final vistaPagedItems = vistaStart < totalVistaItems ? ventasVista.sublist(vistaStart, vistaEnd) : <Venta>[];
+
             return Scaffold(
               backgroundColor: AppColors.bg,
               body: SafeArea(
@@ -352,6 +423,7 @@ class _VentasScreenState extends State<VentasScreen> {
                     ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
                     : RefreshIndicator(
                         onRefresh: () async {
+                          setState(() { _barberoId = null; _creditoInfo = null; });
                           context.read<VentasBloc>().add(const LoadVentasRequested(page: 1));
                         },
                         color: AppColors.gold,
@@ -361,28 +433,34 @@ class _VentasScreenState extends State<VentasScreen> {
                           slivers: [
                             // Header
                             SliverToBoxAdapter(child: _buildVentasHeader()),
-                            // Banner de ganancia
-                            SliverToBoxAdapter(
-                              child: _MiniGananciaPill(role: widget.role, salesHash: ventas.hashCode),
-                            ),
+                            // Toggle de vista
+                            SliverToBoxAdapter(child: _buildBarberoVistaSwitcher()),
+                            // Banner de ganancia (solo en vista ganancias)
+                            if (_barberoVista == 'ganancias')
+                              SliverToBoxAdapter(
+                                child: _MiniGananciaPill(role: widget.role, salesHash: ventas.hashCode),
+                              ),
+                            // Tarjeta de crédito (solo en vista compras)
+                            if (_barberoVista == 'compras')
+                              SliverToBoxAdapter(child: _buildCreditoCard()),
                             const SliverToBoxAdapter(child: SizedBox(height: 8)),
                             // Buscador
                             SliverToBoxAdapter(child: _buildVentasBuscador()),
                             // Lista
-                            ventasFiltradas.isEmpty
+                            ventasVista.isEmpty
                                   ? SliverToBoxAdapter(child: _buildEmptyStateDark())
                                   : SliverList(
                                       delegate: SliverChildBuilderDelegate(
-                                        (context, index) => _buildVentaCard(pagedItems[index], catalogo),
-                                        childCount: pagedItems.length,
+                                        (context, index) => _buildVentaCard(vistaPagedItems[index], catalogo),
+                                        childCount: vistaPagedItems.length,
                                       ),
                                     ),
                             // Paginación
-                            if (totalPagesLocal > 1)
+                            if (totalVistaPagesLocal > 1)
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 20),
-                                  child: _buildPaginationControls(totalPagesLocal, _currentPage),
+                                  child: _buildPaginationControls(totalVistaPagesLocal, _currentPage),
                                 ),
                               ),
                             const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -399,7 +477,10 @@ class _VentasScreenState extends State<VentasScreen> {
               title: const Text('Panel de Ventas', style: TextStyle(fontWeight: FontWeight.bold)),
               backgroundColor: AppColors.bg,
               elevation: 0,
-              actions: [CitaNotificationBell(role: widget.role)],
+              actions: [
+                CreditoNotificationBell(role: widget.role),
+                CitaNotificationBell(role: widget.role),
+              ],
             ),
             backgroundColor: AppColors.bg,
             body: Column(
@@ -481,6 +562,210 @@ class _VentasScreenState extends State<VentasScreen> {
   // DISEÑO OSCURO PREMIUM PARA BARBERO (mismo estilo que Citas)
   // ═══════════════════════════════════════════════════════════════════
 
+  Widget _buildBarberoVistaSwitcher() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            _buildVistaTab('ganancias', 'Mis Ganancias', Icons.trending_up_rounded),
+            _buildVistaTab('compras', 'Mis Compras', Icons.shopping_bag_outlined),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVistaTab(String vista, String label, IconData icon) {
+    final selected = _barberoVista == vista;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() { _barberoVista = vista; _currentPage = 1; }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.gold : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15, color: selected ? AppColors.bg : AppColors.grey),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? AppColors.bg : AppColors.grey,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreditoCard() {
+    if (_loadingCredito) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Center(child: SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 2))),
+      );
+    }
+    if (_creditoInfo == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.credit_card_off_outlined, color: AppColors.grey, size: 20),
+              SizedBox(width: 10),
+              Text('Sin crédito registrado', style: TextStyle(color: AppColors.grey, fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final info = _creditoInfo!;
+    final esBloqueado = info.estado.toLowerCase().contains('bloqueado');
+    final Color statusColor = esBloqueado
+        ? AppColors.red
+        : (info.venceProximo ? AppColors.gold : AppColors.green);
+    final Color barColor = info.porcentajeUso > 0.8
+        ? AppColors.red
+        : (info.porcentajeUso > 0.5 ? AppColors.gold : AppColors.green);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: statusColor.withOpacity(0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.credit_card_outlined, color: AppColors.gold, size: 18),
+                    SizedBox(width: 8),
+                    Text('Crédito Barbero', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: statusColor.withOpacity(0.5), width: 0.5),
+                  ),
+                  child: Text(info.estado, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Disponible', style: TextStyle(color: AppColors.grey, fontSize: 11)),
+                      const SizedBox(height: 3),
+                      Text(
+                        AppFormat.cop(info.cupoDisponible),
+                        style: const TextStyle(color: AppColors.green, fontWeight: FontWeight.bold, fontSize: 17),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: 36, color: AppColors.divider),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Deuda', style: TextStyle(color: AppColors.grey, fontSize: 11)),
+                        const SizedBox(height: 3),
+                        Text(
+                          AppFormat.cop(info.saldoDeuda),
+                          style: TextStyle(
+                            color: info.saldoDeuda > 0 ? AppColors.red : AppColors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: info.porcentajeUso,
+                backgroundColor: AppColors.divider,
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Cupo: ${AppFormat.cop(info.cupoMaximo)}', style: const TextStyle(color: AppColors.grey, fontSize: 10)),
+                if (info.fechaVencimiento != null)
+                  Row(
+                    children: [
+                      Icon(Icons.schedule, size: 10, color: info.venceProximo ? AppColors.gold : AppColors.grey),
+                      const SizedBox(width: 3),
+                      Text(
+                        () {
+                          final dias = info.diasParaVencer;
+                          if (dias == null) return '';
+                          if (dias < 0) return 'Vencido hace ${-dias} día(s)';
+                          if (dias == 0) return 'Vence hoy';
+                          return 'Vence en $dias día(s)';
+                        }(),
+                        style: TextStyle(
+                          color: info.venceProximo ? AppColors.gold : AppColors.grey,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVentasHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -501,7 +786,12 @@ class _VentasScreenState extends State<VentasScreen> {
               ),
             ],
           ),
-          CitaNotificationBell(role: widget.role),
+          Row(
+            children: [
+              CreditoNotificationBell(role: widget.role),
+              CitaNotificationBell(role: widget.role),
+            ],
+          ),
         ],
       ),
     );
@@ -609,12 +899,22 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildVentaCard(Venta venta, Map<int, Cliente> catalogo) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
+    final bool isVentaBarbero = (venta.tipoVenta ?? '').toLowerCase().contains('barbero')
+        || venta.metodoPago.toLowerCase() == 'creditobarbero'
+        || (venta.clienteId == 0
+            && venta.cliente == null
+            && venta.clienteNombre == null
+            && venta.barberoId != null);
     final String labelNumero = 'Nº ${venta.id}';
     final String labelCliente = _getNombreMostrar(venta, catalogo);
     final String labelPrecio = AppFormat.cop(venta.total);
-    final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false) 
-        ? venta.fechaRegistro!.split('T')[0] 
+    final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false)
+        ? venta.fechaRegistro!.split('T')[0]
         : (venta.fechaRegistro ?? '');
+    final String metodoPago = venta.metodoPago.isNotEmpty ? venta.metodoPago : 'Sin método';
+    final String? barbero = venta.barberoNombreStr?.isNotEmpty == true
+        ? venta.barberoNombreStr
+        : venta.barbero?.nombreCompleto;
 
     return GestureDetector(
       onTap: () => _verDetallesVenta(venta, catalogo),
@@ -624,7 +924,10 @@ class _VentasScreenState extends State<VentasScreen> {
         decoration: BoxDecoration(
           color: AppColors.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isAnulada ? AppColors.red.withOpacity(0.3) : AppColors.divider.withOpacity(0.5)),
+          border: Border.all(
+              color: isAnulada
+                  ? AppColors.red.withOpacity(0.3)
+                  : AppColors.divider.withOpacity(0.5)),
         ),
         child: Row(
           children: [
@@ -632,7 +935,9 @@ class _VentasScreenState extends State<VentasScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isAnulada ? AppColors.red.withOpacity(0.12) : AppColors.gold.withOpacity(0.1),
+                color: isAnulada
+                    ? AppColors.red.withOpacity(0.12)
+                    : AppColors.gold.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -646,17 +951,67 @@ class _VentasScreenState extends State<VentasScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Número + estado
                   Row(
                     children: [
-                      Text(labelNumero, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(labelNumero,
+                          style: const TextStyle(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
                       const SizedBox(width: 8),
-                      if (isAnulada) _buildStatusBadge('ANULADA'),
+                      if (isAnulada)
+                        _buildStatusBadge('ANULADA')
+                      else
+                        _buildStatusBadgeOk('COMPLETADA'),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(labelCliente, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 2),
-                  Text(fechaStr, style: const TextStyle(color: AppColors.grey, fontSize: 12)),
+                  // Cliente
+                  Text(labelCliente,
+                      style: const TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  const SizedBox(height: 4),
+                  // Fecha + método de pago
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          size: 11, color: AppColors.grey),
+                      const SizedBox(width: 4),
+                      Text(fechaStr,
+                          style: const TextStyle(
+                              color: AppColors.grey, fontSize: 11)),
+                      const SizedBox(width: 10),
+                      const Icon(Icons.payment_outlined,
+                          size: 11, color: AppColors.grey),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(metodoPago,
+                            style: const TextStyle(
+                                color: AppColors.grey, fontSize: 11),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                  // Barbero (si existe)
+                  if (barbero != null && barbero.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.content_cut_outlined,
+                            size: 11, color: AppColors.grey),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(barbero,
+                              style: const TextStyle(
+                                  color: AppColors.grey, fontSize: 11),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -664,13 +1019,48 @@ class _VentasScreenState extends State<VentasScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(labelPrecio, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(labelPrecio,
+                    style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15)),
                 const SizedBox(height: 4),
                 const Icon(Icons.chevron_right, color: AppColors.gold, size: 20),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadgeBarbero(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: AppColors.gold, fontSize: 8, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadgeOk(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.green.withOpacity(0.5), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            color: AppColors.green, fontSize: 8, fontWeight: FontWeight.bold),
       ),
     );
   }

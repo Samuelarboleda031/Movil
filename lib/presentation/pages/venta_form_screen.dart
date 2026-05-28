@@ -18,6 +18,7 @@ import 'package:parte_movil/data/datasources/paquete_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
+import 'package:parte_movil/data/datasources/credito_barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
@@ -119,9 +120,16 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   String _fechaCreacionTexto = '';
   bool _barberoBloqueado = false;
   String? _clienteNombreInvitado;
-// ← NUEVO: Saldo a favor
   bool _usarSaldoAFavor = false;
   double _saldoDisponible = 0.0;
+
+  // Modo Venta Barbero
+  bool _esVentaBarbero = false;
+  Barbero? _barberoCompradorSeleccionado;
+  int _plazoDias = 7;
+  bool _tieneCicloActivo = false;
+  bool _checkingCiclo = false;
+  final CreditoBarberoService _creditoBarberoService = CreditoBarberoService();
 
   // Detalles
   List<DetalleVentaItem> _detalles = [];
@@ -169,7 +177,29 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     super.dispose();
   }
 
-  // ─── FORMATEO ─────────────────────────────────
+  // ─── VERIFICAR CICLO CRÉDITO BARBERO ──────────
+  Future<void> _verificarCicloCredito() async {
+    final barberoId = _barberoCompradorSeleccionado?.id;
+    if (barberoId == null || _metodoPago != 'Crédito') {
+      if (mounted) setState(() { _tieneCicloActivo = false; _checkingCiclo = false; });
+      return;
+    }
+    if (mounted) setState(() => _checkingCiclo = true);
+    try {
+      final info = await _creditoBarberoService.obtenerPorBarbero(barberoId);
+      if (mounted) {
+        final estado = (info?.estado ?? '').toLowerCase();
+        setState(() {
+          _tieneCicloActivo = estado == 'activo' || estado.startsWith('bloqueado');
+          _checkingCiclo = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _tieneCicloActivo = false; _checkingCiclo = false; });
+    }
+  }
+
+
   String _formatearFecha(String? isoString) {
     if (isoString == null) return '';
     try {
@@ -187,13 +217,15 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   }
 
   // ─── TIPO DE VENTA AUTOMÁTICO ─────────────────
-  // ← NUEVO
   String get _tipoVenta {
+    if (_esVentaBarbero) return 'Venta Barbero';
     if (_clienteSeleccionado == null) return 'Venta Invitado';
     final doc = _clienteSeleccionado!.documento;
     if (doc.startsWith('PASO-')) return 'Venta Invitado';
     return 'Venta Cliente';
   }
+
+  static const double _limiteCredito = 200000;
 
   // ─── CÁLCULOS ─────────────────────────────────
   double get _subtotal =>
@@ -236,7 +268,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
       final clientes = results[0] as List<Cliente>;
       final barberos = results[1] as List<Barbero>;
-      final productos = results[2] as List<Producto>;
+      final productos = (results[2] as Paginacion<Producto>).items;
       final servicios = results[3] as List<Servicio>;
       final paquetes = results[4] as List<Paquete>;
       final paginacionVentas = results[5] as Paginacion<Venta>;
@@ -399,7 +431,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       if (d.productoId != null) {
         item = ItemVenta(tipo: 'Producto', id: d.productoId!);
         final prod = _productos.where((p) => p.id == d.productoId).firstOrNull;
-        stock = prod?.stockVentas;
+        stock = prod?.cantidad;
       } else if (d.servicioId != null) {
         item = ItemVenta(tipo: 'Servicio', id: d.servicioId!);
       } else if (d.paqueteId != null) {
@@ -437,7 +469,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     if (prod.id == null) return;
 
     // ← NUEVO: verificar stock
-    final stock = prod.stockVentas ?? 0;
+    final stock = prod.cantidad;
     final yaAgregado = _detalles
         .where((d) => d.productoId == prod.id)
         .fold<int>(0, (s, d) => s + d.cantidad);
@@ -492,6 +524,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         ),
       );
       _servicioPaqueteParaAgregar = null;
+      // Crédito solo aplica a productos: si se agrega servicio/paquete, forzar otro método
+      if (_metodoPago == 'Crédito' && (item.tipo == 'Servicio' || item.tipo == 'Paquete')) {
+        _metodoPago = 'Efectivo';
+      }
     });
   }
 
@@ -546,39 +582,74 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       return;
     }
 
-    final clienteOk =
-        _clienteSeleccionado != null ||
-        (_clienteNombreInvitado != null &&
-            _clienteNombreInvitado!.trim().isNotEmpty);
-    if (!clienteOk) {
-      _mostrarError(
-        'Debe seleccionar un cliente o ingresar el nombre del invitado.',
-      );
-      return;
+    // ─── Validaciones según modo ───────────────
+    if (_esVentaBarbero) {
+      if (_barberoCompradorSeleccionado == null) {
+        _mostrarError('Debe seleccionar el barbero comprador.');
+        return;
+      }
+      if (_metodoPago == 'Crédito') {
+        final creditoDisponible = _barberoCompradorSeleccionado!.saldoDisponible;
+        if (creditoDisponible != null && _total > creditoDisponible) {
+          _mostrarError(
+            'El total (${AppFormat.cop(_total)}) supera el crédito disponible del barbero (${AppFormat.cop(creditoDisponible)}).',
+          );
+          return;
+        }
+      }
+    } else {
+      final clienteOk =
+          _clienteSeleccionado != null ||
+          (_clienteNombreInvitado != null &&
+              _clienteNombreInvitado!.trim().isNotEmpty);
+      if (!clienteOk) {
+        _mostrarError(
+          'Debe seleccionar un cliente o ingresar el nombre del invitado.',
+        );
+        return;
+      }
     }
 
     final tieneServicios = _detalles.any((d) => d.servicioId != null);
     Barbero? barberoFinal;
 
-    if (_rolActual == AppRole.barber) {
-      if (tieneServicios && _barberoDelUsuario == null) {
-        _mostrarError(
-          'Tu cuenta no tiene perfil de barbero. Contacta al administrador.',
-        );
-        return;
+    if (_esVentaBarbero) {
+      // Con Crédito: solo productos, sin barbero prestador
+      if (_metodoPago == 'Crédito') {
+        barberoFinal = null;
+      } else {
+        // Sin Crédito: barbero prestador requerido si hay servicios
+        if (_rolActual == AppRole.barber) {
+          barberoFinal = _barberoDelUsuario;
+        } else {
+          barberoFinal = _barberoSeleccionado;
+        }
+        if (tieneServicios && barberoFinal == null) {
+          _mostrarError('Debe seleccionar el Barbero Prestador (requerido con servicios).');
+          return;
+        }
       }
-      barberoFinal = _barberoDelUsuario;
     } else {
-      barberoFinal = _barberoSeleccionado;
-      if (tieneServicios && barberoFinal == null) {
-        _mostrarError(
-          'Debe seleccionar un barbero cuando hay servicios en la venta.',
-        );
-        return;
+      if (_rolActual == AppRole.barber) {
+        if (tieneServicios && _barberoDelUsuario == null) {
+          _mostrarError(
+            'Tu cuenta no tiene perfil de barbero. Contacta al administrador.',
+          );
+          return;
+        }
+        barberoFinal = _barberoDelUsuario;
+      } else {
+        barberoFinal = _barberoSeleccionado;
+        if (tieneServicios && barberoFinal == null) {
+          _mostrarError(
+            'Debe seleccionar un barbero cuando hay servicios en la venta.',
+          );
+          return;
+        }
       }
     }
 
-    // ← NUEVO: Validar stock antes de enviar
+    // Validar stock antes de enviar
     for (final d in _detalles) {
       if (d.productoId != null &&
           d.stockDisponible != null &&
@@ -609,20 +680,31 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           )
           .toList();
 
+      // Mapear 'Crédito' → 'CreditoBarbero' para el backend
+      final metodoPagoFinal = _esVentaBarbero && _metodoPago == 'Crédito'
+          ? 'CreditoBarbero'
+          : _metodoPago;
+
       final venta = Venta(
         id: widget.venta?.id,
         numero: _reciboController.text.trim(),
         fechaRegistro:
             widget.venta?.fechaRegistro ?? DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(DateTime.now()),
-        clienteId: _clienteSeleccionado?.id ?? 0,
-        clienteNombre: _clienteNombreInvitado,
-        barberoId: barberoFinal?.id,
+        // En Venta Barbero, clienteId = 0 (se omite en toJson) y el comprador va en barberoId
+        clienteId: _esVentaBarbero ? 0 : (_clienteSeleccionado?.id ?? 0),
+        clienteNombre: _esVentaBarbero ? null : _clienteNombreInvitado,
+        barberoId: _esVentaBarbero
+            ? _barberoCompradorSeleccionado!.id
+            : barberoFinal?.id,
+        barberoPrestadorId: _esVentaBarbero ? barberoFinal?.id : null,
         usuarioId: _usuarioIdActual,
-        metodoPago: _metodoPago,
+        metodoPago: metodoPagoFinal,
         subtotal: _subtotal,
         porcentajeDescuento: _porcentajeDescuento,
         total: _total,
         estado: widget.venta?.estado ?? 'Completada',
+        tipoVenta: _tipoVenta,
+        plazoDias: (_esVentaBarbero && _metodoPago == 'Crédito') ? _plazoDias : null,
         detalles: detallesVenta,
       );
 
@@ -670,12 +752,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                 child: Form(
                   key: _formKey,
                   child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      100 + MediaQuery.of(context).viewInsets.bottom,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                     children: [
                       const SizedBox(height: 16),
                       // ── 1. CABECERA DE VENTA ───────────────────
@@ -700,17 +777,19 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                       ),
                       const SizedBox(height: 16),
                       // ── 5. SERVICIOS / PAQUETES ────────────────
-                      _buildSeccionAgregar(
-                        titulo: 'Agregar Servicios y Paquetes',
-                        icono: Icons.content_cut,
-                        mostrar: _mostrarSeccionServicios,
-                        onToggle: () => setState(
-                          () => _mostrarSeccionServicios =
-                              !_mostrarSeccionServicios,
+                      if (!(_esVentaBarbero && _metodoPago == 'Crédito')) ...[
+                        _buildSeccionAgregar(
+                          titulo: 'Agregar Servicios y Paquetes',
+                          icono: Icons.content_cut,
+                          mostrar: _mostrarSeccionServicios,
+                          onToggle: () => setState(
+                            () => _mostrarSeccionServicios =
+                                !_mostrarSeccionServicios,
+                          ),
+                          contenido: _buildSelectorServiciosPaquetes(),
                         ),
-                        contenido: _buildSelectorServiciosPaquetes(),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
+                      ],
                       // ── 6. LISTA DE ITEMS AGREGADOS ────────────
                       if (_detalles.isNotEmpty) ...[
                         _buildTituloSeccion(
@@ -881,111 +960,272 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTituloSeccion('Cliente', Icons.person_search),
+          _buildTituloSeccion('Comprador', Icons.person_search),
           const SizedBox(height: 12),
-          SearchableSelector<Cliente>(
-            label: 'Buscar cliente',
-            hint: 'Escribe nombre o documento...',
-            items: _clientes,
-            selectedItem: _clienteSeleccionado,
-            displayText: (c) => c.nombreCompleto,
-            searchText: (c) => '${c.nombreCompleto} ${c.documento}',
-            prefixIcon: Icons.person_outline,
-            required: false,
-            selectedPrefixBuilder: (c) => _buildImage(
-              c.fotoPerfil,
-              defaultIcon: Icons.person_outline,
-            ),
-            renderItem: (c) => Row(
-              children: [
-                _buildImage(c.fotoPerfil, defaultIcon: Icons.person_outline),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.nombreCompleto,
-                        style: const TextStyle(
-                          color: AppColors.whiteSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.badge_outlined,
-                            size: 11,
-                            color: AppColors.grey,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${c.documento}  ·  Tel: ${c.telefono}',
-                            style: const TextStyle(
-                              color: AppColors.greyLight,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            onSelected: (c) {
-              setState(() {
-                _clienteSeleccionado = c;
-                _usarSaldoAFavor = false;
-                _saldoDisponible = 0;
-                if (c != null) {
-                  _clienteNombreInvitado = null;
-                  _cargarSaldoCliente(c);
-                }
-              });
-            },
-            onChanged: (text) {
-              if (_clienteSeleccionado == null) {
-                setState(() => _clienteNombreInvitado = text);
-              }
-            },
-          ),
 
-          // Indicador invitado
-          if (_clienteSeleccionado == null &&
-              _clienteNombreInvitado != null &&
-              _clienteNombreInvitado!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
+          // Toggle Cliente / Barbero (solo admin y manager)
+          if (!_barberoBloqueado) ...[
+            _buildTipoCompradorToggle(),
+            const SizedBox(height: 14),
+          ],
+
+          // Selector según modo
+          if (_esVentaBarbero)
+            _buildSelectorBarberoComprador()
+          else ...[
+            SearchableSelector<Cliente>(
+              label: 'Buscar cliente',
+              hint: 'Escribe nombre o documento...',
+              items: _clientes,
+              selectedItem: _clienteSeleccionado,
+              displayText: (c) => c.nombreCompleto,
+              searchText: (c) => '${c.nombreCompleto} ${c.documento}',
+              prefixIcon: Icons.person_outline,
+              required: false,
+              selectedPrefixBuilder: (c) => _buildImage(
+                c.fotoPerfil,
+                defaultIcon: Icons.person_outline,
+              ),
+              renderItem: (c) => Row(
                 children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 13,
-                    color: AppColors.gold,
-                  ),
-                  const SizedBox(width: 6),
+                  _buildImage(c.fotoPerfil, defaultIcon: Icons.person_outline),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Se registrará como invitado: "$_clienteNombreInvitado"',
-                      style: const TextStyle(
-                        color: AppColors.gold,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.nombreCompleto,
+                          style: const TextStyle(
+                            color: AppColors.whiteSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.badge_outlined,
+                              size: 11,
+                              color: AppColors.grey,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${c.documento}  ·  Tel: ${c.telefono}',
+                              style: const TextStyle(
+                                color: AppColors.greyLight,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
+              onSelected: (c) {
+                setState(() {
+                  _clienteSeleccionado = c;
+                  _usarSaldoAFavor = false;
+                  _saldoDisponible = 0;
+                  if (c != null) {
+                    _clienteNombreInvitado = null;
+                    _cargarSaldoCliente(c);
+                  }
+                });
+              },
+              onChanged: (text) {
+                if (_clienteSeleccionado == null) {
+                  setState(() => _clienteNombreInvitado = text);
+                }
+              },
             ),
 
-          // ← NUEVO: Panel de saldo a favor
-          if (_clienteSeleccionado != null) ...[
-            const SizedBox(height: 12),
-            _buildSaldoAFavor(),
+            // Indicador invitado
+            if (_clienteSeleccionado == null &&
+                _clienteNombreInvitado != null &&
+                _clienteNombreInvitado!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 13, color: AppColors.gold),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Se registrará como invitado: "$_clienteNombreInvitado"',
+                        style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Panel de saldo a favor
+            if (_clienteSeleccionado != null) ...[
+              const SizedBox(height: 12),
+              _buildSaldoAFavor(),
+            ],
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildTipoCompradorToggle() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (_esVentaBarbero) {
+                setState(() {
+                  _esVentaBarbero = false;
+                  _barberoCompradorSeleccionado = null;
+                  _metodoPago = 'Efectivo';
+                });
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: !_esVentaBarbero
+                    ? AppColors.gold.withOpacity(0.15)
+                    : AppColors.surface,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                border: Border.all(
+                  color: !_esVentaBarbero ? AppColors.gold : AppColors.divider,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_outline, size: 16,
+                      color: !_esVentaBarbero ? AppColors.gold : AppColors.grey),
+                  const SizedBox(width: 6),
+                  Text('Cliente',
+                      style: TextStyle(
+                        color: !_esVentaBarbero ? AppColors.gold : AppColors.grey,
+                        fontSize: 13,
+                        fontWeight: !_esVentaBarbero ? FontWeight.w600 : FontWeight.normal,
+                      )),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              if (!_esVentaBarbero) {
+                setState(() {
+                  _esVentaBarbero = true;
+                  _clienteSeleccionado = null;
+                  _clienteNombreInvitado = null;
+                  _usarSaldoAFavor = false;
+                  _saldoDisponible = 0;
+                  _metodoPago = 'Efectivo';
+                });
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: _esVentaBarbero
+                    ? AppColors.gold.withOpacity(0.15)
+                    : AppColors.surface,
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                border: Border.all(
+                  color: _esVentaBarbero ? AppColors.gold : AppColors.divider,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.content_cut, size: 16,
+                      color: _esVentaBarbero ? AppColors.gold : AppColors.grey),
+                  const SizedBox(width: 6),
+                  Text('Barbero',
+                      style: TextStyle(
+                        color: _esVentaBarbero ? AppColors.gold : AppColors.grey,
+                        fontSize: 13,
+                        fontWeight: _esVentaBarbero ? FontWeight.w600 : FontWeight.normal,
+                      )),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectorBarberoComprador() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SearchableSelector<Barbero>(
+          label: 'Barbero comprador *',
+          hint: 'Buscar barbero...',
+          items: _barberos,
+          selectedItem: _barberoCompradorSeleccionado,
+          displayText: (b) => b.nombreCompleto,
+          searchText: (b) => '${b.nombreCompleto} ${b.documento}',
+          prefixIcon: Icons.badge_outlined,
+          selectedPrefixBuilder: (b) =>
+              _buildImage(b.fotoPerfil, defaultIcon: Icons.badge_outlined),
+          renderItem: (b) => Row(
+            children: [
+              _buildImage(b.fotoPerfil, defaultIcon: Icons.badge_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(b.nombreCompleto,
+                        style: const TextStyle(
+                            color: AppColors.whiteSecondary, fontSize: 14)),
+                    Text('Doc: ${b.documento}',
+                        style: const TextStyle(
+                            color: AppColors.greyLight, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          onSelected: (b) {
+            setState(() => _barberoCompradorSeleccionado = b);
+            _verificarCicloCredito();
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.gold.withOpacity(0.25)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline, size: 14, color: AppColors.gold),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Venta Barbero: los precios se aplican al costo de compra del producto.',
+                  style: TextStyle(color: AppColors.gold, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1099,12 +1339,16 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           _buildTituloSeccion('Configuración', Icons.settings_outlined),
           const SizedBox(height: 12),
 
-          // Barbero (solo visible para admin/manager)
-          if (!_barberoBloqueado) ...[
+          // Barbero: en Venta Barbero con Crédito se oculta; en otros casos se muestra para admin/manager
+          if (!_barberoBloqueado && (!_esVentaBarbero || _metodoPago != 'Crédito')) ...[
             SearchableSelector<Barbero>(
-              label: _detalles.any((d) => d.servicioId != null)
-                  ? 'Barbero * (requerido por servicio)'
-                  : 'Barbero (opcional)',
+              label: _esVentaBarbero
+                  ? (_detalles.any((d) => d.servicioId != null)
+                      ? 'Barbero Prestador *'
+                      : 'Barbero Prestador (opcional)')
+                  : (_detalles.any((d) => d.servicioId != null)
+                      ? 'Barbero * (requerido por servicio)'
+                      : 'Barbero (opcional)'),
               hint: 'Buscar barbero...',
               items: _barberos,
               selectedItem: _barberoSeleccionado,
@@ -1151,10 +1395,143 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           _buildDropdownField(
             label: 'Método de Pago *',
             value: _metodoPago,
-            items: const ['Efectivo', 'Transferencia', 'Nequi'],
+            items: _esVentaBarbero && !_detalles.any((d) => d.servicioId != null || d.paqueteId != null)
+                ? const ['Efectivo', 'Transferencia', 'Nequi', 'Crédito']
+                : const ['Efectivo', 'Transferencia', 'Nequi'],
             icon: Icons.payment_outlined,
-            onChanged: (v) => setState(() => _metodoPago = v!),
+            onChanged: (v) {
+              setState(() {
+                _metodoPago = v!;
+                if (v == 'Crédito') _barberoSeleccionado = null;
+              });
+              _verificarCicloCredito();
+            },
           ),
+          // Aviso de límite de crédito
+          if (_esVentaBarbero && _metodoPago == 'Crédito') ...[
+            const SizedBox(height: 6),
+            Builder(builder: (context) {
+              final creditoDisponible =
+                  _barberoCompradorSeleccionado?.saldoDisponible;
+              final sinInfo = creditoDisponible == null;
+              final excede =
+                  !sinInfo && _total > creditoDisponible;
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: excede
+                      ? AppColors.red.withOpacity(0.08)
+                      : AppColors.gold.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: excede
+                        ? AppColors.red.withOpacity(0.4)
+                        : AppColors.gold.withOpacity(0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      excede
+                          ? Icons.warning_amber_rounded
+                          : Icons.credit_card_outlined,
+                      size: 14,
+                      color: excede ? AppColors.red : AppColors.gold,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        sinInfo
+                            ? 'Selecciona un barbero para ver su crédito disponible.'
+                            : excede
+                                ? 'El total (${AppFormat.cop(_total)}) supera el crédito disponible (${AppFormat.cop(creditoDisponible)}). No se puede registrar.'
+                                : 'Puede gastar hasta ${AppFormat.cop(creditoDisponible)}. Total actual: ${AppFormat.cop(_total)}.',
+                        style: TextStyle(
+                          color: excede ? AppColors.red : AppColors.gold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          // Plazo del ciclo de crédito (solo cuando es crédito nuevo y no tiene ciclo activo)
+          if (_esVentaBarbero && _metodoPago == 'Crédito') ...[
+            const SizedBox(height: 12),
+            if (_checkingCiclo) ...[
+              Row(
+                children: const [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.gold),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Verificando ciclo de crédito...',
+                      style: TextStyle(color: AppColors.grey, fontSize: 11)),
+                ],
+              ),
+            ] else if (_tieneCicloActivo) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: AppColors.gold.withOpacity(0.25)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 14, color: AppColors.gold),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Este barbero ya tiene un ciclo activo. La venta se sumará a su deuda actual.',
+                        style:
+                            TextStyle(color: AppColors.gold, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              DropdownButtonFormField<int>(
+                value: _plazoDias,
+                style: const TextStyle(
+                    color: AppColors.whiteSecondary, fontSize: 14),
+                dropdownColor: AppColors.card,
+                decoration: _inputDecoration('Plazo del ciclo de crédito',
+                    icon: Icons.calendar_month_outlined),
+                items: const [
+                  DropdownMenuItem(
+                      value: 7,
+                      child: Text('1 semana (7 días)',
+                          style: TextStyle(
+                              color: AppColors.whiteSecondary))),
+                  DropdownMenuItem(
+                      value: 14,
+                      child: Text('2 semanas (14 días)',
+                          style: TextStyle(
+                              color: AppColors.whiteSecondary))),
+                ],
+                onChanged: (v) => setState(() => _plazoDias = v ?? 7),
+              ),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Text(
+                  'Plazo para el nuevo ciclo de crédito de este barbero.',
+                  style: TextStyle(color: AppColors.grey, fontSize: 10),
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 12),
 
           // Descuento
@@ -1250,7 +1627,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   // ─── SELECTOR PRODUCTOS ───────────────────────
   Widget _buildSelectorProductos() {
     final disponibles = _productos
-        .where((p) => (p.stockVentas ?? 0) > 0)
+        .where((p) => p.cantidad > 0)
         .toList();
     return Column(
       children: [
@@ -1291,7 +1668,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'S:${p.stockVentas}',
+                  'S:${p.cantidad}',
                   style: const TextStyle(color: AppColors.green, fontSize: 10),
                 ),
               ),

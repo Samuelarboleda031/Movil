@@ -10,6 +10,9 @@ class Barbero {
   final String? fotoPerfil;
   final int? usuarioId;
   final bool? estado;
+  /// Saldo disponible de crédito calculado por la API (CupoMaximo - SaldoDeuda).
+  /// null si el barbero no tiene crédito registrado.
+  final double? saldoDisponible;
 
   Barbero({
     this.id,
@@ -23,6 +26,7 @@ class Barbero {
     this.fotoPerfil,
     this.usuarioId,
     this.estado,
+    this.saldoDisponible,
   });
 
   factory Barbero.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,9 @@ class Barbero {
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       usuarioId: json['usuarioId'] ?? json['UsuarioID'] ?? json['UsuarioId'],
       estado: json['estado'] ?? json['Estado'],
+      saldoDisponible: (json['saldoDisponible'] ?? json['SaldoDisponible']) != null
+          ? ((json['saldoDisponible'] ?? json['SaldoDisponible']) as num).toDouble()
+          : null,
     );
   }
 

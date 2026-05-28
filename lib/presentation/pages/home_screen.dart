@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _serviciosApi = servicios.where((s) => s.estado == true).toList();
-          _productosApi = productos.where((p) => p.activo == true).toList();
+          _productosApi = productos.items.where((p) => p.activo == true).toList();
           _cortesPasados = pasados;
           _clienteActual = cliente;
           _userPhotoUrl = _resolvePhotoUrl(cliente?.fotoPerfil);
