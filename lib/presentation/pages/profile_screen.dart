@@ -442,25 +442,41 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
   late final TextEditingController _telefonoCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _direccionCtrl;
+  late final TextEditingController _barrioCtrl;
+  late final TextEditingController _fechaNacimientoCtrl;
 
   bool _saving = false;
   bool _documentoEditable = true;
+  String _tipoDocumento = 'CC';
   String? _fotoPerfil;
   File? _nuevaFotoFile;
+
+  static const _tiposDocumento = ['CC', 'CE', 'TI', 'NIT', 'PP'];
+
+  static ({String tipo, String numero}) _parsearDocumento(String raw) {
+    for (final t in ['CC', 'CE', 'TI', 'NIT', 'PP']) {
+      if (raw.startsWith('$t ')) {
+        return (tipo: t, numero: raw.substring(t.length + 1).trim());
+      }
+    }
+    return (tipo: 'CC', numero: raw);
+  }
 
   @override
   void initState() {
     super.initState();
-    String doc = '';
+    String rawDoc = '';
     String nom = '';
     String ape = '';
     String tel = '';
     String dir = '';
+    String bar = '';
+    String fec = '';
 
     if (widget.entidadActual != null) {
       if (widget.role == AppRole.barber) {
         final b = widget.entidadActual as Barbero;
-        doc = b.documento ?? '';
+        rawDoc = b.documento ?? '';
         nom = b.nombre ?? '';
         ape = b.apellido ?? '';
         tel = b.telefono ?? '';
@@ -468,23 +484,32 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         _fotoPerfil = b.fotoPerfil;
       } else if (widget.role == AppRole.client) {
         final c = widget.entidadActual as Cliente;
-        doc = c.documento ?? '';
+        rawDoc = c.documento ?? '';
         nom = c.nombre ?? '';
         ape = c.apellido ?? '';
         tel = c.telefono ?? '';
         dir = c.direccion ?? '';
+        bar = c.barrio ?? '';
+        fec = c.fechaNacimiento != null
+            ? c.fechaNacimiento!.split('T')[0]
+            : '';
         _fotoPerfil = c.fotoPerfil;
       }
     }
 
-    _documentoCtrl  = TextEditingController(text: doc);
-    _nombreCtrl     = TextEditingController(text: nom);
-    _apellidoCtrl   = TextEditingController(text: ape);
-    _telefonoCtrl   = TextEditingController(text: tel);
-    _emailCtrl      = TextEditingController(text: widget.email);
-    _direccionCtrl  = TextEditingController(text: dir);
+    final parsed = _parsearDocumento(rawDoc.trim());
+    _tipoDocumento = parsed.tipo;
 
-    _documentoEditable = doc.isEmpty || doc.startsWith('TMP') || doc.startsWith('G-');
+    _documentoCtrl        = TextEditingController(text: parsed.numero);
+    _nombreCtrl           = TextEditingController(text: nom);
+    _apellidoCtrl         = TextEditingController(text: ape);
+    _telefonoCtrl         = TextEditingController(text: tel);
+    _emailCtrl            = TextEditingController(text: widget.email);
+    _direccionCtrl        = TextEditingController(text: dir);
+    _barrioCtrl           = TextEditingController(text: bar);
+    _fechaNacimientoCtrl  = TextEditingController(text: fec);
+
+    _documentoEditable = rawDoc.isEmpty || rawDoc.startsWith('TMP') || rawDoc.startsWith('G-') || rawDoc.startsWith('PASO-');
   }
 
   @override
@@ -495,6 +520,8 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     _telefonoCtrl.dispose();
     _emailCtrl.dispose();
     _direccionCtrl.dispose();
+    _barrioCtrl.dispose();
+    _fechaNacimientoCtrl.dispose();
     super.dispose();
   }
 
@@ -508,11 +535,13 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     setState(() => _saving = true);
 
     try {
+      final docCombinado = '$_tipoDocumento ${_documentoCtrl.text.trim()}';
+
       if (widget.role == AppRole.barber) {
         final currentBarber = widget.entidadActual as Barbero?;
         final barbero = Barbero(
           id: currentBarber?.id,
-          documento: _documentoCtrl.text.trim(),
+          documento: docCombinado,
           nombre: _nombreCtrl.text.trim(),
           apellido: _apellidoCtrl.text.trim(),
           telefono: _telefonoCtrl.text.trim().isEmpty ? null : _telefonoCtrl.text.trim(),
@@ -531,12 +560,14 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         final currentClient = widget.entidadActual as Cliente?;
         final cliente = Cliente(
           id: currentClient?.id,
-          documento: _documentoCtrl.text.trim(),
+          documento: docCombinado,
           nombre: _nombreCtrl.text.trim(),
           apellido: _apellidoCtrl.text.trim(),
           telefono: _telefonoCtrl.text.trim().isEmpty ? null : _telefonoCtrl.text.trim(),
           email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
           direccion: _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
+          barrio: _barrioCtrl.text.trim().isEmpty ? null : _barrioCtrl.text.trim(),
+          fechaNacimiento: _fechaNacimientoCtrl.text.trim().isEmpty ? null : _fechaNacimientoCtrl.text.trim(),
           estado: true,
         );
 
@@ -658,9 +689,10 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                     ),
                     const SizedBox(height: 14),
                     // Fields
+                    if (_documentoEditable) _tipoDocumentoDropdown(),
                     _inputField(
-                      label: _documentoEditable ? 'Documento *' : 'Documento (Protegido)', 
-                      ctrl: _documentoCtrl, 
+                      label: _documentoEditable ? 'Número de documento *' : 'Documento (Protegido)',
+                      ctrl: _documentoCtrl,
                       keyboardType: TextInputType.number,
                       readOnly: !_documentoEditable,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -672,9 +704,23 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                     _inputField(
                       label: 'Dirección',
                       ctrl: _direccionCtrl,
-                      hint: 'Ingresa tu dirección',
-                      isLast: true,
+                      hint: 'Ej: Calle 10 # 5-20',
+                      isLast: widget.role != AppRole.client,
                     ),
+                    if (widget.role == AppRole.client) ...[
+                      _inputField(
+                        label: 'Barrio',
+                        ctrl: _barrioCtrl,
+                        hint: 'Ej: El Centro',
+                      ),
+                      _inputField(
+                        label: 'Fecha de nacimiento',
+                        ctrl: _fechaNacimientoCtrl,
+                        hint: 'AAAA-MM-DD',
+                        keyboardType: TextInputType.datetime,
+                        isLast: true,
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     // Save button
                     _saveButton(),
@@ -758,6 +804,41 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
           style: TextStyle(color: AppColors.grey, fontSize: 12),
         ),
       ],
+    );
+  }
+
+  // ── Tipo de documento dropdown ────────────────────────────────────────────
+  Widget _tipoDocumentoDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: _tipoDocumento,
+        dropdownColor: AppColors.card,
+        style: const TextStyle(color: AppColors.white, fontSize: 15),
+        iconEnabledColor: AppColors.grey,
+        decoration: InputDecoration(
+          labelText: 'Tipo de documento',
+          labelStyle: const TextStyle(color: AppColors.grey, fontSize: 12),
+          filled: true,
+          fillColor: AppColors.inputBg,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.inputBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+          ),
+        ),
+        items: _tiposDocumento.map((t) => DropdownMenuItem(
+          value: t,
+          child: Text(t, style: const TextStyle(color: AppColors.white)),
+        )).toList(),
+        onChanged: (val) {
+          if (val != null) setState(() => _tipoDocumento = val);
+        },
+      ),
     );
   }
 

@@ -12,6 +12,7 @@ import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
+import 'package:parte_movil/data/models/cliente.dart';
 
 import 'package:parte_movil/presentation/pages/home_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
@@ -44,6 +45,156 @@ class _MainLayoutState extends State<MainLayout> {
   late final HorariosBloc _horariosBloc;
   late final VentasBloc _ventasBloc;
   List<Widget>? _screens;
+  final _userContextService = UserContextService();
+
+  // ── Campos requeridos para agendar ────────────────────────────────────────
+  static const _camposInfo = {
+    'documento':       (icon: Icons.badge_outlined,          label: 'Tipo y número de documento'),
+    'fechaNacimiento': (icon: Icons.cake_outlined,           label: 'Fecha de nacimiento'),
+    'telefono':        (icon: Icons.phone_outlined,          label: 'Número de celular'),
+    'direccion':       (icon: Icons.location_on_outlined,    label: 'Dirección'),
+    'barrio':          (icon: Icons.home_outlined,           label: 'Barrio'),
+  };
+
+  List<String> _getPerfilFaltantes(Cliente cliente) {
+    final faltantes = <String>[];
+    final doc = cliente.documento.trim();
+    final isTemp = doc.isEmpty || doc.startsWith('PASO-') || doc.startsWith('TMP') || doc.startsWith('G-');
+    if (isTemp) faltantes.add('documento');
+    if (cliente.fechaNacimiento == null || cliente.fechaNacimiento!.isEmpty) faltantes.add('fechaNacimiento');
+    if (cliente.telefono == null || cliente.telefono!.isEmpty) faltantes.add('telefono');
+    if (cliente.direccion == null || cliente.direccion!.isEmpty) faltantes.add('direccion');
+    if (cliente.barrio == null || cliente.barrio!.isEmpty) faltantes.add('barrio');
+    return faltantes;
+  }
+
+  Future<void> _handleClienteNuevaCita() async {
+    final cliente = await _userContextService.obtenerClienteActual();
+    if (!mounted) return;
+
+    if (cliente != null) {
+      final faltantes = _getPerfilFaltantes(cliente);
+      if (faltantes.isNotEmpty) {
+        _showPerfilIncompletoSheet(faltantes, cliente);
+        return;
+      }
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AgendamientoFormScreen(role: widget.role)),
+    ).then((value) {
+      if (mounted && value == true) {
+        context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
+      }
+    });
+  }
+
+  void _showPerfilIncompletoSheet(List<String> faltantes, Cliente cliente) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1919),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF3A3A3A)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD8B081).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFD8B081).withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.person_outline, color: Color(0xFFD8B081), size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Completa tu perfil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        SizedBox(height: 2),
+                        Text('Para agendar necesitas completar estos datos:', style: TextStyle(color: Color(0xFFB0B0B0), fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...faltantes.map((campo) {
+                final info = _camposInfo[campo];
+                if (info == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFD8B081).withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(info.icon, color: const Color(0xFFD8B081), size: 18),
+                        const SizedBox(width: 12),
+                        Text(info.label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF111111)),
+                  label: const Text('Completar mi perfil', style: TextStyle(color: Color(0xFF111111), fontWeight: FontWeight.bold, fontSize: 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD8B081),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => UpdateProfileScreen(
+                        role: widget.role,
+                        entidadActual: cliente,
+                        email: cliente.email ?? '',
+                      )),
+                    ).then((_) => _userContextService.limpiarCache());
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar', style: TextStyle(color: Color(0xFFB0B0B0), fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -242,9 +393,7 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 1 && widget.role == AppRole.client) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AgendamientoFormScreen(role: widget.role))).then((value) {
-          if (mounted && value == true) context.read<AgendamientosBloc>().add(const LoadAgendamientosRequested(page: 1));
-        }),
+        onPressed: _handleClienteNuevaCita,
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(

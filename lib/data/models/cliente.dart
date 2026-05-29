@@ -6,6 +6,8 @@ class Cliente {
   final String? telefono;
   final String? email;
   final String? direccion;
+  final String? barrio;
+  final String? fechaNacimiento;
   final String? fotoPerfil;
   final int? usuarioId;
   final bool? estado;
@@ -18,6 +20,8 @@ class Cliente {
     this.telefono,
     this.email,
     this.direccion,
+    this.barrio,
+    this.fechaNacimiento,
     this.fotoPerfil,
     this.usuarioId,
     this.estado,
@@ -32,6 +36,8 @@ class Cliente {
       telefono: json['telefono'] ?? json['Telefono'],
       email: json['email'] ?? json['Email'] ?? json['correo'] ?? json['Correo'],
       direccion: json['direccion'] ?? json['Direccion'],
+      barrio: json['barrio'] ?? json['Barrio'],
+      fechaNacimiento: json['fechaNacimiento'] ?? json['FechaNacimiento'],
       fotoPerfil: json['fotoPerfil'] ?? json['FotoPerfil'],
       usuarioId: json['usuarioId'] ?? json['UsuarioID'] ?? json['UsuarioId'],
       estado: json['estado'] ?? json['Estado'],
@@ -53,6 +59,12 @@ class Cliente {
     }
     if (direccion != null && direccion!.isNotEmpty) {
       data['Direccion'] = direccion;
+    }
+    if (barrio != null && barrio!.isNotEmpty) {
+      data['Barrio'] = barrio;
+    }
+    if (fechaNacimiento != null && fechaNacimiento!.isNotEmpty) {
+      data['FechaNacimiento'] = fechaNacimiento;
     }
     if (fotoPerfil != null && fotoPerfil!.isNotEmpty) {
       data['FotoPerfil'] = fotoPerfil;

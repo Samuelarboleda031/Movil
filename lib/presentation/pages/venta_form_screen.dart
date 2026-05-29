@@ -134,13 +134,15 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   // Detalles
   List<DetalleVentaItem> _detalles = [];
   Producto? _productoParaAgregar;
-  ItemVenta? _servicioPaqueteParaAgregar;
+  ItemVenta? _servicioVentaItem;
+  ItemVenta? _paqueteVentaItem;
 
   // Estado UI
   bool _isLoading = false;
   bool _isLoadingData = true;
   bool _mostrarSeccionProductos = true;
   bool _mostrarSeccionServicios = true;
+  bool _mostrarSeccionPaquetes = true;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
 
@@ -499,35 +501,64 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     });
   }
 
-  void _agregarServicioPaquete() {
-    if (_servicioPaqueteParaAgregar == null) {
-      _mostrarError('Seleccione un servicio o paquete para agregar.');
+  bool get _tieneServicios => _detalles.any((d) => d.servicioId != null);
+  bool get _tienePaquetes  => _detalles.any((d) => d.paqueteId  != null);
+
+  void _agregarServicioVenta() {
+    if (_tienePaquetes) {
+      _mostrarError('No puedes agregar servicios cuando ya hay paquetes en la venta.');
       return;
     }
-    final item = _servicioPaqueteParaAgregar!;
-    final precio = _getPrecioItem(item);
-
+    if (_servicioVentaItem == null) {
+      _mostrarError('Seleccione un servicio para agregar.');
+      return;
+    }
+    final item = _servicioVentaItem!;
     final existente = _detalles.where((d) => d.itemSeleccionado == item).firstOrNull;
     if (existente != null) {
-      _mostrarError('Este ${item.tipo.toLowerCase()} ya fue agregado.');
+      _mostrarError('Este servicio ya fue agregado.');
       return;
     }
     setState(() {
       _detalles.add(
         DetalleVentaItem(
-          productoId: item.tipo == 'Producto' ? item.id : null,
-          servicioId: item.tipo == 'Servicio' ? item.id : null,
-          paqueteId: item.tipo == 'Paquete' ? item.id : null,
+          servicioId: item.id,
           itemSeleccionado: item,
           cantidad: 1,
-          precioUnitario: precio,
+          precioUnitario: _getPrecioItem(item),
         ),
       );
-      _servicioPaqueteParaAgregar = null;
-      // Crédito solo aplica a productos: si se agrega servicio/paquete, forzar otro método
-      if (_metodoPago == 'Crédito' && (item.tipo == 'Servicio' || item.tipo == 'Paquete')) {
-        _metodoPago = 'Efectivo';
-      }
+      _servicioVentaItem = null;
+      if (_metodoPago == 'Crédito') _metodoPago = 'Efectivo';
+    });
+  }
+
+  void _agregarPaqueteVenta() {
+    if (_tieneServicios) {
+      _mostrarError('No puedes agregar paquetes cuando ya hay servicios en la venta.');
+      return;
+    }
+    if (_paqueteVentaItem == null) {
+      _mostrarError('Seleccione un paquete para agregar.');
+      return;
+    }
+    final item = _paqueteVentaItem!;
+    final existente = _detalles.where((d) => d.itemSeleccionado == item).firstOrNull;
+    if (existente != null) {
+      _mostrarError('Este paquete ya fue agregado.');
+      return;
+    }
+    setState(() {
+      _detalles.add(
+        DetalleVentaItem(
+          paqueteId: item.id,
+          itemSeleccionado: item,
+          cantidad: 1,
+          precioUnitario: _getPrecioItem(item),
+        ),
+      );
+      _paqueteVentaItem = null;
+      if (_metodoPago == 'Crédito') _metodoPago = 'Efectivo';
     });
   }
 
@@ -776,17 +807,33 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                         contenido: _buildSelectorProductos(),
                       ),
                       const SizedBox(height: 16),
-                      // ── 5. SERVICIOS / PAQUETES ────────────────
+                      // ── 5. SERVICIOS ───────────────────────────
                       if (!(_esVentaBarbero && _metodoPago == 'Crédito')) ...[
                         _buildSeccionAgregar(
-                          titulo: 'Agregar Servicios y Paquetes',
+                          titulo: 'Agregar Servicios',
                           icono: Icons.content_cut,
                           mostrar: _mostrarSeccionServicios,
                           onToggle: () => setState(
                             () => _mostrarSeccionServicios =
                                 !_mostrarSeccionServicios,
                           ),
-                          contenido: _buildSelectorServiciosPaquetes(),
+                          contenido: _tienePaquetes
+                              ? _buildBloqueadoPor('paquetes')
+                              : _buildSelectorServicios(),
+                        ),
+                        const SizedBox(height: 16),
+                        // ── 5b. PAQUETES ───────────────────────────
+                        _buildSeccionAgregar(
+                          titulo: 'Agregar Paquetes',
+                          icono: Icons.card_giftcard_outlined,
+                          mostrar: _mostrarSeccionPaquetes,
+                          onToggle: () => setState(
+                            () => _mostrarSeccionPaquetes =
+                                !_mostrarSeccionPaquetes,
+                          ),
+                          contenido: _tieneServicios
+                              ? _buildBloqueadoPor('servicios')
+                              : _buildSelectorPaquetes(),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -797,8 +844,14 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                           Icons.receipt_long_outlined,
                         ),
                         const SizedBox(height: 8),
-                        ..._detalles.asMap().entries.map(
-                          (e) => _buildDetalleCard(e.key, e.value),
+                        SizedBox(
+                          height: 148,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _detalles.length,
+                            itemBuilder: (ctx, i) =>
+                                _buildDetalleCardH(i, _detalles[i]),
+                          ),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -1626,141 +1679,223 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   // ─── SELECTOR PRODUCTOS ───────────────────────
   Widget _buildSelectorProductos() {
-    final disponibles = _productos
-        .where((p) => p.cantidad > 0)
-        .toList();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SearchableSelector<Producto>(
-          label: 'Seleccionar producto',
+          label: 'Buscar producto',
           hint: 'Escribe el nombre del producto...',
-          items: disponibles,
+          items: _productos.where((p) => p.cantidad > 0).toList(),
           selectedItem: _productoParaAgregar,
           displayText: (p) => p.nombre,
           searchText: (p) => p.nombre,
           prefixIcon: Icons.inventory_2_outlined,
-          onSelected: (p) => setState(() => _productoParaAgregar = p),
-          renderItem: (p) => Row(
-            children: [
-              _buildImage(
-                p.imagenProduc,
-                isCircular: false,
-                defaultIcon: Icons.inventory_2_outlined,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  p.nombre,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.whiteSecondary),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppFormat.cop(p.precioVenta),
-                style: const TextStyle(color: AppColors.gold, fontSize: 12),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.green.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'S:${p.cantidad}',
-                  style: const TextStyle(color: AppColors.green, fontSize: 10),
-                ),
-              ),
-            ],
+          required: false,
+          selectedPrefixBuilder: (p) => _buildImage(
+            p.imagenProduc,
+            defaultIcon: Icons.inventory_2_outlined,
+            isCircular: false,
           ),
-        ),
-        const SizedBox(height: 8),
-        _buildBotonAgregar(onTap: _agregarProducto, label: 'Agregar Producto'),
-      ],
-    );
-  }
-
-  // ─── SELECTOR SERVICIOS / PAQUETES ────────────
-  Widget _buildSelectorServiciosPaquetes() {
-    final List<ItemVenta> opciones = [
-      ..._servicios.map((s) => ItemVenta(tipo: 'Servicio', id: s.id!)),
-      ..._paquetes.map((p) => ItemVenta(tipo: 'Paquete', id: p.id!)),
-    ];
-
-    String getDisplayText(ItemVenta item) {
-      if (item.tipo == 'Servicio') {
-        return _servicios.firstWhere((s) => s.id == item.id).nombre;
-      } else {
-        return _paquetes.firstWhere((p) => p.id == item.id).nombre;
-      }
-    }
-
-    return Column(
-      children: [
-        SearchableSelector<ItemVenta>(
-          label: 'Seleccionar servicio o paquete',
-          hint: 'Escribe el nombre...',
-          items: opciones,
-          selectedItem: _servicioPaqueteParaAgregar,
-          displayText: getDisplayText,
-          searchText: getDisplayText,
-          prefixIcon: Icons.content_cut,
-          onSelected: (item) =>
-              setState(() => _servicioPaqueteParaAgregar = item),
-          renderItem: (item) {
-            final isServicio = item.tipo == 'Servicio';
-            final nombre = getDisplayText(item);
-            final precio = isServicio
-                ? _servicios.firstWhere((s) => s.id == item.id).precio
-                : _paquetes.firstWhere((p) => p.id == item.id).precio;
-            final url = isServicio
-                ? _servicios.firstWhere((s) => s.id == item.id).imagen
-                : null;
-
+          renderItem: (p) {
             return Row(
               children: [
                 _buildImage(
-                  url,
+                  p.imagenProduc,
+                  defaultIcon: Icons.inventory_2_outlined,
                   isCircular: false,
-                  defaultIcon: isServicio ? Icons.cut : Icons.card_giftcard,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        nombre,
-                        overflow: TextOverflow.ellipsis,
+                        p.nombre,
                         style: const TextStyle(
-                          color: AppColors.whiteSecondary,
-                          fontSize: 14,
-                        ),
+                            color: AppColors.whiteSecondary, fontSize: 14),
                       ),
                       Text(
-                        isServicio ? 'Servicio' : 'Paquete',
+                        '${AppFormat.cop(p.precioVenta)}  ·  Stock: ${p.cantidad}',
                         style: const TextStyle(
-                          color: AppColors.greyLight,
-                          fontSize: 11,
-                        ),
+                            color: AppColors.greyLight, fontSize: 11),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  AppFormat.cop(precio),
-                  style: const TextStyle(color: AppColors.gold, fontSize: 12),
+              ],
+            );
+          },
+          onSelected: (p) => setState(() => _productoParaAgregar = p),
+        ),
+        const SizedBox(height: 10),
+        _buildBotonAgregar(
+          onTap: _agregarProducto,
+          label: 'Agregar Producto',
+        ),
+      ],
+    );
+  }
+
+  // ─── BLOQUEO MUTUO SERVICIO / PAQUETE ─────────
+  Widget _buildBloqueadoPor(String tipo) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.block, color: AppColors.grey, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'No disponible: ya hay $tipo en la venta.',
+              style: const TextStyle(
+                color: AppColors.greyLight,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── SELECTOR SERVICIOS ───────────────────────
+  Widget _buildSelectorServicios() {
+    final List<ItemVenta> opciones =
+        _servicios.map((s) => ItemVenta(tipo: 'Servicio', id: s.id!)).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchableSelector<ItemVenta>(
+          label: 'Buscar servicio',
+          hint: 'Escribe el nombre del servicio...',
+          items: opciones,
+          selectedItem: _servicioVentaItem,
+          displayText: (item) =>
+              _servicios.where((s) => s.id == item.id).firstOrNull?.nombre ?? '',
+          searchText: (item) =>
+              _servicios.where((s) => s.id == item.id).firstOrNull?.nombre ?? '',
+          prefixIcon: Icons.content_cut,
+          required: false,
+          selectedPrefixBuilder: (item) {
+            final imagen =
+                _servicios.where((s) => s.id == item.id).firstOrNull?.imagen;
+            return _buildImage(
+              imagen,
+              defaultIcon: Icons.content_cut,
+              isCircular: false,
+            );
+          },
+          renderItem: (item) {
+            final s = _servicios.where((sv) => sv.id == item.id).firstOrNull;
+            return Row(
+              children: [
+                _buildImage(
+                  s?.imagen,
+                  defaultIcon: Icons.content_cut,
+                  isCircular: false,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s?.nombre ?? '',
+                        style: const TextStyle(
+                            color: AppColors.whiteSecondary, fontSize: 14),
+                      ),
+                      Text(
+                        '${AppFormat.cop(s?.precio ?? 0)}  ·  ${s?.duracionMinutos ?? 0} min',
+                        style: const TextStyle(
+                            color: AppColors.greyLight, fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             );
           },
+          onSelected: (item) => setState(() => _servicioVentaItem = item),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         _buildBotonAgregar(
-          onTap: _agregarServicioPaquete,
-          label: 'Agregar Servicio / Paquete',
+          onTap: _agregarServicioVenta,
+          label: 'Agregar Servicio',
+        ),
+      ],
+    );
+  }
+
+  // ─── SELECTOR PAQUETES ────────────────────────
+  Widget _buildSelectorPaquetes() {
+    final List<ItemVenta> opciones =
+        _paquetes.map((p) => ItemVenta(tipo: 'Paquete', id: p.id!)).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SearchableSelector<ItemVenta>(
+          label: 'Buscar paquete',
+          hint: 'Escribe el nombre del paquete...',
+          items: opciones,
+          selectedItem: _paqueteVentaItem,
+          displayText: (item) =>
+              _paquetes.where((p) => p.id == item.id).firstOrNull?.nombre ?? '',
+          searchText: (item) =>
+              _paquetes.where((p) => p.id == item.id).firstOrNull?.nombre ?? '',
+          prefixIcon: Icons.card_giftcard_outlined,
+          required: false,
+          renderItem: (item) {
+            final p = _paquetes.where((pk) => pk.id == item.id).firstOrNull;
+            return Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard_outlined,
+                    color: AppColors.gold,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p?.nombre ?? '',
+                        style: const TextStyle(
+                            color: AppColors.whiteSecondary, fontSize: 14),
+                      ),
+                      Text(
+                        '${AppFormat.cop(p?.precio ?? 0)}  ·  ${p?.duracionMinutos ?? 0} min',
+                        style: const TextStyle(
+                            color: AppColors.greyLight, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+          onSelected: (item) => setState(() => _paqueteVentaItem = item),
+        ),
+        const SizedBox(height: 10),
+        _buildBotonAgregar(
+          onTap: _agregarPaqueteVenta,
+          label: 'Agregar Paquete',
         ),
       ],
     );
@@ -1972,6 +2107,239 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             },
             child: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ─── TARJETA DE DETALLE HORIZONTAL ───────────
+  Widget _buildDetalleCardH(int index, DetalleVentaItem d) {
+    final esProducto = d.productoId != null;
+    final stockExcedido =
+        esProducto && d.stockDisponible != null && d.cantidad > d.stockDisponible!;
+    final enMaxStock =
+        esProducto && d.stockDisponible != null && d.cantidad >= d.stockDisponible!;
+    final imagenUrl = _getImagenItem(d);
+    final iconoDefault = _getIconItem(d);
+    final fullNombre = _getNombreItem(d);
+    final nombre = fullNombre.contains(': ')
+        ? fullNombre.split(': ').skip(1).join(': ')
+        : fullNombre;
+
+    return Container(
+      width: 152,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: stockExcedido ? AppColors.red : AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // header: imagen + nombre + eliminar
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: imagenUrl != null && imagenUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          imagenUrl.startsWith('http')
+                              ? imagenUrl
+                              : '${ApiConfig.baseUrl}$imagenUrl',
+                          width: 30,
+                          height: 30,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              Icon(iconoDefault, size: 14, color: AppColors.grey),
+                        ),
+                      )
+                    : Icon(iconoDefault, size: 14, color: AppColors.grey),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(nombre,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: stockExcedido
+                          ? AppColors.red
+                          : AppColors.whiteSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
+                    )),
+              ),
+              GestureDetector(
+                onTap: () {
+                  d.cantidadController.dispose();
+                  setState(() => _detalles.removeAt(index));
+                },
+                child: const Icon(Icons.close, size: 14, color: AppColors.red),
+              ),
+            ],
+          ),
+          // precios
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${AppFormat.cop(d.precioUnitario)} c/u',
+                  style: const TextStyle(
+                      color: AppColors.greyLight, fontSize: 9)),
+              Text('Sub: ${AppFormat.cop(d.subtotal)}',
+                  style: const TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold)),
+              if (enMaxStock) ...[
+                const SizedBox(height: 2),
+                Text(
+                  stockExcedido
+                      ? 'Excede stock (${d.stockDisponible})'
+                      : 'Máx: ${d.stockDisponible}',
+                  style: TextStyle(
+                      color: stockExcedido ? AppColors.red : const Color(0xFFB07070),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500),
+                ),
+              ],
+            ],
+          ),
+          // cantidad
+          if (esProducto)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildCantidadBtn(
+                  icon: Icons.remove,
+                  onTap: () {
+                    if (d.cantidad <= 1) return;
+                    setState(() {
+                      d.cantidad--;
+                      d.cantidadController.text = d.cantidad.toString();
+                    });
+                  },
+                ),
+                const SizedBox(width: 4),
+                // Campo editable de cantidad
+                SizedBox(
+                  width: 40,
+                  child: TextField(
+                    controller: d.cantidadController,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
+                    style: TextStyle(
+                      color: enMaxStock ? AppColors.red : AppColors.whiteSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(5),
+                        borderSide: BorderSide(
+                          color: enMaxStock ? AppColors.red : AppColors.divider,
+                          width: 0.5,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(5),
+                        borderSide: BorderSide(
+                          color: enMaxStock ? AppColors.red : AppColors.gold,
+                          width: 1,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                    ),
+                    onChanged: (v) {
+                      final n = int.tryParse(v);
+                      if (n == null || n < 1) return;
+                      if (n > 906) {
+                        d.cantidadController.value = const TextEditingValue(
+                          text: '906',
+                          selection: TextSelection.collapsed(offset: 3),
+                        );
+                        setState(() => d.cantidad = 906);
+                        return;
+                      }
+                      if (d.stockDisponible != null && n > d.stockDisponible!) {
+                        final limite = d.stockDisponible!;
+                        d.cantidadController.value = TextEditingValue(
+                          text: '$limite',
+                          selection: TextSelection.collapsed(offset: '$limite'.length),
+                        );
+                        setState(() => d.cantidad = limite);
+                        final nombre = _getNombreItem(d).contains(': ')
+                            ? _getNombreItem(d).split(': ').skip(1).join(': ')
+                            : _getNombreItem(d);
+                        _mostrarError('Stock máximo: $limite unidades de "$nombre"');
+                        return;
+                      }
+                      setState(() => d.cantidad = n);
+                    },
+                    onEditingComplete: () {
+                      final n = int.tryParse(d.cantidadController.text) ?? 0;
+                      if (n < 1) {
+                        setState(() => d.cantidad = 1);
+                        d.cantidadController.text = '1';
+                      }
+                      FocusScope.of(context).unfocus();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _buildCantidadBtn(
+                  icon: Icons.add,
+                  onTap: () {
+                    if (d.cantidad >= 906) return;
+                    if (d.stockDisponible != null &&
+                        d.cantidad >= d.stockDisponible!) {
+                      final nombre = _getNombreItem(d).contains(': ')
+                          ? _getNombreItem(d).split(': ').skip(1).join(': ')
+                          : _getNombreItem(d);
+                      _mostrarError(
+                          'Stock máximo alcanzado: ${d.stockDisponible} unidades de "$nombre"');
+                      return;
+                    }
+                    setState(() {
+                      d.cantidad++;
+                      d.cantidadController.text = d.cantidad.toString();
+                    });
+                  },
+                ),
+              ],
+            )
+          else
+            Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Text('x 1',
+                    style: TextStyle(
+                        color: AppColors.greyLight, fontSize: 11)),
+              ),
+            ),
         ],
       ),
     );

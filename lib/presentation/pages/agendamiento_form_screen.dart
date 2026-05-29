@@ -111,6 +111,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   List<Servicio> _serviciosSeleccionados = [];
   Paquete? _paqueteSeleccionado;
   Map<int, int> _productoCantidades = {};
+  final Map<int, TextEditingController> _productoCantidadCtrls = {};
   bool _esServicio = true;
 
   // Buscador de servicios (igual que en paquetes)
@@ -180,6 +181,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     _montoController.dispose();
     _buscarServicioAgendCtrl.dispose();
     _buscarProductoCtrl.dispose();
+    for (final c in _productoCantidadCtrls.values) c.dispose();
     super.dispose();
   }
 
@@ -214,7 +216,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         _barberos = listBarberRaw;
         _servicios = results[2] as List<Servicio>;
         _paquetes = results[3] as List<Paquete>;
-        _productos = results[4] as List<Producto>;
+        _productos = (results[4] as Paginacion<Producto>).items;
         _todasLasCitas = (results[5] as Paginacion<Agendamiento>).items;
         _todosLosHorarios = results[6] as List<HorarioSemanal>;
         _isLoadingData = false;
@@ -835,6 +837,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
             _busquedaServicioAgend = '';
             _mostrarResultadosAgend = false;
             _productoCantidades.clear();
+            for (final c in _productoCantidadCtrls.values) c.dispose();
+            _productoCantidadCtrls.clear();
             _buscarProductoCtrl.clear();
             _busquedaProducto = '';
             _mostrarResultadosProducto = false;
@@ -1036,24 +1040,293 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         ],
         if (_serviciosSeleccionados.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _serviciosSeleccionados.map((s) => _ServiceChip(
-              label: s.nombre,
-              onRemove: () {
-                setState(() {
-                  _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
-                  _calcularTotal();
-                  _horaInicioSeleccionada = null;
-                  _horaFinSeleccionada = null;
-                });
-                _recalcularSlots();
+          SizedBox(
+            height: 82,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _serviciosSeleccionados.length,
+              itemBuilder: (ctx, i) {
+                final s = _serviciosSeleccionados[i];
+                return _selectedServicioCard(s);
               },
-            )).toList(),
+            ),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _selectedServicioCard(Servicio s) {
+    return Container(
+      width: 170,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kGoldTint,
+        borderRadius: BorderRadius.circular(_kRadiusMd),
+        border: Border.all(color: _kGoldMid, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _kSurface2,
+              borderRadius: BorderRadius.circular(8),
+              image: (s.imagen != null && s.imagen!.isNotEmpty)
+                  ? DecorationImage(image: NetworkImage(s.imagen!), fit: BoxFit.cover)
+                  : null,
+            ),
+            child: (s.imagen == null || s.imagen!.isEmpty)
+                ? Icon(Icons.content_cut, color: _kGoldMid, size: 16)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(s.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _kGold, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text('\$${s.precio.toStringAsFixed(0)}  ·  ${s.duracionMinutos} min',
+                    style: const TextStyle(color: _kTextDim, fontSize: 10)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _serviciosSeleccionados.removeWhere((sel) => sel.id == s.id);
+                _calcularTotal();
+                _horaInicioSeleccionada = null;
+                _horaFinSeleccionada = null;
+              });
+              _recalcularSlots();
+            },
+            child: const Icon(Icons.close, color: _kTextFaint, size: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _selectedProductoCard(Producto p, int productId, int qty) {
+    final sinStock = p.cantidad > 0 && qty >= p.cantidad;
+    // Obtener o crear el controller para este producto
+    final ctrl = _productoCantidadCtrls.putIfAbsent(
+      productId, () => TextEditingController(text: '$qty'),
+    );
+    // Sincronizar texto si fue modificado externamente (+/-)
+    if (ctrl.text != '$qty') {
+      ctrl.value = TextEditingValue(
+        text: '$qty',
+        selection: TextSelection.collapsed(offset: '$qty'.length),
+      );
+    }
+
+    return Container(
+      width: 162,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(_kRadiusMd),
+        border: Border.all(
+          color: sinStock ? const Color(0xFFB07070) : _kBorder,
+          width: sinStock ? 1 : 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // ── Nombre + X ──
+          Row(
+            children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: _kSurface2,
+                  borderRadius: BorderRadius.circular(6),
+                  image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
+                      ? DecorationImage(image: NetworkImage(p.imagenProduc!), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
+                    ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 13)
+                    : null,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(p.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _kText, fontSize: 11, fontWeight: FontWeight.w600)),
+              ),
+              GestureDetector(
+                onTap: () {
+                  ctrl.dispose();
+                  _productoCantidadCtrls.remove(productId);
+                  setState(() {
+                    _productoCantidades.remove(productId);
+                    _calcularTotal();
+                  });
+                },
+                child: const Icon(Icons.close, color: _kTextFaint, size: 14),
+              ),
+            ],
+          ),
+          // ── Precio + indicador stock ──
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('\$${(p.precioVenta * qty).toStringAsFixed(0)}',
+                  style: const TextStyle(color: _kGoldMid, fontSize: 10, fontWeight: FontWeight.bold)),
+              if (sinStock) ...[
+                const SizedBox(height: 2),
+                Text('Máx: ${p.cantidad}',
+                    style: const TextStyle(color: Color(0xFFB07070), fontSize: 9, fontWeight: FontWeight.w500)),
+              ],
+            ],
+          ),
+          // ── Controles de cantidad ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Botón −
+              _hQtyBtn(Icons.remove, enabled: qty > 0, onTap: () {
+                final nv = qty > 1 ? qty - 1 : null;
+                if (nv != null) {
+                  ctrl.value = TextEditingValue(
+                    text: '$nv',
+                    selection: TextSelection.collapsed(offset: '$nv'.length),
+                  );
+                  setState(() {
+                    _productoCantidades[productId] = nv;
+                    _calcularTotal();
+                  });
+                } else {
+                  ctrl.dispose();
+                  _productoCantidadCtrls.remove(productId);
+                  setState(() {
+                    _productoCantidades.remove(productId);
+                    _calcularTotal();
+                  });
+                }
+              }),
+              // Campo de cantidad editable
+              SizedBox(
+                width: 38,
+                child: TextField(
+                  controller: ctrl,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(3),
+                  ],
+                  style: TextStyle(
+                    color: sinStock ? const Color(0xFFB07070) : _kGold,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: sinStock ? const Color(0xFF552020) : _kBorder,
+                        width: 0.5,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: sinStock ? const Color(0xFFB07070) : _kGoldBorder,
+                        width: 1,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: _kSurface2,
+                  ),
+                  onChanged: (v) {
+                    final n = int.tryParse(v);
+                    if (n == null || n < 1) return; // esperar a que termine de escribir
+                    if (p.cantidad > 0 && n > p.cantidad) {
+                      // Supera stock: clamp y mostrar error
+                      ctrl.value = TextEditingValue(
+                        text: '${p.cantidad}',
+                        selection: TextSelection.collapsed(offset: '${p.cantidad}'.length),
+                      );
+                      setState(() {
+                        _productoCantidades[productId] = p.cantidad;
+                        _calcularTotal();
+                      });
+                      _mostrarError(
+                        'Stock máximo: ${p.cantidad} unidades de "${p.nombre}"',
+                        centered: true,
+                      );
+                    } else {
+                      setState(() {
+                        _productoCantidades[productId] = n;
+                        _calcularTotal();
+                      });
+                    }
+                  },
+                  onEditingComplete: () {
+                    final n = int.tryParse(ctrl.text);
+                    if (n == null || n < 1) {
+                      // Si dejó vacío o 0, eliminar producto
+                      ctrl.dispose();
+                      _productoCantidadCtrls.remove(productId);
+                      setState(() {
+                        _productoCantidades.remove(productId);
+                        _calcularTotal();
+                      });
+                    }
+                    FocusScope.of(context).unfocus();
+                  },
+                ),
+              ),
+              // Botón +
+              GestureDetector(
+                onTap: () {
+                  if (sinStock) {
+                    _mostrarError(
+                      'Stock máximo alcanzado: ${p.cantidad} unidades de "${p.nombre}"',
+                      centered: true,
+                    );
+                    return;
+                  }
+                  final nv = qty + 1;
+                  ctrl.value = TextEditingValue(
+                    text: '$nv',
+                    selection: TextSelection.collapsed(offset: '$nv'.length),
+                  );
+                  setState(() {
+                    _productoCantidades[productId] = nv;
+                    _calcularTotal();
+                  });
+                },
+                child: Container(
+                  width: 26, height: 26,
+                  decoration: BoxDecoration(
+                    color: _kSurface2,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: sinStock ? const Color(0xFF552020) : _kGoldBorder,
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Icon(Icons.add, size: 14,
+                      color: sinStock ? const Color(0xFFB07070) : _kGoldMid),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1272,117 +1545,42 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
           ),
         ],
 
-        const SizedBox(height: 12),
-
         // ── Productos seleccionados ──
         if (_productoCantidades.isNotEmpty) ...[
-          ..._productoCantidades.entries.map((e) {
-            final p = _productos.firstWhere(
-              (prod) => prod.id == e.key,
-              orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
-            );
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _kSurface,
-                borderRadius: BorderRadius.circular(_kRadiusMd),
-                border: Border.all(color: _kBorder, width: 0.5),
-              ),
-              child: Row(
-                children: [
-                  // Imagen del producto
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _kSurface2,
-                      borderRadius: BorderRadius.circular(8),
-                      image: (p.imagenProduc != null && p.imagenProduc!.isNotEmpty)
-                          ? DecorationImage(
-                              image: NetworkImage(p.imagenProduc!),
-                              fit: BoxFit.cover)
-                          : null,
-                    ),
-                    child: (p.imagenProduc == null || p.imagenProduc!.isEmpty)
-                        ? Icon(Icons.shopping_bag_outlined, color: _kGoldMid, size: 18)
-                        : null,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(p.nombre,
-                            style: TextStyle(
-                                color: _kText,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
-                        Text(
-                          '\$${(p.precioVenta * e.value).toStringAsFixed(0)}',
-                          style: TextStyle(color: _kTextDim, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _QtyControl(
-                     productId: e.key,
-                     value: e.value,
-                     isError: e.value >= 9999,
-                    onDecrement: () => setState(() {
-                      if (e.value > 1) {
-                        _productoCantidades[e.key] = e.value - 1;
-                      } else {
-                        _productoCantidades.remove(e.key);
-                      }
-                      _calcularTotal();
-                    }),
-                    onIncrement: () {
-                      if (e.value >= 9999) {
-                        _mostrarError('La cantidad máxima es 9999', centered: true);
-                        return;
-                      }
-                      setState(() {
-                        _productoCantidades[e.key] = e.value + 1;
-                        _calcularTotal();
-                      });
-                    },
-                    onChanged: (val) {
-                      if (val.length > 4) {
-                        _mostrarError('Máximo 4 dígitos permitidos', centered: true);
-                        final trimmed = val.substring(0, 4);
-                        setState(() {
-                          _productoCantidades[e.key] = int.parse(trimmed);
-                          _calcularTotal();
-                        });
-                        return;
-                      }
-                      final newVal = int.tryParse(val);
-                      if (newVal != null && newVal > 0) {
-                        setState(() {
-                          _productoCantidades[e.key] = newVal > 9999 ? 9999 : newVal;
-                          _calcularTotal();
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18, color: Color(0xFFB07070)),
-                    onPressed: () => setState(() {
-                      _productoCantidades.remove(e.key);
-                      _calcularTotal();
-                    }),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 118,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _productoCantidades.length,
+              itemBuilder: (ctx, i) {
+                final entry = _productoCantidades.entries.toList()[i];
+                final p = _productos.firstWhere(
+                  (prod) => prod.id == entry.key,
+                  orElse: () => Producto(nombre: 'Desconocido', categoriaId: 0, precioVenta: 0),
+                );
+                return _selectedProductoCard(p, entry.key, entry.value);
+              },
+            ),
+          ),
           const SizedBox(height: 8),
         ],
       ],
+    );
+  }
+
+  Widget _hQtyBtn(IconData icon, {required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 26, height: 26,
+        decoration: BoxDecoration(
+          color: _kSurface2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: enabled ? _kGoldBorder : _kBorder, width: 0.5),
+        ),
+        child: Icon(icon, size: 14, color: enabled ? _kGoldMid : _kTextFaint),
+      ),
     );
   }
 
@@ -1945,7 +2143,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                         _buildProductosSection(),
                         _buildDivider(),
                       ] else
-                        _buildDivider(),                      _buildDivider(),
+                        _buildDivider(),
 
                       // ── Fecha y hora ──
                       _sectionLabel('Fecha y hora'),
@@ -2663,6 +2861,7 @@ class _TimeBox extends StatelessWidget {
 class _QtyControl extends StatefulWidget {
   final int productId;
   final int value;
+  final int maxValue;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final ValueChanged<String>? onChanged;
@@ -2673,6 +2872,7 @@ class _QtyControl extends StatefulWidget {
     required this.value,
     required this.onDecrement,
     required this.onIncrement,
+    this.maxValue = 9999,
     this.onChanged,
     this.isError = false,
   });
@@ -2709,37 +2909,59 @@ class _QtyControlState extends State<_QtyControl> {
 
   @override
   Widget build(BuildContext context) {
+    final atLimit = widget.maxValue > 0 && widget.value >= widget.maxValue;
     final textLen = widget.value.toString().length;
     final width = 24.0 + (textLen * 8.0);
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _QtyBtn(icon: Icons.remove, onTap: widget.onDecrement),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: width.clamp(32.0, 60.0),
-          child: TextFormField(
-            controller: _controller,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: widget.isError ? const Color(0xFFB07070) : _kText,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+        Row(
+          children: [
+            _QtyBtn(icon: Icons.remove, onTap: widget.onDecrement),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: width.clamp(32.0, 60.0),
+              child: TextFormField(
+                controller: _controller,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: atLimit ? const Color(0xFFB07070) : _kText,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 4),
+                  border: InputBorder.none,
+                ),
+                onChanged: widget.onChanged,
+              ),
             ),
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 4),
-              border: InputBorder.none,
+            const SizedBox(width: 4),
+            _QtyBtn(
+              icon: Icons.add,
+              onTap: widget.onIncrement,
+              disabled: atLimit,
             ),
-            onChanged: widget.onChanged,
-          ),
+          ],
         ),
-        const SizedBox(width: 4),
-        _QtyBtn(icon: Icons.add, onTap: widget.onIncrement),
+        if (atLimit) ...[
+          const SizedBox(height: 3),
+          Text(
+            'Has llegado al límite',
+            style: const TextStyle(
+              color: Color(0xFFB07070),
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2748,21 +2970,29 @@ class _QtyControlState extends State<_QtyControl> {
 class _QtyBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _QtyBtn({required this.icon, required this.onTap});
+  final bool disabled;
+  const _QtyBtn({required this.icon, required this.onTap, this.disabled = false});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: disabled ? null : onTap,
       child: Container(
         width: 26,
         height: 26,
         decoration: BoxDecoration(
-          color: _kSurface2,
+          color: disabled ? _kSurface : _kSurface2,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _kBorder, width: 0.5),
+          border: Border.all(
+            color: disabled ? const Color(0xFF552020) : _kBorder,
+            width: 0.5,
+          ),
         ),
-        child: Icon(icon, size: 14, color: _kGoldMid),
+        child: Icon(
+          icon,
+          size: 14,
+          color: disabled ? const Color(0xFFB07070).withOpacity(0.4) : _kGoldMid,
+        ),
       ),
     );
   }

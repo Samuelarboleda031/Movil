@@ -9,17 +9,19 @@ import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
+import 'package:parte_movil/data/datasources/paquete_service.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/producto.dart';
+import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/presentation/pages/producto_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/servicio_detalle_screen.dart';
+import 'package:parte_movil/presentation/pages/paquete_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart';
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
-import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
@@ -40,18 +42,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _tabIndex = 0; // 0 = Servicios, 1 = Productos
+  int _tabIndex = 0; // 0 = Servicios/Paquetes, 1 = Productos
   bool _showDropdown = false;
   int _carouselPage = 0;
 
+  // Paginación
+  static const int _itemsPerPage = 10;
+  int _productsPage  = 1;
+  int _serviciosPage = 1;
+
   final PageController _pageController = PageController();
   final AuthService _authService = AuthService();
-  
+
   List<Servicio> _serviciosApi = [];
+  List<Paquete> _paquetesApi = [];
   List<Producto> _productosApi = [];
   List<Agendamiento> _cortesPasados = [];
   bool _isLoadingData = true;
-  int _productsPageSize = 10; // Para paginación vertical de productos
   
   // Datos para vista de barbero
   List<Agendamiento> _citasHoy = [];
@@ -84,35 +91,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadClientData() async {
     try {
-      final servicios = await ServicioService().obtenerServicios();
-      final productos = await ProductoService().getProductos(pageSize: 1000);
-      
-      final userContext = UserContextService();
-      final cliente = await userContext.obtenerClienteActual();
-      
+      final results = await Future.wait([
+        ServicioService().obtenerServicios(),
+        PaqueteService().obtenerPaquetes(),
+        ProductoService().getProductos(pageSize: 1000),
+        UserContextService().obtenerClienteActual(),
+      ]);
+
+      final servicios = results[0] as List<Servicio>;
+      final paquetes  = results[1] as List<Paquete>;
+      final productos = results[2] as Paginacion<Producto>;
+      final cliente   = results[3] as Cliente?;
+
       List<Agendamiento> pasados = [];
       if (cliente != null && cliente.id != null) {
         final paginacion = await AgendamientoService().obtenerAgendamientosPorCliente(cliente.id!, pageSize: 2000);
-        // Filtrar citas completadas
         pasados = paginacion.items.where((a) => a.estado?.toLowerCase() == 'completada').take(10).toList();
       }
-      
+
       if (mounted) {
         setState(() {
-          _serviciosApi = servicios.where((s) => s.estado == true).toList();
-          _productosApi = productos.items.where((p) => p.activo == true).toList();
-          _cortesPasados = pasados;
-          _clienteActual = cliente;
-          _userPhotoUrl = _resolvePhotoUrl(cliente?.fotoPerfil);
-          _isLoadingData = false;
+          _serviciosApi   = servicios.where((s) => s.estado == true).toList();
+          _paquetesApi    = paquetes.where((p) => p.estado == true).toList();
+          _productosApi   = productos.items.where((p) => p.activo == true).toList();
+          _cortesPasados  = pasados;
+          _clienteActual  = cliente;
+          _userPhotoUrl   = _resolvePhotoUrl(cliente?.fotoPerfil);
+          _isLoadingData  = false;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingData = false;
-        });
-      }
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
@@ -691,7 +700,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (_tabIndex == 0) ...[
                           _buildFrequentServices(),
                           const SizedBox(height: 16),
-                          _buildPastCuts(),
+                          _buildServiciosYPaquetes(),
                         ] else ...[
                           _buildVerticalProducts(),
                         ],
@@ -970,7 +979,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: GestureDetector(
       onTap: () => setState(() {
         _tabIndex = index;
-        _carouselPage = 0; // Reset carousel page when switching tabs
+        _carouselPage  = 0;
+        _productsPage  = 1;
+        _serviciosPage = 1;
         if (_pageController.hasClients) _pageController.jumpToPage(0);
       }),
         child: AnimatedContainer(
@@ -1000,10 +1011,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── VERTICAL PRODUCTS (GRID) ─────────────────────────────────────────────
+  // ── VERTICAL PRODUCTS (GRID + PAGINACIÓN) ────────────────────────────────
   Widget _buildVerticalProducts() {
-    // Sin filtro, mostrar todos los activos
-    final filtered = _productosApi.toList();
+    final filtered = _productosApi;
 
     if (filtered.isEmpty) {
       return const Padding(
@@ -1012,11 +1022,16 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final paged = filtered.take(_productsPageSize).toList();
+    final totalPages = (filtered.length / _itemsPerPage).ceil();
+    final safePage   = _productsPage.clamp(1, totalPages);
+    final start      = (safePage - 1) * _itemsPerPage;
+    final end        = (start + _itemsPerPage).clamp(0, filtered.length);
+    final paged      = filtered.sublist(start, end);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Encabezado ────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -1028,11 +1043,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const Spacer(),
-              Text('${paged.length} de ${filtered.length}', style: const TextStyle(color: AppColors.grey, fontSize: 12)),
+              Text('${filtered.length} productos', style: const TextStyle(color: AppColors.grey, fontSize: 12)),
             ],
           ),
         ),
         const SizedBox(height: 16),
+        // ── Grid ─────────────────────────────────────────────────────────
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1046,17 +1062,98 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: paged.length,
           itemBuilder: (ctx, i) => _productCard(paged[i]),
         ),
-        if (_productsPageSize < filtered.length)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Center(
-              child: _goldButton(
-                'Cargar más productos', 
-                onTap: () => setState(() => _productsPageSize += 10)
-              ),
-            ),
+        // ── Paginación ────────────────────────────────────────────────────
+        if (totalPages > 1)
+          _buildPaginationBar(
+            safePage,
+            totalPages,
+            onPageChanged: (p) => setState(() => _productsPage = p),
           ),
       ],
+    );
+  }
+
+  Widget _buildPaginationBar(int current, int total, {required ValueChanged<int> onPageChanged}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // ← Anterior
+          _pageButton(
+            icon: Icons.chevron_left,
+            enabled: current > 1,
+            onTap: () => onPageChanged(current - 1),
+          ),
+          const SizedBox(width: 8),
+          // Números de página
+          ...List.generate(total, (i) {
+            final page = i + 1;
+            final isActive = page == current;
+            // Mostrar solo páginas cercanas
+            if (total > 5 && (page - current).abs() > 2 && page != 1 && page != total) {
+              if (page == current - 3 || page == current + 3) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2),
+                  child: Text('…', style: TextStyle(color: AppColors.grey, fontSize: 14)),
+                );
+              }
+              if ((page - current).abs() > 2) return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: GestureDetector(
+                onTap: isActive ? null : () => onPageChanged(page),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.gold : AppColors.card,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isActive ? AppColors.gold : AppColors.divider,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$page',
+                      style: TextStyle(
+                        color: isActive ? AppColors.bg : AppColors.white,
+                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(width: 8),
+          // → Siguiente
+          _pageButton(
+            icon: Icons.chevron_right,
+            enabled: current < total,
+            onTap: () => onPageChanged(current + 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageButton({required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.card : AppColors.card.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Icon(icon, color: enabled ? AppColors.white : AppColors.grey, size: 20),
+      ),
     );
   }
 
@@ -1231,6 +1328,95 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _paqueteCard(Paquete paquete) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PaqueteDetalleScreen(paquete: paquete, role: widget.role)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Imagen / placeholder con badge
+            Stack(
+              children: [
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A1A0E),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.layers_outlined, color: Colors.white24, size: 40),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Paquete',
+                      style: TextStyle(color: AppColors.bg, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    paquete.nombre,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.gold.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      '\$${paquete.precio.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        color: AppColors.gold,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _productCard(Producto producto) {
     bool hasImage = producto.imagenProduc != null && producto.imagenProduc!.isNotEmpty;
     String imageUrl = '';
@@ -1318,12 +1504,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── SERVICIOS DISPONIBLES (LIST) ──────────────────────────────────────────
-  Widget _buildPastCuts() {
-    if (_serviciosApi.isEmpty) return const SizedBox.shrink();
+  // ── SERVICIOS + PAQUETES JUNTOS (CON PAGINACIÓN) ─────────────────────────
+  Widget _buildServiciosYPaquetes() {
+    if (_serviciosApi.isEmpty && _paquetesApi.isEmpty) return const SizedBox.shrink();
+
+    final allItems = <({bool esPaquete, int index})>[
+      for (int i = 0; i < _serviciosApi.length; i++) (esPaquete: false, index: i),
+      for (int i = 0; i < _paquetesApi.length; i++) (esPaquete: true,  index: i),
+    ];
+
+    final totalPages = (allItems.length / _itemsPerPage).ceil();
+    final safePage   = _serviciosPage.clamp(1, totalPages);
+    final start      = (safePage - 1) * _itemsPerPage;
+    final end        = (start + _itemsPerPage).clamp(0, allItems.length);
+    final paged      = allItems.sublist(start, end);
+
+    final totalServ = _serviciosApi.length;
+    final totalPaq  = _paquetesApi.length;
 
     return Column(
       children: [
+        // ── Encabezado ────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -1331,17 +1532,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const Text('🔥', style: TextStyle(fontSize: 16)),
               const SizedBox(width: 6),
               const Text(
-                'Servicios disponibles',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                'Servicios y Paquetes',
+                style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16),
               ),
+              const Spacer(),
+              if (totalServ > 0) _countChip(Icons.content_cut, '$totalServ'),
+              if (totalServ > 0 && totalPaq > 0) const SizedBox(width: 6),
+              if (totalPaq > 0) _countChip(Icons.layers_outlined, '$totalPaq'),
             ],
           ),
         ),
         const SizedBox(height: 12),
+        // ── Grid paginado ─────────────────────────────────────────────────
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1352,12 +1554,41 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSpacing: 12,
             mainAxisExtent: 220,
           ),
-          itemCount: _serviciosApi.length,
+          itemCount: paged.length,
           itemBuilder: (ctx, i) {
-            return _serviceCard(_serviciosApi[i]);
+            final item = paged[i];
+            return item.esPaquete
+                ? _paqueteCard(_paquetesApi[item.index])
+                : _serviceCard(_serviciosApi[item.index]);
           },
         ),
+        // ── Paginación ────────────────────────────────────────────────────
+        if (totalPages > 1)
+          _buildPaginationBar(
+            safePage,
+            totalPages,
+            onPageChanged: (p) => setState(() => _serviciosPage = p),
+          ),
       ],
+    );
+  }
+
+  Widget _countChip(IconData icon, String count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.gold),
+          const SizedBox(width: 4),
+          Text(count, style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 
