@@ -54,8 +54,15 @@ class CreditoBarberoInfo {
     );
   }
 
-  bool get estaBloqueado => estado == 'Bloqueado';
-  bool get estaVencido => estado == 'Vencido';
+  bool get estaBloqueado =>
+      estado == 'BloqueadoLimite' ||
+      estado == 'BloqueadoVencimiento' ||
+      estado == 'BloqueadoLimiteYVencimiento';
+
+  bool get estaVencido =>
+      estado == 'BloqueadoVencimiento' ||
+      estado == 'BloqueadoLimiteYVencimiento';
+
   bool get estaActivo => estado == 'Activo';
 
   double get porcentajeUso => cupoMaximo > 0 ? (saldoDeuda / cupoMaximo).clamp(0.0, 1.0) : 0.0;

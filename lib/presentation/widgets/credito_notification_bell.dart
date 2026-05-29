@@ -597,7 +597,8 @@ class _TarjetaBloqueadoAdmin extends StatelessWidget {
                   label: 'Extender plazo',
                   icon: Icons.more_time,
                   color: Colors.orange,
-                  enabled: !info.extensionUsada,
+                  enabled: !info.extensionUsada &&
+                      info.estado == 'BloqueadoVencimiento',
                   onTap: onExtender,
                 ),
               ),
@@ -607,6 +608,7 @@ class _TarjetaBloqueadoAdmin extends StatelessWidget {
                   label: 'Nuevo ciclo',
                   icon: Icons.refresh,
                   color: AppColors.gold,
+                  enabled: info.saldoDeuda == 0,
                   onTap: onNuevoCiclo,
                 ),
               ),
