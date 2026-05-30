@@ -16,6 +16,15 @@ class AppFormat {
   /// Alias más corto si prefieres
   static String cop(double amount) => formatCurrency(amount);
 
+  /// Formatea minutos: <60 → "30 min" | >=60 → "1h", "1h 30min"
+  static String duracion(int minutos) {
+    if (minutos <= 0) return '0 min';
+    if (minutos < 60) return '$minutos min';
+    final h = minutos ~/ 60;
+    final m = minutos % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}min';
+  }
+
   /// Convierte una hora militar "HH:mm" o "HH:mm:ss" a formato 12h "hh:mm AM/PM"
   static String to12h(String time) {
     if (time.isEmpty) return '--:--';

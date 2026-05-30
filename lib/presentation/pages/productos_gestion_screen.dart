@@ -115,7 +115,9 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
   Future<void> _abrirCrear() async {
     final creado = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const ProductoFormScreen()),
+      MaterialPageRoute(
+        builder: (_) => ProductoFormScreen(productosExistentes: _productos),
+      ),
     );
     if (creado == true) _cargarProductos(_currentPage);
   }
@@ -181,12 +183,6 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
               style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: AppColors.bg,
           elevation: 0,
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _abrirCrear,
-          backgroundColor: AppColors.gold,
-          foregroundColor: AppColors.bg,
-          child: const Icon(Icons.add),
         ),
         body: Column(
           children: [
@@ -505,7 +501,11 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => ProductoFormScreen(producto: p)),
+                            builder: (_) => ProductoFormScreen(
+                              producto: p,
+                              productosExistentes: _productos,
+                            ),
+                          ),
                         ).then((_) => _cargarProductos(_currentPage));
                       } else if (val == 'delete') {
                         _eliminarProducto(p);

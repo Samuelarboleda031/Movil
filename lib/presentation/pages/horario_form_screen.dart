@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +12,7 @@ import 'package:parte_movil/presentation/blocs/horarios/horarios_event.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/app_format.dart';
 
 class HorarioFormScreen extends StatefulWidget {
   final HorarioSemanal? horarioSemanal;
@@ -110,30 +112,166 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
   }
 
   Future<void> _selectTime(BuildContext context, bool isInicio) async {
-    final TimeOfDay? picked = await showTimePicker(
+    final initial = isInicio ? _horaInicio : _horaFin;
+    DateTime temp = DateTime(2000, 1, 1, initial.hour, initial.minute);
+    await showModalBottomSheet(
       context: context,
-      initialTime: isInicio ? _horaInicio : _horaFin,
-      builder: (context, child) => Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: AppColors.gold,
-            onPrimary: Colors.black,
-            surface: AppColors.card,
-            onSurface: AppColors.white,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          left: 12,
+          right: 12,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              StatefulBuilder(builder: (ctx, setSheet) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          isInicio ? 'Hora de Inicio' : 'Hora de Fin',
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 220,
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.time,
+                        initialDateTime: temp,
+                        use24hFormat: false,
+                        minuteInterval: 1,
+                        backgroundColor: Colors.transparent,
+                        onDateTimeChanged: (dt) {
+                          temp = dt;
+                          setSheet(() {});
+                        },
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: AppColors.divider.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancelar', style: TextStyle(color: AppColors.gold, fontSize: 17)),
+                            ),
+                          ),
+                          Container(width: 1, height: 48, color: AppColors.divider.withValues(alpha: 0.5)),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  if (isInicio) {
+                                    _horaInicio = TimeOfDay(hour: temp.hour, minute: temp.minute);
+                                  } else {
+                                    _horaFin = TimeOfDay(hour: temp.hour, minute: temp.minute);
+                                  }
+                                });
+                                Navigator.pop(ctx);
+                              },
+                              child: const Text('Aceptar', style: TextStyle(color: AppColors.gold, fontSize: 17, fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                );
+              }),
+            ],
           ),
         ),
-        child: child!,
       ),
     );
-    if (picked != null) {
-      setState(() {
-        if (isInicio) {
-          _horaInicio = picked;
-        } else {
-          _horaFin = picked;
-        }
-      });
-    }
+  }
+
+  Widget _buildTimeCard(BuildContext context, {required bool isInicio}) {
+    final accentColor = isInicio ? AppColors.gold : Colors.orangeAccent;
+    final timeStr = AppFormat.to12h(_formatTimeOfDay(isInicio ? _horaInicio : _horaFin));
+    final label = isInicio ? 'Inicio' : 'Fin';
+    return GestureDetector(
+      onTap: () => _selectTime(context, isInicio),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accentColor.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.access_time_rounded, color: accentColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.edit_outlined, color: accentColor.withValues(alpha: 0.6), size: 18),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -363,55 +501,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                     // ── SECCIÓN HORAS ──
                     const Text('4. RANGO DE HORAS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => _selectTime(context, true),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: AppColors.card,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.divider),
-                              ),
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.access_time_filled, color: AppColors.gold, size: 28),
-                                  const SizedBox(height: 10),
-                                  const Text('Hora Inicio', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                                  const SizedBox(height: 6),
-                                  Text(_formatTimeOfDay(_horaInicio), style: const TextStyle(color: AppColors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => _selectTime(context, false),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: AppColors.card,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.divider),
-                              ),
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.access_time, color: Colors.orangeAccent, size: 28),
-                                  const SizedBox(height: 10),
-                                  const Text('Hora Fin', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                                  const SizedBox(height: 6),
-                                  Text(_formatTimeOfDay(_horaFin), style: const TextStyle(color: AppColors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildTimeCard(context, isInicio: true),
+                    const SizedBox(height: 12),
+                    _buildTimeCard(context, isInicio: false),
 
                     const SizedBox(height: 32),
 

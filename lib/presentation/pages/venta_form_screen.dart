@@ -1811,7 +1811,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                             color: AppColors.whiteSecondary, fontSize: 14),
                       ),
                       Text(
-                        '${AppFormat.cop(s?.precio ?? 0)}  ·  ${s?.duracionMinutos ?? 0} min',
+                        '${AppFormat.cop(s?.precio ?? 0)}  ·  ${AppFormat.duracion(s?.duracionMinutos ?? 0)}',
                         style: const TextStyle(
                             color: AppColors.greyLight, fontSize: 11),
                       ),
@@ -1880,7 +1880,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                             color: AppColors.whiteSecondary, fontSize: 14),
                       ),
                       Text(
-                        '${AppFormat.cop(p?.precio ?? 0)}  ·  ${p?.duracionMinutos ?? 0} min',
+                        '${AppFormat.cop(p?.precio ?? 0)}  ·  ${AppFormat.duracion(p?.duracionMinutos ?? 0)}',
                         style: const TextStyle(
                             color: AppColors.greyLight, fontSize: 11),
                       ),

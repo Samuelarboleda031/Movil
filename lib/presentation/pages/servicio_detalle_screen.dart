@@ -145,7 +145,7 @@ class _ServicioDetalleScreenState extends State<ServicioDetalleScreen> {
       childAspectRatio: 1.8,
       children: [
         _buildInfoCard('Precio', AppFormat.cop(_currentServicio.precio)),
-        _buildInfoCard('Duración', '${_currentServicio.duracionMinutos} min'),
+        _buildInfoCard('Duración', AppFormat.duracion(_currentServicio.duracionMinutos)),
       ],
     );
   }

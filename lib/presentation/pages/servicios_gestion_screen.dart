@@ -482,7 +482,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                                   fontSize: 16)),
                           const SizedBox(height: 4),
                           Row(children: [
-                            _buildBadge('${s.duracionMinutos} min',
+                            _buildBadge(AppFormat.duracion(s.duracionMinutos),
                                 AppColors.gold.withOpacity(0.15), AppColors.gold),
                           ]),
                           const SizedBox(height: 6),
@@ -652,7 +652,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                                   fontSize: 16)),
                           const SizedBox(height: 4),
                           Row(children: [
-                            _buildBadge('${p.duracionMinutos} min',
+                            _buildBadge(AppFormat.duracion(p.duracionMinutos),
                                 AppColors.gold.withOpacity(0.15), AppColors.gold),
                           ]),
                           const SizedBox(height: 6),

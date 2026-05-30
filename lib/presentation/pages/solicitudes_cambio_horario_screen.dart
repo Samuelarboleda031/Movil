@@ -443,11 +443,14 @@ class _NuevaSolicitudFormState extends State<_NuevaSolicitudForm> {
     final t = await showTimePicker(
       context: context,
       initialTime: esInicio ? _horaInicio : _horaFin,
-      builder: (ctx, child) => Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(primary: AppColors.gold, onPrimary: Colors.black, surface: AppColors.card, onSurface: AppColors.white),
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: false),
+        child: Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(primary: AppColors.gold, onPrimary: Colors.black, surface: AppColors.card, onSurface: AppColors.white),
+          ),
+          child: child!,
         ),
-        child: child!,
       ),
     );
     if (t != null) setState(() { if (esInicio) _horaInicio = t; else _horaFin = t; });

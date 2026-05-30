@@ -26,6 +26,7 @@ import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_format.dart';
 
 // ─── Theme constants ─────────────────────────────────────────────────────────
 // Usando la paleta oficial del proyecto (AppColors / globals.css)
@@ -1016,7 +1017,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                                 Text(
                                   yaSeleccionado
                                       ? 'Ya esta en esta cita'
-                                      : '${s.duracionMinutos} min  \$${s.precio.toStringAsFixed(0)}',
+                                      : '${AppFormat.duracion(s.duracionMinutos)}  \$${s.precio.toStringAsFixed(0)}',
                                   style: TextStyle(
                                     color: yaSeleccionado ? _kGoldMid.withOpacity(0.6) : _kTextDim,
                                     fontSize: 11,
@@ -1090,7 +1091,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                 Text(s.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: _kGold, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text('\$${s.precio.toStringAsFixed(0)}  ·  ${s.duracionMinutos} min',
+                Text('\$${s.precio.toStringAsFixed(0)}  ·  ${AppFormat.duracion(s.duracionMinutos)}',
                     style: const TextStyle(color: _kTextDim, fontSize: 10)),
               ],
             ),

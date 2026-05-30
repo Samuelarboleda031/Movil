@@ -174,7 +174,7 @@ class _PaqueteDetalleScreenState extends State<PaqueteDetalleScreen> {
       childAspectRatio: 1.8,
       children: [
         _buildInfoCard('Precio del Paquete', AppFormat.cop(_currentPaquete.precio)),
-        _buildInfoCard('Duración Total', '${_currentPaquete.duracionMinutos} min'),
+        _buildInfoCard('Duración Total', AppFormat.duracion(_currentPaquete.duracionMinutos)),
       ],
     );
   }
@@ -383,7 +383,7 @@ class _PaqueteDetalleScreenState extends State<PaqueteDetalleScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '${s.duracionMinutos} minutos',
+                                    AppFormat.duracion(s.duracionMinutos),
                                     style: const TextStyle(
                                       color: AppColors.greyLight,
                                       fontSize: 11,

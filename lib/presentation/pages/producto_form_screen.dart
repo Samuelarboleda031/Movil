@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/categoria.dart';
@@ -11,10 +12,20 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
+// ── Constantes de validación ──────────────────────────────────────────────────
+const int _kNombreMinLen = 2;
+const int _kNombreMaxLen = 18;
+final RegExp _kOnlyPunctuation = RegExp(r'^[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]+$');
+
 class ProductoFormScreen extends StatefulWidget {
   final Producto? producto;
+  final List<Producto> productosExistentes;
 
-  const ProductoFormScreen({super.key, this.producto});
+  const ProductoFormScreen({
+    super.key,
+    this.producto,
+    this.productosExistentes = const [],
+  });
 
   @override
   State<ProductoFormScreen> createState() => _ProductoFormScreenState();
@@ -45,6 +56,13 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   int? _selectedCategoriaId;
   String? _selectedCategoriaNombre;
 
+  // ── Validación de nombre en tiempo real ──────────────────────────────────
+  bool _nombreHasDigit = false;
+  bool _nombreOnlyPunctuation = false;
+  bool _nombreTooShort = false;
+  bool _nombreTooLong = false;
+  bool _nombreDuplicado = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,8 +84,63 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       _stockCtrl.text = '0';
     }
 
+    _nombreCtrl.addListener(_onNombreChanged);
     _cargarCategorias();
   }
+
+  @override
+  void dispose() {
+    _nombreCtrl.removeListener(_onNombreChanged);
+    _nombreCtrl.dispose();
+    _descripcionCtrl.dispose();
+    _precioVentaCtrl.dispose();
+    _precioCompraCtrl.dispose();
+    _stockCtrl.dispose();
+    _marcaCtrl.dispose();
+    _categoriaSearchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Listener ─────────────────────────────────────────────────────────────
+
+  void _onNombreChanged() {
+    final val = _nombreCtrl.text;
+    setState(() {
+      _nombreHasDigit = RegExp(r'\d').hasMatch(val);
+      _nombreOnlyPunctuation = val.isNotEmpty && _kOnlyPunctuation.hasMatch(val);
+      _nombreTooShort = val.isNotEmpty && val.length < _kNombreMinLen;
+      _nombreTooLong = val.length > _kNombreMaxLen;
+      if (_nombreDuplicado) _nombreDuplicado = false;
+    });
+  }
+
+  // ── Validators ───────────────────────────────────────────────────────────
+
+  String? _validateNombre(String? val) {
+    final v = (val ?? '').trim();
+    if (v.isEmpty) return 'El nombre es obligatorio.';
+    if (_nombreHasDigit) return 'Este campo solo permite letras.';
+    if (_nombreOnlyPunctuation) return 'No se permiten solo signos de puntuación.';
+    if (_nombreTooShort) return 'Debe tener al menos $_kNombreMinLen caracteres.';
+    if (_nombreTooLong) return 'Máximo $_kNombreMaxLen caracteres.';
+    if (_nombreDuplicado) return 'Ya existe un producto con ese nombre.';
+    return null;
+  }
+
+  String? _validarNumero(String? v) {
+    if (v == null || v.isEmpty) return 'Requerido';
+    if (double.tryParse(v) == null) return 'Número inválido';
+    return null;
+  }
+
+  String? _validarEntero(String? v) {
+    if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
+      return 'Entero inválido';
+    }
+    return null;
+  }
+
+  // ── Categorías ───────────────────────────────────────────────────────────
 
   Future<void> _cargarCategorias() async {
     try {
@@ -93,18 +166,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    _descripcionCtrl.dispose();
-    _precioVentaCtrl.dispose();
-    _precioCompraCtrl.dispose();
-    _stockCtrl.dispose();
-    _marcaCtrl.dispose();
-    _categoriaSearchCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -117,14 +178,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         _imageBytesPreview = bytes;
       });
     }
-  }
-
-  void _filtrarCategorias(String query) {
-    setState(() {
-      _categoriasFiltradas = _categorias
-          .where((c) => c.nombre.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    });
   }
 
   Future<void> _mostrarSelectorCategoria() async {
@@ -151,7 +204,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Column(
                     children: [
-                      // Handle
                       Container(
                         width: 40,
                         height: 4,
@@ -170,7 +222,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Buscador
                       TextField(
                         controller: _categoriaSearchCtrl,
                         style: const TextStyle(color: AppColors.white),
@@ -206,7 +257,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      // Lista
                       Expanded(
                         child: ListView.builder(
                           controller: scrollCtrl,
@@ -218,9 +268,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                               title: Text(
                                 cat.nombre,
                                 style: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.gold
-                                      : AppColors.white,
+                                  color: isSelected ? AppColors.gold : AppColors.white,
                                   fontWeight: isSelected
                                       ? FontWeight.bold
                                       : FontWeight.normal,
@@ -252,7 +300,21 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
+  // ── Guardar ──────────────────────────────────────────────────────────────
+
   Future<void> _guardar() async {
+    // Validar nombre duplicado antes de disparar el Form
+    final nombreTrimmed = _nombreCtrl.text.trim().toLowerCase();
+    final existe = widget.productosExistentes.any((p) {
+      if (!_isNew && p.id == widget.producto?.id) return false;
+      return p.nombre.trim().toLowerCase() == nombreTrimmed;
+    });
+    if (existe) {
+      setState(() => _nombreDuplicado = true);
+      _formKey.currentState!.validate();
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoriaId == null) {
       AppToast.showError(context, 'Selecciona una categoría');
@@ -309,12 +371,13 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Build
-  // ──────────────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final int nombreLen = _nombreCtrl.text.length;
+    final bool nombreNearLimit = !_nombreTooLong && nombreLen >= _kNombreMaxLen - 3;
+
     return SessionGuard(
       allowedRoles: const [AppRole.admin, AppRole.manager],
       child: Scaffold(
@@ -343,11 +406,55 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                 const SizedBox(height: 24),
 
                 // ── Nombre ──────────────────────────────────────────────
-                _field(
+                TextFormField(
                   controller: _nombreCtrl,
-                  label: 'Nombre *',
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Requerido' : null,
+                  maxLength: _kNombreMaxLen,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+                    final color = _nombreTooLong
+                        ? Colors.red
+                        : nombreNearLimit
+                            ? const Color(0xFFC9A96E)
+                            : Colors.grey;
+                    return Text(
+                      '$currentLength/$_kNombreMaxLen',
+                      style: TextStyle(fontSize: 11, color: color),
+                    );
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Nombre *',
+                    labelStyle: const TextStyle(color: AppColors.grey),
+                    helperText: 'Mínimo $_kNombreMinLen, máximo $_kNombreMaxLen caracteres',
+                    helperStyle: const TextStyle(fontSize: 11, color: Colors.grey),
+                    filled: true,
+                    fillColor: AppColors.inputBg,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.inputBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.gold),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.red),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.red),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 14),
+                  ),
+                  style: const TextStyle(color: AppColors.white),
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\d')),
+                  ],
+                  validator: _validateNombre,
+                  onChanged: (_) {
+                    if (_nombreDuplicado) setState(() => _nombreDuplicado = false);
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -406,7 +513,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // ── Botón centrado ──────────────────────────────────────
+                // ── Botón ───────────────────────────────────────────────
                 Center(
                   child: SizedBox(
                     width: 220,
@@ -560,19 +667,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       decoration: _inputDeco(label, filled: filled || readOnly),
       validator: validator,
     );
-  }
-
-  String? _validarNumero(String? v) {
-    if (v == null || v.isEmpty) return 'Requerido';
-    if (double.tryParse(v) == null) return 'Número inválido';
-    return null;
-  }
-
-  String? _validarEntero(String? v) {
-    if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
-      return 'Entero inválido';
-    }
-    return null;
   }
 
   Widget _buildImagePicker() {
