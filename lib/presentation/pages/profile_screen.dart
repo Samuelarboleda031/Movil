@@ -697,7 +697,10 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                       ctrl: _documentoCtrl,
                       keyboardType: TextInputType.number,
                       readOnly: !_documentoEditable,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
                     ),
                     _inputField(label: 'Nombre *',     ctrl: _nombreCtrl),
                     _inputField(label: 'Apellido *',   ctrl: _apellidoCtrl),
@@ -715,12 +718,9 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                         ctrl: _barrioCtrl,
                         hint: 'Ej: El Centro',
                       ),
-                      _inputField(
+                      _dateField(
                         label: 'Fecha de nacimiento',
                         ctrl: _fechaNacimientoCtrl,
-                        hint: 'AAAA-MM-DD',
-                        keyboardType: TextInputType.datetime,
-                        isLast: true,
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -840,6 +840,73 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         onChanged: (val) {
           if (val != null) setState(() => _tipoDocumento = val);
         },
+      ),
+    );
+  }
+
+  // ── Date field ────────────────────────────────────────────────────────────
+  Widget _dateField({
+    required String label,
+    required TextEditingController ctrl,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GestureDetector(
+        onTap: () async {
+          DateTime initial = DateTime.now().subtract(const Duration(days: 365 * 18));
+          if (ctrl.text.isNotEmpty) {
+            try { initial = DateTime.parse(ctrl.text); } catch (_) {}
+          }
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: initial,
+            firstDate: DateTime(1920),
+            lastDate: DateTime.now(),
+            locale: const Locale('es', 'CO'),
+            builder: (ctx, child) => Theme(
+              data: Theme.of(ctx).copyWith(
+                colorScheme: const ColorScheme.dark(
+                  primary: AppColors.gold,
+                  onPrimary: AppColors.bg,
+                  surface: AppColors.card,
+                  onSurface: AppColors.white,
+                ),
+                dialogBackgroundColor: AppColors.card,
+              ),
+              child: child!,
+            ),
+          );
+          if (picked != null) {
+            final formatted =
+                '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+            ctrl.text = formatted;
+          }
+        },
+        child: AbsorbPointer(
+          child: TextField(
+            controller: ctrl,
+            readOnly: true,
+            style: const TextStyle(color: AppColors.white, fontSize: 15),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: 'Seleccionar fecha',
+              labelStyle: const TextStyle(color: AppColors.grey, fontSize: 12),
+              hintStyle: const TextStyle(color: AppColors.grey, fontSize: 14),
+              filled: true,
+              fillColor: AppColors.inputBg,
+              suffixIcon: const Icon(Icons.calendar_today_outlined, color: AppColors.grey, size: 18),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
