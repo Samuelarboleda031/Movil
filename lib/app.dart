@@ -23,16 +23,14 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class _MyAppState extends State<MyApp> {
   final AuthService _authService = AuthService();
   final AppLinks _appLinks = AppLinks();
-  bool _sessionClosedOnExit = false;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _initDeepLinks();
   }
 
@@ -84,16 +82,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached && !_sessionClosedOnExit) {
-      _sessionClosedOnExit = true;
-      unawaited(_authService.signOut());
-    }
   }
 
   @override

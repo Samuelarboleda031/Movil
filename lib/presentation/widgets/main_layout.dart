@@ -436,7 +436,12 @@ class _MainLayoutState extends State<MainLayout> {
       return items.asMap().entries.map((entry) => Expanded(child: _buildNavItem(entry.key, entry.value.icon, entry.value.label!))).toList();
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _currentIndex = 0);
+      },
+      child: Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
@@ -451,6 +456,7 @@ class _MainLayoutState extends State<MainLayout> {
             children: _buildBottomNavRow(items),
           ),
         ),
+      ),
       ),
     );
   }
