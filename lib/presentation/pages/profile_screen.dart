@@ -541,6 +541,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         final currentBarber = widget.entidadActual as Barbero?;
         final barbero = Barbero(
           id: currentBarber?.id,
+          usuarioId: currentBarber?.usuarioId,
           documento: docCombinado,
           nombre: _nombreCtrl.text.trim(),
           apellido: _apellidoCtrl.text.trim(),
@@ -560,6 +561,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         final currentClient = widget.entidadActual as Cliente?;
         final cliente = Cliente(
           id: currentClient?.id,
+          usuarioId: currentClient?.usuarioId,
           documento: docCombinado,
           nombre: _nombreCtrl.text.trim(),
           apellido: _apellidoCtrl.text.trim(),
