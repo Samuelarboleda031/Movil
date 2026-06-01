@@ -18,6 +18,7 @@ import 'package:parte_movil/data/datasources/horario_barbero_service.dart';
 import 'package:parte_movil/presentation/pages/home_screen.dart';
 import 'package:parte_movil/presentation/pages/login_screen.dart';
 import 'package:parte_movil/presentation/pages/register_screen.dart';
+import 'package:parte_movil/presentation/pages/splash_screen.dart';
 import 'package:parte_movil/presentation/pages/ventas_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
 import 'package:parte_movil/presentation/pages/mis_compras_screen.dart';
@@ -30,10 +31,12 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/presentation/widgets/main_layout.dart';
 
 class AppRoutes {
-  static const String initialRoute = '/';
+  static const String initialRoute = '/splash';
 
   static Map<String, WidgetBuilder> get routes {
     return {
+      '/splash': (context) => const SplashScreen(),
+      '/login': (context) => const LoginScreen(),
       '/': (context) => const LoginScreen(),
       '/register': (context) => const RegisterScreen(),
       '/home': (context) => const MainLayout(role: AppRole.client), // Default fallback
