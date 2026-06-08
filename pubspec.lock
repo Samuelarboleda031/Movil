@@ -316,14 +316,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  fluttertoast:
+  get_it:
     dependency: "direct main"
     description:
-      name: fluttertoast
-      sha256: "7903c9d5339173497bfecbc23bc4212f5a87e0edfac2e1693fb74465ea67da7e"
+      name: get_it
+      sha256: ae78de7c3f2304b8d81f2bb6e320833e5e81de942188542328f074978cc0efa9
       url: "https://pub.dev"
     source: hosted
-    version: "9.1.0"
+    version: "8.3.0"
   google_identity_services_web:
     dependency: transitive
     description:

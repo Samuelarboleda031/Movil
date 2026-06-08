@@ -1,5 +1,13 @@
 class ApiConfig {
-  static const String baseUrl = 'https://barberiaapi-em5q.onrender.com/api';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://barberiaapi-em5q.onrender.com/api',
+  );
+
+  static const String webAppUrl = String.fromEnvironment(
+    'WEB_APP_URL',
+    defaultValue: 'https://manitobarbershop.vercel.app',
+  );
 
   // Usuarios
   static const String usuarios = '/Usuarios';
@@ -25,5 +33,10 @@ class ApiConfig {
   static const String solicitudesCambioHorario = '/SolicitudesCambioHorario';
   static const String dashboard = '/Dashboard';
   static const String creditoBarbero = '/credito-barbero';
-}
 
+  // Endpoints adicionales centralizados
+  static const String devoluciones = '/Devoluciones';
+  static const String subirImagen = '/images/subir';
+  static String fotoUsuario(int id) => '/Usuarios/$id/foto';
+  static String detallePaquetesPorPaquete(int id) => '/DetallePaquetes/paquete/$id';
+}

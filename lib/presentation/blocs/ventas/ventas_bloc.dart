@@ -67,20 +67,22 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
           orElse: () => throw Exception('Perfil de barbero no encontrado para este usuario'),
         );
 
-        final paginacion = await _ventaService.obtenerVentas(page: 1, pageSize: 2000);
-        final propias = paginacion.items.where((v) => v.barberoId == barberoLocal.id).toList();
+        final paginacion = await _ventaService.obtenerVentas(
+          page: event.page,
+          pageSize: 20,
+        );
 
         emit(VentasLoaded(
-          ventas: propias,
+          ventas: paginacion.items,
           catalogoClientes: _catalogoClientes,
-          paginacion: null, // Paginación desactivada para modo barbero local
-          currentPage: 1,
+          paginacion: paginacion,
+          currentPage: event.page,
         ));
       } else {
         // MODO ADMIN / MANAGER
         final paginacion = await _ventaService.obtenerVentas(
           page: event.page,
-          pageSize: 2000,
+          pageSize: 20,
         );
         emit(VentasLoaded(
           ventas: paginacion.items,

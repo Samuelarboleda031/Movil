@@ -11,7 +11,7 @@ class MediaService {
   Future<String> subirImagen(String filePath, {List<int>? imageBytes, String? fileName}) async {
     try {
       final token = await _authService.getToken();
-      final url = Uri.parse('${ApiConfig.baseUrl}/images/subir');
+      final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.subirImagen}');
       final request = http.MultipartRequest('POST', url);
       
       if (token != null) {
@@ -63,7 +63,7 @@ class MediaService {
 
   // Subir foto de perfil específica para un usuario
   Future<String?> subirFotoPerfil(int usuarioId, String imagePath) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/Usuarios/$usuarioId/foto');
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.fotoUsuario(usuarioId)}');
     final request = http.MultipartRequest('POST', uri);
 
     final token = await _authService.getToken();

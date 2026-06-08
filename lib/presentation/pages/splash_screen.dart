@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -27,6 +28,18 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!isLoggedIn) {
       Navigator.pushReplacementNamed(context, '/login');
       return;
+    }
+
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null) {
+      try {
+        await firebaseUser.getIdToken(true);
+      } catch (_) {
+        await _authService.signOut();
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/login');
+        return;
+      }
     }
 
     final usuario = await _authService.getCurrentUser();

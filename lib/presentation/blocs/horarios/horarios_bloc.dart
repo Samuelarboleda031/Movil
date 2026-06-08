@@ -8,6 +8,7 @@ import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'horarios_event.dart';
 import 'horarios_state.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
   final HorarioBarberoService horarioService;
@@ -105,8 +106,8 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
         if (detalle != null && detalle.isNotEmpty) {
           final emailService = EmailJsService();
           
-          // Despachar el envío de correos en segundo plano para no colgar la interfaz gráfica (UI)
           Future.microtask(() async {
+            int sent = 0;
             for (final item in detalle) {
               final String? clienteEmail = item['clienteCorreo'] ?? item['ClienteCorreo'];
               if (clienteEmail != null && clienteEmail.isNotEmpty) {
@@ -124,8 +125,10 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
                     fechaOriginal: fechaStr,
                     motivo: 'El horario semanal ha sido finalizado/desactivado por la administración.',
                   );
+                  sent++;
+                  if (sent % 5 == 0) await Future.delayed(const Duration(seconds: 1));
                 } catch (e) {
-                  print('Error al enviar correo en background: $e');
+                  logD('Error al enviar correo en background: $e');
                 }
               }
             }

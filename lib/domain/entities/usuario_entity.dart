@@ -8,6 +8,9 @@ class UsuarioEntity extends Equatable {
   final String? fotoPerfil;
   final int? rolId;
   final bool? estado;
+  final String? documento;
+  final String? tipoDocumento;
+  final String? telefono;
 
   const UsuarioEntity({
     this.id,
@@ -17,12 +20,15 @@ class UsuarioEntity extends Equatable {
     this.fotoPerfil,
     this.rolId,
     this.estado,
+    this.documento,
+    this.tipoDocumento,
+    this.telefono,
   });
 
-  String get nombreCompleto => '${nombre ?? ''} ${apellido ?? ''}'.trim().isNotEmpty 
-      ? '${nombre ?? ''} ${apellido ?? ''}'.trim() 
+  String get nombreCompleto => '${nombre ?? ''} ${apellido ?? ''}'.trim().isNotEmpty
+      ? '${nombre ?? ''} ${apellido ?? ''}'.trim()
       : correo;
 
   @override
-  List<Object?> get props => [id, nombre, apellido, correo, fotoPerfil, rolId, estado];
+  List<Object?> get props => [id, nombre, apellido, correo, fotoPerfil, rolId, estado, documento, tipoDocumento, telefono];
 }

@@ -20,9 +20,15 @@ class DetalleHorarioDia {
     if (rawDia is int) {
       dia = rawDia;
     } else if (rawDia is String) {
-      const nombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-      dia = nombres.indexOf(rawDia) + 1;
-      if (dia < 1) dia = 7;
+      final normalized = rawDia.toLowerCase()
+          .replaceAll('á', 'a').replaceAll('é', 'e').replaceAll('í', 'i')
+          .replaceAll('ó', 'o').replaceAll('ú', 'u');
+      const nombres = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+      final idx = nombres.indexOf(normalized);
+      if (idx < 0) {
+        throw FormatException('Día no reconocido: $rawDia');
+      }
+      dia = idx + 1;
     }
 
     String parseHora(dynamic val) {
@@ -111,6 +117,7 @@ class HorarioSemanal {
     'BarberoId': barberoId,
     'FechaInicioSemana': fechaInicioSemana,
     'FechaFinSemana': fechaFinSemana,
+    'Estado': estado,
     'Detalles': detalles.map((d) => d.toJson()).toList(),
   };
 }

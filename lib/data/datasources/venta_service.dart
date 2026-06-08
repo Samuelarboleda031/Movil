@@ -4,6 +4,7 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/venta.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class VentaService {
   final AuthService _authService = AuthService();
@@ -19,9 +20,9 @@ class VentaService {
   Future<Paginacion<Venta>> obtenerVentas({int page = 1, int pageSize = 15}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.ventas}?page=$page&pageSize=$pageSize';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.ventas}?page=$page&pageSize=$pageSize';
       
-      print('🔍 Intentando conectar a: $url');
+      logD('🔍 Intentando conectar a: $url');
       
       final response = await http.get(
         Uri.parse(url),
@@ -54,10 +55,10 @@ class VentaService {
         throw Exception('Error HTTP ${response.statusCode}');
       }
     } on FormatException catch (e) {
-      print('❌ Error de formato JSON: $e');
+      logD('❌ Error de formato JSON: $e');
       throw Exception('Error al procesar la respuesta de la API (formato JSON inválido): $e');
     } on http.ClientException catch (e) {
-      print('❌ Error de cliente HTTP: $e');
+      logD('❌ Error de cliente HTTP: $e');
       String errorMessage = 'Error de conexión HTTP: $e';
       
       if (e.toString().contains('Failed to fetch') || 
@@ -70,8 +71,8 @@ class VentaService {
       
       throw Exception(errorMessage);
     } catch (e) {
-      print('❌ Error general: $e');
-      print('❌ Tipo de error: ${e.runtimeType}');
+      logD('❌ Error general: $e');
+      logD('❌ Tipo de error: ${e.runtimeType}');
       
       String errorMessage = 'Error: $e';
       
@@ -113,7 +114,7 @@ class VentaService {
       final body = jsonEncode(venta.toJson());
       final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}');
       
-      print('📤 Enviando a $url | Body: $body'); // Agregado log de envío
+      logD('📤 Enviando a $url | Body: $body'); // Agregado log de envío
 
       final response = await http.post(
         url,
@@ -121,7 +122,7 @@ class VentaService {
         body: body,
       );
       
-      print('Respuesta del servidor: ${response.statusCode} - ${response.body}'); // Agregado log de respuesta
+      logD('Respuesta del servidor: ${response.statusCode} - ${response.body}'); // Agregado log de respuesta
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Venta.fromJson(jsonDecode(response.body));
@@ -130,7 +131,7 @@ class VentaService {
         throw Exception('Error al crear venta: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Excepción al crear venta: $e');
+      logD('Excepción al crear venta: $e');
       throw Exception('Error de conexión al crear venta: $e');
     }
   }
@@ -157,34 +158,13 @@ class VentaService {
   Future<void> fijarNumeroRecibo(int ventaId) async {
     try {
       final headers = await _getHeaders();
-
       // Obtener la venta para conocer su numero actual
       final venta = await obtenerVentaPorId(ventaId);
-      // El numero de recibo debe ser el mismo numero de la venta.
-      // Si el backend aún no lo asignó, usamos el id como fallback.
       final numeroRecibo = venta.numero.isNotEmpty
           ? venta.numero
           : ventaId.toString();
 
-      // Intentar PATCH /Ventas/{id}/numero-recibo
-      final patchResp = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId/numero-recibo'),
-        headers: headers,
-        body: jsonEncode({'NumeroRecibo': numeroRecibo}),
-      );
-
-      if (patchResp.statusCode == 200 || patchResp.statusCode == 204) return;
-
-      // Fallback: PATCH general a /Ventas/{id}
-      final patchGeneral = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId'),
-        headers: headers,
-        body: jsonEncode({'NumeroRecibo': numeroRecibo}),
-      );
-
-      if (patchGeneral.statusCode == 200 || patchGeneral.statusCode == 204) return;
-
-      // Fallback final: PUT con la venta completa
+      // PUT con la venta completa (único método soportado por la API)
       final ventaActualizada = venta.copyWith(numero: numeroRecibo);
       await http.put(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventas}/$ventaId'),
@@ -192,8 +172,7 @@ class VentaService {
         body: jsonEncode(ventaActualizada.toJson()),
       );
     } catch (e) {
-      // No interrumpir el flujo principal si falla la actualización del recibo
-      print('⚠️ [VentaService] No se pudo fijar NumeroRecibo en venta $ventaId: $e');
+      logD('⚠️ [VentaService] No se pudo fijar NumeroRecibo en venta $ventaId: $e');
     }
   }
 

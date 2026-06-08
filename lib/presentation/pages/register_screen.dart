@@ -7,6 +7,7 @@ import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -130,7 +131,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         try {
           await FirebaseAuth.instance.currentUser?.delete();
         } catch (rollbackError) {
-          print('Error en rollback de Firebase: $rollbackError');
+          logD('Error en rollback de Firebase: $rollbackError');
         }
         throw Exception('No se pudo vincular tu cuenta con el sistema. Intenta nuevamente.');
       }
@@ -148,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       try {
         await _clienteService.crearCliente(cliente);
       } catch (e) {
-        print('Error creando perfil de cliente: $e');
+        logD('Error creando perfil de cliente: $e');
       }
       
       await _auth.sendEmailVerification();

@@ -55,7 +55,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     try {
       final results = await Future.wait([
         _ventaService.obtenerVentaPorId(widget.ventaSummary.id!),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 100),
         _servicioService.obtenerServicios(),
         _paqueteService.obtenerPaquetes(),
       ]);
@@ -152,16 +152,12 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildHeader(Venta venta) {
     final String numeroVenta = '${venta.id ?? 'N/A'}';
-    final String numeroRecibo = venta.numero.isNotEmpty ? venta.numero : 'N/A';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Nº Venta
         _buildHeaderBadge('Nº Venta', numeroVenta),
-        const SizedBox(height: 8),
-        // Nº Recibo
-        _buildHeaderBadge('Nº Recibo', numeroRecibo),
         const SizedBox(height: 14),
         // Total
         Text(

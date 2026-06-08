@@ -19,6 +19,7 @@ import 'dart:math' as math;
 import 'horario_form_screen.dart';
 import 'solicitudes_cambio_horario_screen.dart';
 import 'citas_por_dia_screen.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 // ─── HELPERS LOCALES ─────────────────────────────────────────────────────────
 String _formatHora12(String time) {
@@ -108,7 +109,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
         });
       }
     } catch (e) {
-      print('Error cargando barberos: $e');
+      logD('Error cargando barberos: $e');
     }
   }
 

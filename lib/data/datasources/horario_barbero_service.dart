@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/horario_barbero.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class HorarioBarberoService {
   final AuthService _authService = AuthService();
@@ -45,8 +46,8 @@ class HorarioBarberoService {
         throw Exception('Error al obtener horarios: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error al obtener horarios semanales: $e');
-      return [];
+      logD('Error al obtener horarios semanales: $e');
+      rethrow;
     }
   }
 

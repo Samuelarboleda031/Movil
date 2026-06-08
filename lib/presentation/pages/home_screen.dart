@@ -30,6 +30,7 @@ import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         ServicioService().obtenerServicios(),
         PaqueteService().obtenerPaquetes(),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 50),
         UserContextService().obtenerClienteActual(),
       ]);
 
@@ -105,8 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       List<Agendamiento> pasados = [];
       if (cliente != null && cliente.id != null) {
-        final paginacion = await AgendamientoService().obtenerAgendamientosPorCliente(cliente.id!, pageSize: 2000);
-        pasados = paginacion.items.where((a) => a.estado?.toLowerCase() == 'completada').take(10).toList();
+        final paginacion = await AgendamientoService().obtenerAgendamientosPorCliente(cliente.id!, pageSize: 50);
+        pasados = paginacion.items.where((a) => (a.estadoCita ?? '').toLowerCase() == 'completada').take(10).toList();
       }
 
       if (mounted) {
@@ -137,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final hoy = DateTime.now();
         final fechaStr = '${hoy.year}-${hoy.month.toString().padLeft(2, '0')}-${hoy.day.toString().padLeft(2, '0')}';
         
-        print('🔍 Cargando citas para barbero ${barbero.id} en fecha $fechaStr');
+        logD('🔍 Cargando citas para barbero ${barbero.id} en fecha $fechaStr');
         
         // Obtener todas las citas y filtrar localmente (mismo patrón que AgendamientosBloc)
         final paginacion = await AgendamientoService().obtenerAgendamientos(
@@ -156,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Ordenar por hora
         citasBarberoHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
         
-        print('✅ Encontradas ${citasBarberoHoy.length} citas para hoy');
+        logD('✅ Encontradas ${citasBarberoHoy.length} citas para hoy');
         
         if (mounted) {
           setState(() {
@@ -165,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
       } else {
-        print('⚠️ No se encontró barbero actual');
+        logD('⚠️ No se encontró barbero actual');
         if (mounted) {
           setState(() {
             _isLoadingCitas = false;
@@ -173,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error cargando citas del barbero: $e');
+      logD('❌ Error cargando citas del barbero: $e');
       if (mounted) {
         setState(() {
           _isLoadingCitas = false;
@@ -281,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: () {
-              print('👆 Avatar tocado, _showDropdown: $_showDropdown');
+              logD('👆 Avatar tocado, _showDropdown: $_showDropdown');
               setState(() => _showDropdown = !_showDropdown);
             },
             child: ClipOval(
@@ -321,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 50,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          print('❌ Error cargando imagen: $error');
+                          logD('❌ Error cargando imagen: $error');
                           return Container(
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(

@@ -18,11 +18,15 @@ class ClienteService {
   Future<List<Cliente>> obtenerClientes({
     int page = 1,
     int pageSize = 1000,
+    String? q,
   }) async {
     try {
       final headers = await _getHeaders();
-      final url =
+      var url =
           '${ApiConfig.baseUrl}${ApiConfig.clientes}?page=$page&pageSize=$pageSize';
+      if (q != null && q.isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q)}';
+      }
 
       final response = await http
           .get(Uri.parse(url), headers: headers)

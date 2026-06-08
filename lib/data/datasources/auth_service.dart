@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:parte_movil/data/models/usuario.dart';
 import 'package:parte_movil/core/network/api_config.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class AuthService {
   static const String _userKey = 'user_data';
@@ -16,7 +18,14 @@ class AuthService {
   Future<List<Usuario>> obtenerUsuarios() async {
     final url = '${ApiConfig.baseUrl}${ApiConfig.usuarios}?pageSize=1000';
     try {
-      final response = await http.get(Uri.parse(url));
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return [];
         final dynamic rawData = jsonDecode(response.body);
@@ -42,7 +51,14 @@ class AuthService {
   Future<Usuario?> obtenerUsuarioPorCorreo(String correo) async {
     final url = '${ApiConfig.baseUrl}${ApiConfig.usuarios}?q=${Uri.encodeComponent(correo)}&pageSize=10';
     try {
-      final response = await http.get(Uri.parse(url));
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final dynamic rawData = jsonDecode(response.body);
         List<dynamic> data;
@@ -130,7 +146,7 @@ class AuthService {
 
       return await _auth.signInWithCredential(credential);
     } catch (e) {
-      print('Error en Google Sign-In: $e');
+      logD('Error en Google Sign-In: $e');
       rethrow;
     }
   }
@@ -140,15 +156,20 @@ class AuthService {
     return await _auth.createUserWithEmailAndPassword(email: email, password: password);
   }
 
-  // Envía correo para restablecer contraseña. Retorna true si se envió correctamente.
-  Future<bool> resetPassword(String email) async {
+  Future<({bool success, String? error})> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
-      return true;
-    } on FirebaseAuthException {
-      return false;
+      return (success: true, error: null);
+    } on FirebaseAuthException catch (e) {
+      final msg = switch (e.code) {
+        'user-not-found' => 'No existe una cuenta con ese correo electrónico.',
+        'invalid-email' => 'El formato del correo electrónico no es válido.',
+        'too-many-requests' => 'Demasiados intentos. Intenta de nuevo más tarde.',
+        _ => 'Error al enviar el correo de recuperación.',
+      };
+      return (success: false, error: msg);
     } catch (_) {
-      return false;
+      return (success: false, error: 'Error de conexión. Verifica tu internet.');
     }
   }
 
@@ -170,7 +191,7 @@ class AuthService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('[AuthService] Error actualizando contraseña en API: $e');
+      logD('[AuthService] Error actualizando contraseña en API: $e');
       return false;
     }
   }
@@ -190,11 +211,15 @@ class AuthService {
     
     try {
       if (await _googleSignIn.isSignedIn() == true) {
-        await _googleSignIn.disconnect();
+        try {
+          await _googleSignIn.disconnect();
+        } catch (e) {
+          logD('Error al desconectar Google (reintentando signOut): $e');
+        }
         await _googleSignIn.signOut();
       }
     } catch (e) {
-      print('Error durante el cierre de sesión de Google: $e');
+      logD('Error durante el cierre de sesión de Google: $e');
     }
     
     await _auth.signOut();
@@ -256,7 +281,8 @@ class AuthService {
         }
 
         // Generar documento aleatorio si no se proporciona (como en la web)
-        final randomDoc = additionalData?['documento'] ?? '${(100000 + DateTime.now().millisecond % 899999)}${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}';
+        final rnd = Random.secure();
+        final randomDoc = additionalData?['documento'] ?? (10000000 + rnd.nextInt(89999999)).toString();
 
         final nuevo = Usuario(
           correo: correo,
@@ -297,7 +323,7 @@ class AuthService {
       await _saveApiUser(sincronizado);
       return sincronizado;
     } catch (e) {
-      print('Error sincronizando usuario con API: $e');
+      logD('Error sincronizando usuario con API: $e');
       return null;
     }
   }
@@ -307,20 +333,23 @@ class AuthService {
     if (user == null || user.email == null) return null;
 
     try {
-      print('[AuthService] Consultando usuario API para ${user.email}');
+      logD('[AuthService] Consultando usuario API para ${user.email}');
       final usuario = await obtenerUsuarioPorCorreo(user.email!);
       if (usuario != null) {
         await _saveApiUser(usuario);
       }
       return usuario;
     } catch (e) {
-      print('[AuthService] Error obteniendo usuario desde API: $e');
+      logD('[AuthService] Error obteniendo usuario desde API: $e');
       return null;
     }
   }
 
   Future<void> _saveApiUser(Usuario usuario) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, jsonEncode(usuario.toJson()));
+    final json = usuario.toJson();
+    json.remove('contrasena');
+    json.remove('Contrasena');
+    await prefs.setString(_userKey, jsonEncode(json));
   }
 }

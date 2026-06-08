@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class SessionGuard extends StatefulWidget {
   final List<AppRole> allowedRoles;
@@ -36,7 +37,7 @@ class _SessionGuardState extends State<SessionGuard> {
     }
 
     final email = firebaseUser.email!;
-    print('[SessionGuard] Validando sesión para $email');
+    logD('[SessionGuard] Validando sesión para $email');
 
     var usuarioApi = await _auth.getCurrentUser();
     if (usuarioApi == null || usuarioApi.rolId == null) {
@@ -56,7 +57,7 @@ class _SessionGuardState extends State<SessionGuard> {
       return;
     }
 
-    print('[SessionGuard] Rol actual $rolActual, permitidos ${widget.allowedRoles}');
+    logD('[SessionGuard] Rol actual $rolActual, permitidos ${widget.allowedRoles}');
 
     // Lógica flexible: El Gerente (Super Admin ID 1) tiene todos los permisos del Administrador (ID 18)
     bool isAuthorized = widget.allowedRoles.contains(rolActual);

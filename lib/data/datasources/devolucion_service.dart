@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class DevolucionService {
   final AuthService _authService = AuthService();
@@ -32,15 +33,15 @@ class DevolucionService {
         'UsuarioId': usuarioId,
         'ProductoId': productoId,
         'Cantidad': cantidad,
-        ?'VentaId': ventaId,
-        ?'ClienteId': clienteId,
-        ?'BarberoId': barberoId,
-        ?'MotivoCategoria': motivoCategoria,
-        ?'MotivoDetalle': motivoDetalle,
+        if (ventaId != null) 'VentaId': ventaId,
+        if (clienteId != null) 'ClienteId': clienteId,
+        if (barberoId != null) 'BarberoId': barberoId,
+        if (motivoCategoria != null) 'MotivoCategoria': motivoCategoria,
+        if (motivoDetalle != null) 'MotivoDetalle': motivoDetalle,
       };
       final response = await http
           .post(
-            Uri.parse('${ApiConfig.baseUrl}/Devoluciones'),
+            Uri.parse('${ApiConfig.baseUrl}${ApiConfig.devoluciones}'),
             headers: headers,
             body: jsonEncode(body),
           )
@@ -49,17 +50,19 @@ class DevolucionService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      return null;
+      throw Exception('Error al registrar devolución: ${response.statusCode}');
     } catch (e) {
-      print('Error al registrar devolución: $e');
-      return null;
+      logD('Error al registrar devolución: $e');
+      rethrow;
     }
   }
 
   Future<double> obtenerSaldoAFavor(int clienteId) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/Devoluciones/cliente/$clienteId';
+      // Usa el endpoint dedicado que devuelve el saldo disponible real
+      // (total devoluciones - total ya usado en ventas)
+      final url = '${ApiConfig.baseUrl}${ApiConfig.clientes}/$clienteId/saldo-disponible';
 
       final response = await http.get(
         Uri.parse(url),
@@ -67,28 +70,13 @@ class DevolucionService {
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        final dynamic rawData = jsonDecode(response.body);
-        List<dynamic> items = [];
-
-        if (rawData is List) {
-          items = rawData;
-        } else if (rawData is Map && rawData.containsKey('items')) {
-          items = rawData['items'];
-        }
-
-        double totalSaldo = 0;
-        for (var item in items) {
-          // Solo sumar si la devolución está activa/completada
-          final estado = (item['estado'] ?? item['Estado'] ?? '').toString().toLowerCase();
-          if (estado != 'anulado' && estado != 'anulada') {
-            totalSaldo += (item['saldoAFavor'] ?? item['SaldoAFavor'] ?? 0).toDouble();
-          }
-        }
-        return totalSaldo;
+        final dynamic data = jsonDecode(response.body);
+        // La API retorna: { clienteId, totalDevoluciones, totalUsado, disponible }
+        return (data['disponible'] ?? data['Disponible'] ?? 0).toDouble();
       }
       return 0;
     } catch (e) {
-      print('Error al obtener saldo a favor: $e');
+      logD('Error al obtener saldo a favor: $e');
       return 0;
     }
   }

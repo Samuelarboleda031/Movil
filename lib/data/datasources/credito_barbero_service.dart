@@ -167,7 +167,7 @@ class CreditoBarberoService {
       final body = <String, dynamic>{
         'UsuarioId': usuarioId,
         'PlazoDias': plazoDias,
-        ?'LimiteCredito': limiteCredito,
+        if (limiteCredito != null) 'LimiteCredito': limiteCredito,
       };
       final response = await http
           .post(

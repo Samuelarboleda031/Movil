@@ -15,10 +15,13 @@ class ServicioService {
     };
   }
 
-  Future<List<Servicio>> obtenerServicios({int page = 1, int pageSize = 1000}) async {
+  Future<List<Servicio>> obtenerServicios({int page = 1, int pageSize = 1000, String? q}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}?page=$page&pageSize=$pageSize';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.servicios}?page=$page&pageSize=$pageSize';
+      if (q != null && q.isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q)}';
+      }
       
       final response = await http.get(
         Uri.parse(url),
@@ -142,7 +145,7 @@ class ServicioService {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.servicios}/$id/estado';
 
-      final response = await http.post(
+      final response = await http.put(
         Uri.parse(url),
         headers: headers,
         body: jsonEncode({'estado': estado}),

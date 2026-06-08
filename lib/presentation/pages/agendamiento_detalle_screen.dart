@@ -49,7 +49,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
       final results = await Future.wait([
         AgendamientoService().obtenerAgendamientoPorId(_currentAg.id!),
         ServicioService().obtenerServicios(),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 100),
       ]);
 
       Agendamiento ag = results[0] as Agendamiento;

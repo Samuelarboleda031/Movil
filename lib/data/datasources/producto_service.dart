@@ -18,10 +18,13 @@ class ProductoService {
   }
 
   // ================= CATÉGORIAS =================
-  Future<List<Categoria>> getCategorias({int page = 1, int pageSize = 1000}) async {
+  Future<List<Categoria>> getCategorias({int page = 1, int pageSize = 1000, String? q}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.categorias}?page=$page&pageSize=$pageSize';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.categorias}?page=$page&pageSize=$pageSize';
+      if (q != null && q.isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q)}';
+      }
       
       final response = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 30));
 

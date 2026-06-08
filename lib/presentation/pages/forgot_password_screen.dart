@@ -39,31 +39,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           nombre = '${usuario.nombre} ${usuario.apellido}';
         }
 
-        // Enviar email con link de Vercel que puede abrir la app móvil o web
+        // Enviar email de recuperación
         final success = await _passwordResetService.sendPasswordResetEmail(
           email: email,
           nombre: nombre,
         );
-
-        // Fallback: si el backend no tiene el endpoint, usar Firebase
-        if (!success) {
-          final fallbackSuccess = await _passwordResetService.sendFirebasePasswordReset(email);
-          if (fallbackSuccess) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _emailSent = true;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Correo de recuperación enviado. Revise su bandeja (también spam).'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-            return;
-          }
-        }
 
         if (mounted) {
           setState(() {

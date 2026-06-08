@@ -1,8 +1,9 @@
+import 'package:equatable/equatable.dart';
 import 'cliente.dart';
 import 'barbero.dart';
 import 'usuario.dart';
 
-class Venta {
+class Venta extends Equatable {
   final int? id;
   final String numero;
   final String? fechaRegistro;
@@ -174,6 +175,13 @@ class Venta {
       detalles: detalles ?? this.detalles,
     );
   }
+
+  @override
+  List<Object?> get props => [
+        id, numero, fechaRegistro, clienteId, barberoId, usuarioId,
+        metodoPago, subtotal, porcentajeDescuento, total, estado,
+        clienteNombre, tipoVenta,
+      ];
 }
 
 class DetalleVenta {
@@ -198,15 +206,16 @@ class DetalleVenta {
   });
 
   factory DetalleVenta.fromJson(Map<String, dynamic> json) {
+    final rawSubTotal = json['subTotal'] ?? json['SubTotal'];
     return DetalleVenta(
-      id: json['id'] ?? json['ID'],
-      ventaId: json['ventaId'] ?? json['VentaID'] ?? 0,
-      productoId: json['productoId'] ?? json['ProductoID'],
-      servicioId: json['servicioId'] ?? json['ServicioID'],
-      paqueteId: json['paqueteId'] ?? json['PaqueteID'],
+      id: json['id'] ?? json['Id'] ?? json['ID'],
+      ventaId: json['ventaId'] ?? json['VentaId'] ?? json['VentaID'] ?? 0,
+      productoId: json['productoId'] ?? json['ProductoId'] ?? json['ProductoID'],
+      servicioId: json['servicioId'] ?? json['ServicioId'] ?? json['ServicioID'],
+      paqueteId: json['paqueteId'] ?? json['PaqueteId'] ?? json['PaqueteID'],
       cantidad: json['cantidad'] ?? json['Cantidad'] ?? 0,
       precioUnitario: (json['precioUnitario'] ?? json['PrecioUnitario'] ?? 0).toDouble(),
-      subTotal: json['subTotal'] != null ? (json['subTotal'] ?? json['SubTotal']).toDouble() : null,
+      subTotal: rawSubTotal != null ? (rawSubTotal as num).toDouble() : null,
     );
   }
 

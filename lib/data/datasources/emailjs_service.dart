@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class EmailJsService {
   static const String _endpointPath = '/Notificaciones/cancelacion-email';
@@ -39,17 +40,17 @@ class EmailJsService {
         body: jsonEncode(payload),
       );
 
-      print('📬 [EmailJsService] → ${uri} | status=${response.statusCode}');
-      print('📬 [EmailJsService] body=${response.body}');
+      logD('📬 [EmailJsService] → ${uri} | status=${response.statusCode}');
+      logD('📬 [EmailJsService] body=${response.body}');
       if (response.statusCode == 200) {
-        print('✅ [EmailJsService] Email enviado exitosamente');
+        logD('✅ [EmailJsService] Email enviado exitosamente');
         return true;
       } else {
-        print('❌ [EmailJsService] Backend respondió ${response.statusCode}: ${response.body}');
+        logD('❌ [EmailJsService] Backend respondió ${response.statusCode}: ${response.body}');
         return false;
       }
     } catch (e) {
-      print('❌ [EmailJsService] Excepción: $e');
+      logD('❌ [EmailJsService] Excepción: $e');
       return false;
     }
   }

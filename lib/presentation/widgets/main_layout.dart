@@ -23,7 +23,6 @@ import 'package:parte_movil/presentation/pages/mis_compras_screen.dart';
 import 'package:parte_movil/presentation/pages/profile_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamiento_form_screen.dart';
 import 'package:parte_movil/presentation/pages/venta_form_screen.dart';
-import 'package:parte_movil/presentation/pages/servicio_form_screen.dart';
 import 'package:parte_movil/presentation/pages/producto_form_screen.dart';
 import 'package:parte_movil/presentation/pages/horarios_gestion_screen.dart';
 import 'package:parte_movil/presentation/pages/horario_form_screen.dart';
@@ -44,6 +43,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   late final HorariosBloc _horariosBloc;
   late final VentasBloc _ventasBloc;
+  late final AgendamientosBloc _agendamientosBloc;
   List<Widget>? _screens;
   final _userContextService = UserContextService();
 
@@ -199,6 +199,13 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void initState() {
     super.initState();
+    _agendamientosBloc = AgendamientosBloc(
+      agendamientoService: AgendamientoService(),
+      emailJsService: EmailJsService(),
+      authService: AuthService(),
+      userContextService: UserContextService(),
+    )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false));
+
     _horariosBloc = HorariosBloc(
       horarioService: HorarioBarberoService(),
       barberoService: BarberoService(),
@@ -217,6 +224,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   void dispose() {
+    _agendamientosBloc.close();
     _horariosBloc.close();
     _ventasBloc.close();
     super.dispose();
@@ -228,17 +236,10 @@ class _MainLayoutState extends State<MainLayout> {
       case AppRole.admin:
         return [
           HomeScreen(role: widget.role),
-          BlocProvider(
-            create: (context) => AgendamientosBloc(
-              agendamientoService: AgendamientoService(),
-              emailJsService: EmailJsService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
+          BlocProvider.value(
+            value: _agendamientosBloc,
             child: AgendamientosScreen(role: widget.role),
           ),
-
-
           BlocProvider.value(
             value: _ventasBloc,
             child: VentasScreen(role: widget.role),
@@ -254,18 +255,13 @@ class _MainLayoutState extends State<MainLayout> {
       case AppRole.barber:
         return [
           HomeScreen(role: widget.role),
-          BlocProvider(
-            create: (context) => AgendamientosBloc(
-              agendamientoService: AgendamientoService(),
-              emailJsService: EmailJsService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
-            child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
+          BlocProvider.value(
+            value: _agendamientosBloc,
+            child: AgendamientosScreen(role: widget.role),
           ),
           BlocProvider.value(
             value: _ventasBloc,
-            child: VentasScreen(role: widget.role), // Reutilizamos aquí
+            child: VentasScreen(role: widget.role),
           ),
           BlocProvider.value(
             value: _horariosBloc,
@@ -276,14 +272,9 @@ class _MainLayoutState extends State<MainLayout> {
       case AppRole.client:
         return [
           HomeScreen(role: widget.role),
-          BlocProvider(
-            create: (context) => AgendamientosBloc(
-              agendamientoService: AgendamientoService(),
-              emailJsService: EmailJsService(),
-              authService: AuthService(),
-              userContextService: UserContextService(),
-            )..add(const LoadAgendamientosRequested(page: 1, estaSemana: false)),
-            child: AgendamientosScreen(role: widget.role), // Reutilizamos aquí
+          BlocProvider.value(
+            value: _agendamientosBloc,
+            child: AgendamientosScreen(role: widget.role),
           ),
           const MisComprasScreen(),
           ProfileScreen(role: widget.role),
@@ -436,7 +427,9 @@ class _MainLayoutState extends State<MainLayout> {
       return items.asMap().entries.map((entry) => Expanded(child: _buildNavItem(entry.key, entry.value.icon, entry.value.label!))).toList();
     }
 
-    return PopScope(
+    return BlocProvider.value(
+      value: _agendamientosBloc,
+      child: PopScope(
       canPop: _currentIndex == 0,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) setState(() => _currentIndex = 0);
@@ -458,6 +451,7 @@ class _MainLayoutState extends State<MainLayout> {
         ),
       ),
       ),
+    ),
     );
   }
 

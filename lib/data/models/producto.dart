@@ -77,18 +77,30 @@ class Producto {
     );
   }
 
-  Producto copyWith({bool? activo}) {
+  Producto copyWith({
+    int? id,
+    String? nombre,
+    String? descripcion,
+    Categoria? categoria,
+    int? categoriaId,
+    double? precioVenta,
+    double? precioCompra,
+    int? cantidad,
+    String? marca,
+    String? imagenProduc,
+    bool? activo,
+  }) {
     return Producto(
-      id: id,
-      nombre: nombre,
-      descripcion: descripcion,
-      categoria: categoria,
-      categoriaId: categoriaId,
-      precioVenta: precioVenta,
-      precioCompra: precioCompra,
-      cantidad: cantidad,
-      marca: marca,
-      imagenProduc: imagenProduc,
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      categoria: categoria ?? this.categoria,
+      categoriaId: categoriaId ?? this.categoriaId,
+      precioVenta: precioVenta ?? this.precioVenta,
+      precioCompra: precioCompra ?? this.precioCompra,
+      cantidad: cantidad ?? this.cantidad,
+      marca: marca ?? this.marca,
+      imagenProduc: imagenProduc ?? this.imagenProduc,
       activo: activo ?? this.activo,
     );
   }

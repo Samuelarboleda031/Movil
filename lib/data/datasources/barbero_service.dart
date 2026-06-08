@@ -5,6 +5,7 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 
 import 'package:parte_movil/data/models/horario_barbero.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class BarberoService {
   final AuthService _authService = AuthService();
@@ -17,10 +18,13 @@ class BarberoService {
     };
   }
 
-  Future<List<Barbero>> obtenerBarberos() async {
+  Future<List<Barbero>> obtenerBarberos({String? q}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.barberos}?pageSize=1000';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.barberos}?pageSize=1000';
+      if (q != null && q.isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q)}';
+      }
       
       final response = await http.get(
         Uri.parse(url),
@@ -149,8 +153,8 @@ class BarberoService {
         throw Exception('Error al obtener horarios semanales: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error al obtener horarios semanales de barberos: $e');
-      return [];
+      logD('Error al obtener horarios semanales de barberos: $e');
+      rethrow;
     }
   }
 }

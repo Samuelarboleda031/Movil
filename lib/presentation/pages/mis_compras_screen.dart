@@ -17,6 +17,7 @@ import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'package:parte_movil/data/datasources/devolucion_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class MisComprasScreen extends StatefulWidget {
   const MisComprasScreen({super.key});
@@ -83,11 +84,11 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
           }
         }
       } catch (e) {
-        print('Error cargando usuarios: $e');
+        logD('Error cargando usuarios: $e');
       }
 
       try {
-        final productos = await ProductoService().getProductos(pageSize: 1000);
+        final productos = await ProductoService().getProductos(pageSize: 100);
         for (var p in productos.items) {
           if (p.id != null) _nombresProductos[p.id!] = p.nombre;
         }
@@ -102,14 +103,14 @@ class _MisComprasScreenState extends State<MisComprasScreen> {
           if (p.id != null) _nombresPaquetes[p.id!] = p.nombre;
         }
       } catch (e) {
-        print('Error cargando catálogos de ítems: $e');
+        logD('Error cargando catálogos de ítems: $e');
       }
 
       double saldo = 0;
       try {
         saldo = await _devolucionService.obtenerSaldoAFavor(cliente.id!);
       } catch (e) {
-        print('Error cargando saldo a favor: $e');
+        logD('Error cargando saldo a favor: $e');
       }
       
       setState(() {

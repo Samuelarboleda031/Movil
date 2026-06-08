@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:parte_movil/data/datasources/password_reset_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String? email;
@@ -90,7 +91,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       }
     } catch (e) {
       // No es un código de Firebase, intentar con nuestro backend
-      print('No es código Firebase, intentando backend: $e');
+      logD('No es código Firebase, intentando backend: $e');
     }
 
     // Fallback: verificar con nuestro backend
@@ -135,7 +136,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     } catch (e) {
       // No es un código de Firebase o falló, intentar con nuestro backend
-      print('Firebase reset failed, trying backend: $e');
+      logD('Firebase reset failed, trying backend: $e');
     }
 
     // Fallback: intentar resetear con el backend

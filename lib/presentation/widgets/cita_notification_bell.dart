@@ -11,6 +11,7 @@ import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart'
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class CitaNotification {
   final int citaId;
@@ -181,7 +182,7 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
         });
       }
     } catch (e) {
-      print('Error checking citas: $e');
+      logD('Error checking citas: $e');
     } finally {
       _isLoading = false;
     }

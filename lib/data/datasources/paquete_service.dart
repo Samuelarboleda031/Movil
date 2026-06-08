@@ -15,10 +15,13 @@ class PaqueteService {
     };
   }
 
-  Future<List<Paquete>> obtenerPaquetes() async {
+  Future<List<Paquete>> obtenerPaquetes({String? q}) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}?page=1&pageSize=1000';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}?page=1&pageSize=1000';
+      if (q != null && q.isNotEmpty) {
+        url += '&q=${Uri.encodeComponent(q)}';
+      }
       
       final response = await http.get(
         Uri.parse(url),
@@ -87,7 +90,7 @@ class PaqueteService {
         'Descripcion': descripcion,
         'Precio': precio,
         'DuracionMinutos': duracionMinutos,
-        'Detalles': detalles.map((d) => {
+        'Detalles': detalles.map((d) => <String, dynamic>{
           'ServicioId': d['servicioId'] ?? d['ServicioId'],
           'Cantidad': d['cantidad'] ?? d['Cantidad'] ?? 1,
         }).toList(),
@@ -136,7 +139,7 @@ class PaqueteService {
       final url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}/$paqueteId/detalles';
 
       final payload = {
-        'Detalles': detalles.map((d) => {
+        'Detalles': detalles.map((d) => <String, dynamic>{
           'ServicioId': d['servicioId'] ?? d['ServicioId'],
           'Cantidad': d['cantidad'] ?? d['Cantidad'] ?? 1,
         }).toList(),
@@ -206,7 +209,7 @@ class PaqueteService {
   Future<List<Map<String, dynamic>>> obtenerDetallesPorPaquete(int paqueteId) async {
     try {
       final headers = await _getHeaders();
-      final url = '${ApiConfig.baseUrl}/DetallePaquetes/paquete/$paqueteId?page=1&pageSize=1000';
+      final url = '${ApiConfig.baseUrl}${ApiConfig.detallePaquetesPorPaquete(paqueteId)}?page=1&pageSize=1000';
 
       final response = await http.get(
         Uri.parse(url),

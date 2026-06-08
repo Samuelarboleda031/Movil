@@ -15,6 +15,7 @@ import 'package:parte_movil/presentation/pages/reset_password_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -27,6 +28,7 @@ class _MyAppState extends State<MyApp> {
   final AuthService _authService = AuthService();
   final AppLinks _appLinks = AppLinks();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<Uri>? _linkSub;
 
   @override
   void initState() {
@@ -34,10 +36,8 @@ class _MyAppState extends State<MyApp> {
     _initDeepLinks();
   }
 
-  /// Inicializa el manejo de deep links para App Links (Android) y Universal Links (iOS)
   void _initDeepLinks() async {
-    // Escuchar links entrantes mientras la app está corriendo
-    _appLinks.uriLinkStream.listen((Uri? uri) {
+    _linkSub = _appLinks.uriLinkStream.listen((Uri? uri) {
       if (uri != null) {
         _handleDeepLink(uri);
       }
@@ -50,13 +50,13 @@ class _MyAppState extends State<MyApp> {
         _handleDeepLink(initialUri);
       }
     } catch (e) {
-      print('Error obteniendo link inicial: $e');
+      logD('Error obteniendo link inicial: $e');
     }
   }
 
   /// Maneja el deep link entrante
   void _handleDeepLink(Uri uri) {
-    print('Deep link recibido: $uri');
+    logD('Deep link recibido: $uri');
 
     // Manejar reset de contraseña
     // Formato: https://manitobarbershop.vercel.app/reset-password?code=xxx&email=xxx
@@ -82,6 +82,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    _linkSub?.cancel();
     super.dispose();
   }
 
@@ -111,6 +112,11 @@ class _MyAppState extends State<MyApp> {
         theme: AppTheme.darkTheme,
         initialRoute: AppRoutes.initialRoute,
         routes: AppRoutes.routes,
+        onUnknownRoute: (settings) => MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Página no encontrada', style: TextStyle(fontSize: 18))),
+          ),
+        ),
 
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

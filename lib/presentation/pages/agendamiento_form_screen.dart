@@ -195,7 +195,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         _barberoService.obtenerBarberos(),
         _servicioService.obtenerServicios(),
         _paqueteService.obtenerPaquetes(),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 100),
         _agendamientoService.obtenerAgendamientos(),
         _barberoService.obtenerHorariosBarberos(),
       ]);

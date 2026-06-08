@@ -1,10 +1,11 @@
+import 'package:equatable/equatable.dart';
 import 'package:intl/intl.dart';
 import 'cliente.dart';
 import 'barbero.dart';
 import 'servicio.dart';
 import 'paquete.dart';
 
-class Agendamiento {
+class Agendamiento extends Equatable {
   final int? id;
   final int clienteId;
   final int barberoId;
@@ -245,6 +246,8 @@ class Agendamiento {
     Barbero? barbero,
     Servicio? servicio,
     Paquete? paquete,
+    String? clienteNombre,
+    String? barberoNombre,
   }) {
     return Agendamiento(
       id: id ?? this.id,
@@ -274,5 +277,13 @@ class Agendamiento {
       barberoNombre: barberoNombre ?? this.barberoNombre,
     );
   }
+
+  @override
+  List<Object?> get props => [
+        id, clienteId, barberoId, servicioId, paqueteId,
+        servicioIds, productoIds, fechaCita, horaInicio, horaFin,
+        estadoCita, monto, observaciones, estado, fechaHora,
+        duracion, precio, clienteNombre, barberoNombre,
+      ];
 }
 

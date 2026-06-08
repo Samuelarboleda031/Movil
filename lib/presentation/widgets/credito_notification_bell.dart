@@ -504,13 +504,13 @@ class _TarjetaBloqueadoAdmin extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
-                    Row(
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
                       children: [
                         _Chip(label: info.estado, color: AppColors.red),
-                        if (info.extensionUsada) ...[
-                          const SizedBox(width: 4),
+                        if (info.extensionUsada)
                           _Chip(label: 'Extensión usada', color: Colors.orange),
-                        ],
                       ],
                     ),
                   ],

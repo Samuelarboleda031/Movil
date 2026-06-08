@@ -150,7 +150,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   // ─── CONTROLLERS ──────────────────────────────
   final _descuentoController = TextEditingController();
-  final _reciboController = TextEditingController();
 
   @override
   void initState() {
@@ -164,7 +163,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       curve: Curves.easeInOut,
     );
     _descuentoController.text = '0';
-    _reciboController.text = _numeroVentaFormateado;
     _cargarDatos();
   }
 
@@ -172,7 +170,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   void dispose() {
     _animController.dispose();
     _descuentoController.dispose();
-    _reciboController.dispose();
     for (final d in _detalles) {
       d.cantidadController.dispose();
     }
@@ -262,7 +259,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       final results = await Future.wait([
         _clienteService.obtenerClientes(),
         _barberoService.obtenerBarberos(),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 100),
         _servicioService.obtenerServicios(),
         _paqueteService.obtenerPaquetes(),
         _ventaService.obtenerVentas(pageSize: 50), // ← NUEVO: para numerar ventas
@@ -381,10 +378,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           ).format(DateTime.now());
         }
 
-        if (ventaFull == null) {
-          _reciboController.text = _numeroVentaFormateado;
-        }
-
         _isLoadingData = false;
         _animController.forward();
       });
@@ -421,7 +414,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     _metodoPago = venta.metodoPago;
     _porcentajeDescuento = venta.porcentajeDescuento;
     _descuentoController.text = venta.porcentajeDescuento.toString();
-    _reciboController.text = venta.numero;
     _fechaCreacionTexto = _formatearFecha(venta.fechaRegistro);
   }
 
@@ -718,7 +710,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
       final venta = Venta(
         id: widget.venta?.id,
-        numero: _reciboController.text.trim(),
+        numero: '',
         fechaRegistro:
             widget.venta?.fechaRegistro ?? DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(DateTime.now()),
         // En Venta Barbero, clienteId = 0 (se omite en toJson) y el comprador va en barberoId
@@ -887,7 +879,9 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           ),
           if (!_isLoadingData)
             Text(
-              'N° $_numeroVentaFormateado  ·  $_fechaCreacionTexto',
+              widget.venta != null
+                  ? 'Venta #${widget.venta!.id}  ·  $_fechaCreacionTexto'
+                  : _fechaCreacionTexto,
               style: const TextStyle(fontSize: 11, color: AppColors.greyLight),
             ),
         ],
@@ -929,42 +923,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _reciboController,
-            style: const TextStyle(color: AppColors.whiteSecondary, fontSize: 14),
-            maxLength: 10,
-            inputFormatters: [LengthLimitingTextInputFormatter(10)],
-            decoration: InputDecoration(
-              labelText: 'N° Recibo *',
-              labelStyle: const TextStyle(color: AppColors.greyLight, fontSize: 12),
-              prefixIcon: const Icon(Icons.receipt_outlined, color: AppColors.gold, size: 18),
-              counterText: '',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.divider),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.divider),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.red),
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'El N° de recibo es obligatorio';
-              return null;
-            },
           ),
         ],
       ),
@@ -1679,13 +1637,21 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   // ─── SELECTOR PRODUCTOS ───────────────────────
   Widget _buildSelectorProductos() {
+    // IDs de productos ya agregados en la venta
+    final idsAgregados = _detalles
+        .where((d) => d.productoId != null)
+        .map((d) => d.productoId!)
+        .toSet();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SearchableSelector<Producto>(
           label: 'Buscar producto',
           hint: 'Escribe el nombre del producto...',
-          items: _productos.where((p) => p.cantidad > 0).toList(),
+          items: _productos
+              .where((p) => p.cantidad > 0 && !idsAgregados.contains(p.id))
+              .toList(),
           selectedItem: _productoParaAgregar,
           displayText: (p) => p.nombre,
           searchText: (p) => p.nombre,
@@ -1765,8 +1731,16 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   // ─── SELECTOR SERVICIOS ───────────────────────
   Widget _buildSelectorServicios() {
-    final List<ItemVenta> opciones =
-        _servicios.map((s) => ItemVenta(tipo: 'Servicio', id: s.id!)).toList();
+    // IDs de servicios ya agregados en la venta
+    final idsAgregados = _detalles
+        .where((d) => d.servicioId != null)
+        .map((d) => d.servicioId!)
+        .toSet();
+
+    final List<ItemVenta> opciones = _servicios
+        .where((s) => !idsAgregados.contains(s.id))
+        .map((s) => ItemVenta(tipo: 'Servicio', id: s.id!))
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1834,8 +1808,16 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   // ─── SELECTOR PAQUETES ────────────────────────
   Widget _buildSelectorPaquetes() {
-    final List<ItemVenta> opciones =
-        _paquetes.map((p) => ItemVenta(tipo: 'Paquete', id: p.id!)).toList();
+    // IDs de paquetes ya agregados en la venta
+    final idsAgregados = _detalles
+        .where((d) => d.paqueteId != null)
+        .map((d) => d.paqueteId!)
+        .toSet();
+
+    final List<ItemVenta> opciones = _paquetes
+        .where((p) => !idsAgregados.contains(p.id))
+        .map((p) => ItemVenta(tipo: 'Paquete', id: p.id!))
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -52,7 +52,7 @@ class _ModalCompletarParcialmenteState extends State<ModalCompletarParcialmente>
     try {
       final results = await Future.wait([
         ServicioService().obtenerServicios(),
-        ProductoService().getProductos(pageSize: 1000),
+        ProductoService().getProductos(pageSize: 100),
       ]);
 
       if (!mounted) return;

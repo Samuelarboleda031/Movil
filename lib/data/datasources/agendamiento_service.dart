@@ -4,6 +4,7 @@ import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/agendamiento.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
+import 'package:parte_movil/core/utils/logger.dart';
 
 class AgendamientoService {
   final AuthService _authService = AuthService();
@@ -24,7 +25,7 @@ class AgendamientoService {
         url += '&estaSemana=$estaSemana';
       }
       
-      print('🔍 [AgendamientoService] Fetching: $url');
+      logD('🔍 [AgendamientoService] Fetching: $url');
       
       final response = await http.get(
         Uri.parse(url),
@@ -33,17 +34,17 @@ class AgendamientoService {
         const Duration(seconds: 30),
       );
 
-      print('📥 [AgendamientoService] Response Code: ${response.statusCode}');
+      logD('📥 [AgendamientoService] Response Code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final dynamic rawData = jsonDecode(response.body);
         if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
           final pag = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
-          print('✅ [AgendamientoService] Received ${pag.items.length} items');
+          logD('✅ [AgendamientoService] Received ${pag.items.length} items');
           return pag;
         } else {
           final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
-          print('✅ [AgendamientoService] Received ${list.length} items (legacy format)');
+          logD('✅ [AgendamientoService] Received ${list.length} items (legacy format)');
           return Paginacion<Agendamiento>(
             items: list.map((j) => Agendamiento.fromJson(j)).toList(),
             totalCount: list.length,
@@ -55,11 +56,11 @@ class AgendamientoService {
           );
         }
       } else {
-        print('❌ [AgendamientoService] Error: ${response.body}');
+        logD('❌ [AgendamientoService] Error: ${response.body}');
         throw Exception('Error HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [AgendamientoService] Error general: $e');
+      logD('❌ [AgendamientoService] Error general: $e');
       throw Exception('Error al obtener agendamientos: $e');
     }
   }
@@ -86,7 +87,7 @@ class AgendamientoService {
     try {
       final headers = await _getHeaders();
       final payload = agendamiento.toJson();
-      print('📤 [AgendamientoService] Enviando payload: ${jsonEncode(payload)}');
+      logD('📤 [AgendamientoService] Enviando payload: ${jsonEncode(payload)}');
 
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}'),
@@ -94,7 +95,7 @@ class AgendamientoService {
         body: jsonEncode(payload),
       );
 
-      print('📥 [AgendamientoService] Respuesta ${response.statusCode}: ${response.body}');
+      logD('📥 [AgendamientoService] Respuesta ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Agendamiento.fromJson(jsonDecode(response.body));
@@ -235,7 +236,7 @@ class AgendamientoService {
         throw Exception('Error al obtener citas por terminar: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [AgendamientoService] Error en obtenerCitasPorTerminar: $e');
+      logD('❌ [AgendamientoService] Error en obtenerCitasPorTerminar: $e');
       return [];
     }
   }
@@ -274,7 +275,7 @@ class AgendamientoService {
         url += '&estaSemana=$estaSemana';
       }
            
-      print('🔍 [AgendamientoService] Obteniendo citas para el cliente: $clienteId');
+      logD('🔍 [AgendamientoService] Obteniendo citas para el cliente: $clienteId');
       
       final response = await http.get(
         Uri.parse(url),
@@ -303,15 +304,15 @@ class AgendamientoService {
         throw Exception('Error al obtener citas del cliente: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error al obtener citas del cliente: $e');
+      logD('❌ Error al obtener citas del cliente: $e');
       rethrow;
     }
   }
 
-  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarbero(int barberoId, {int page = 1, int pageSize = 100, bool? estaSemana}) async {
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarbero(int barberoId, {int page = 1, int pageSize = 20, bool? estaSemana}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?barberoId=$barberoId&page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
       if (estaSemana != null) {
         url += '&estaSemana=$estaSemana';
       }
@@ -323,24 +324,24 @@ class AgendamientoService {
 
       if (response.statusCode == 200) {
         final dynamic rawData = jsonDecode(response.body);
-        List<Agendamiento> todas = [];
-
         if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
-          todas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
-        } else if (rawData is List) {
-          todas = rawData.map((j) => Agendamiento.fromJson(j as Map<String, dynamic>)).toList();
+          return Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
+        } else {
+          final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
+          final filtradas = list
+              .map((j) => Agendamiento.fromJson(j as Map<String, dynamic>))
+              .where((a) => a.barberoId == barberoId)
+              .toList();
+          return Paginacion<Agendamiento>(
+            items: filtradas,
+            totalCount: filtradas.length,
+            pageSize: pageSize,
+            currentPage: page,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
         }
-
-        final filtradas = todas.where((a) => a.barberoId == barberoId).toList();
-        return Paginacion<Agendamiento>(
-          items: filtradas,
-          totalCount: filtradas.length,
-          pageSize: filtradas.length,
-          currentPage: 1,
-          totalPages: 1,
-          hasPreviousPage: false,
-          hasNextPage: false,
-        );
       } else {
         throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
       }
@@ -349,10 +350,10 @@ class AgendamientoService {
     }
   }
 
-  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 100}) async {
+  Future<Paginacion<Agendamiento>> obtenerAgendamientosPorBarberoYFecha(int barberoId, String fecha, {int page = 1, int pageSize = 50}) async {
     try {
       final headers = await _getHeaders();
-      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
+      var url = '${ApiConfig.baseUrl}${ApiConfig.agendamientos}?barberoId=$barberoId&fecha=$fecha&page=$page&pageSize=$pageSize&_t=${DateTime.now().millisecondsSinceEpoch}';
 
       final response = await http.get(
         Uri.parse(url),
@@ -361,28 +362,25 @@ class AgendamientoService {
 
       if (response.statusCode == 200) {
         final dynamic rawData = jsonDecode(response.body);
-        List<Agendamiento> todas = [];
-
         if (rawData is Map<String, dynamic> && rawData.containsKey('items')) {
-          todas = Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j)).items;
-        } else if (rawData is List) {
-          todas = rawData.map((j) => Agendamiento.fromJson(j as Map<String, dynamic>)).toList();
+          return Paginacion<Agendamiento>.fromJson(rawData, (j) => Agendamiento.fromJson(j));
+        } else {
+          final List<dynamic> list = rawData is List ? rawData : (rawData['items'] ?? rawData['data'] ?? []);
+          final citasHoy = list
+              .map((j) => Agendamiento.fromJson(j as Map<String, dynamic>))
+              .where((c) => c.barberoId == barberoId && c.fechaCita == fecha)
+              .toList();
+          citasHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
+          return Paginacion<Agendamiento>(
+            items: citasHoy,
+            totalCount: citasHoy.length,
+            pageSize: pageSize,
+            currentPage: page,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          );
         }
-
-        final citasHoy = todas
-            .where((c) => c.barberoId == barberoId && c.fechaCita == fecha)
-            .toList();
-        citasHoy.sort((a, b) => (a.horaInicio ?? '').compareTo(b.horaInicio ?? ''));
-
-        return Paginacion<Agendamiento>(
-          items: citasHoy,
-          totalCount: citasHoy.length,
-          pageSize: citasHoy.length,
-          currentPage: 1,
-          totalPages: 1,
-          hasPreviousPage: false,
-          hasNextPage: false,
-        );
       } else {
         throw Exception('Error al obtener citas del barbero: ${response.statusCode}');
       }
