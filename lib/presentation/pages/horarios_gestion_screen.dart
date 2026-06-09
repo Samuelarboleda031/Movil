@@ -79,6 +79,7 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   List<Barbero> _barberos = [];
+  List<HorarioSemanal> _horariosCargados = [];
   AppRole _currentRole = AppRole.client;
 
   @override
@@ -329,6 +330,43 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
       allowedRoles: const [AppRole.admin, AppRole.manager, AppRole.barber],
       child: Scaffold(
         backgroundColor: kBg,
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: kGold,
+          foregroundColor: kBg,
+          child: const Icon(Icons.add_rounded),
+          onPressed: () {
+            final now = DateTime.now();
+            final lunes = now.subtract(Duration(days: now.weekday - 1));
+            final lunesStr =
+                '${lunes.year.toString().padLeft(4, '0')}-'
+                '${lunes.month.toString().padLeft(2, '0')}-'
+                '${lunes.day.toString().padLeft(2, '0')}';
+
+            final idsConHorario = _horariosCargados
+                .where((h) => h.fechaInicioSemana == lunesStr)
+                .map((h) => h.barberoId)
+                .toSet();
+
+            final barberosLibres = _currentRole == AppRole.barber
+                ? <Barbero>[]
+                : _barberos
+                    .where((b) => (b.estado ?? true) && !idsConHorario.contains(b.id))
+                    .toList();
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (ctx) => BlocProvider.value(
+                  value: context.read<HorariosBloc>(),
+                  child: HorarioFormScreen(
+                    role: _currentRole,
+                    barberosLibres: barberosLibres,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
         body: SafeArea(
           child: Column(
             children: [
@@ -336,7 +374,9 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
               _buildSearchBar(),
               BlocConsumer<HorariosBloc, HorariosState>(
                 listener: (context, state) {
-                  if (state is HorarioActionSuccess) {
+                  if (state is HorariosLoaded) {
+                    setState(() => _horariosCargados = state.horarios);
+                  } else if (state is HorarioActionSuccess) {
                     AppToast.showSuccess(context, state.message);
                   } else if (state is HorariosError) {
                     AppToast.showError(context, state.message);

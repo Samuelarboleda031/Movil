@@ -139,9 +139,10 @@ class _VentasScreenState extends State<VentasScreen> {
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       resultado = resultado.where((venta) {
+        final matchesId = (venta.id?.toString() ?? '').contains(query);
         final matchesNumero = venta.numero.toLowerCase().contains(query);
         final nombreMostrado = _getNombreMostrar(venta, catalogoClientes).toLowerCase();
-        return matchesNumero || nombreMostrado.contains(query);
+        return matchesId || matchesNumero || nombreMostrado.contains(query);
       }).toList();
     }
 
@@ -1087,7 +1088,7 @@ class _VentasScreenState extends State<VentasScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirmar Anulación'),
-        content: Text('¿Desea anular la venta #${v.numero}?'),
+        content: Text('¿Desea anular la venta #${v.id}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Anular', style: TextStyle(color: Colors.red))),

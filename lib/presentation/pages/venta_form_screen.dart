@@ -210,9 +210,9 @@ class _VentaFormScreenState extends State<VentaFormScreen>
 
   String get _numeroVentaFormateado {
     if (widget.venta != null) {
-      return widget.venta!.numero;
+      return '${widget.venta!.id ?? '-'}';
     }
-    return (_totalVentasCount + 1).toString();
+    return '${_totalVentasCount + 1}';
   }
 
   // ─── TIPO DE VENTA AUTOMÁTICO ─────────────────
@@ -346,18 +346,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             if (idVal > maxNumVenta) {
               maxNumVenta = idVal;
             }
-            
-            String clean = v.numero;
-            if (clean.contains('-')) {
-              clean = clean.split('-').last;
-            }
-            clean = clean.replaceAll(RegExp(r'\D'), '');
-            if (clean.isNotEmpty) {
-              final int? parsed = int.tryParse(clean);
-              if (parsed != null && parsed < 100000 && parsed > maxNumVenta) {
-                maxNumVenta = parsed;
-              }
-            }
           }
         }
         _totalVentasCount = maxNumVenta > 0 ? maxNumVenta : paginacionVentas.totalCount;
@@ -403,15 +391,24 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       _clienteNombreInvitado = venta.clienteNombre;
     }
 
-    try {
-      _barberoSeleccionado = _barberos.firstWhere(
-        (b) => b.id == venta.barberoId,
-      );
-    } catch (_) {
-      _barberoSeleccionado = _barberos.isNotEmpty ? _barberos.first : null;
+    _metodoPago = venta.metodoPago;
+    _esVentaBarbero = (venta.tipoVenta ?? '').toLowerCase().contains('barbero') ||
+                      venta.metodoPago.toLowerCase() == 'creditobarbero';
+
+    if (_esVentaBarbero) {
+      _barberoCompradorSeleccionado = _barberos.where((b) => b.id == venta.barberoId).firstOrNull;
+      _barberoSeleccionado = _barberos.where((b) => b.id == venta.barberoPrestadorId).firstOrNull;
+      if (_metodoPago == 'CreditoBarbero') _metodoPago = 'Crédito';
+    } else {
+      try {
+        _barberoSeleccionado = _barberos.firstWhere(
+          (b) => b.id == venta.barberoId,
+        );
+      } catch (_) {
+        _barberoSeleccionado = _barberos.isNotEmpty ? _barberos.first : null;
+      }
     }
 
-    _metodoPago = venta.metodoPago;
     _porcentajeDescuento = venta.porcentajeDescuento;
     _descuentoController.text = venta.porcentajeDescuento.toString();
     _fechaCreacionTexto = _formatearFecha(venta.fechaRegistro);
@@ -915,11 +912,11 @@ class _VentaFormScreenState extends State<VentaFormScreen>
               Expanded(
                 child: _buildChipInfo(
                   'Tipo',
-                  _tipoVenta == 'Venta Cliente' ? 'Cliente' : 'Invitado',
+                  _tipoVenta.replaceAll('Venta ', ''),
                   Icons.person_outline,
-                  valueColor: _tipoVenta == 'Venta Cliente'
-                      ? AppColors.green
-                      : AppColors.gold,
+                  valueColor: _tipoVenta == 'Venta Invitado'
+                      ? AppColors.gold
+                      : AppColors.green,
                 ),
               ),
             ],

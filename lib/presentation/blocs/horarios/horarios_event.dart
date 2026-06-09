@@ -47,3 +47,16 @@ class ToggleHorarioSemanalStatusRequested extends HorariosEvent {
   @override
   List<Object?> get props => [id, nuevoEstado];
 }
+
+class CreateHorarioParaTodosRequested extends HorariosEvent {
+  final List<int> barberoIds;
+  final HorarioSemanal templateHorario;
+
+  const CreateHorarioParaTodosRequested({
+    required this.barberoIds,
+    required this.templateHorario,
+  });
+
+  @override
+  List<Object?> get props => [barberoIds, templateHorario];
+}

@@ -3,6 +3,7 @@ import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/data/datasources/horario_barbero_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/models/app_role.dart';
+import 'package:parte_movil/data/models/horario_barbero.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
@@ -26,6 +27,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
   }) : super(HorariosInitial()) {
     on<LoadHorariosRequested>(_onLoadHorarios);
     on<CreateHorarioSemanalRequested>(_onCreateHorarioSemanal);
+    on<CreateHorarioParaTodosRequested>(_onCreateParaTodos);
     on<UpdateHorarioSemanalRequested>(_onUpdateHorarioSemanal);
     on<DeleteHorarioSemanalRequested>(_onDeleteHorarioSemanal);
     on<ToggleHorarioSemanalStatusRequested>(_onToggleStatus);
@@ -38,19 +40,34 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       final currentRole = user?.rolId != null ? roleForRolId(user!.rolId) : role;
 
       final horarios = await horarioService.obtenerHorarios();
-      
+
+      // Calcular lunes de la semana actual para ocultar semanas pasadas
+      final now = DateTime.now();
+      final lunes = now.subtract(Duration(days: now.weekday - 1));
+      final lunesStr =
+          '${lunes.year.toString().padLeft(4, '0')}-'
+          '${lunes.month.toString().padLeft(2, '0')}-'
+          '${lunes.day.toString().padLeft(2, '0')}';
+
+      // Filtrar: excluir Finalizados y semanas anteriores a la actual
+      final horariosSemanaActual = horarios
+          .where((h) =>
+              h.estado != 'Finalizado' &&
+              h.fechaInicioSemana.compareTo(lunesStr) >= 0)
+          .toList();
+
       // Filter schedules based on role
       if (currentRole == AppRole.barber) {
         final barbero = await userContextService.obtenerBarberoActual();
         if (barbero != null && barbero.id != null) {
-          final horariosFiltrados = horarios.where((h) => h.barberoId == barbero.id).toList();
+          final horariosFiltrados = horariosSemanaActual.where((h) => h.barberoId == barbero.id).toList();
           emit(HorariosLoaded(horarios: horariosFiltrados));
         } else {
           emit(HorariosLoaded(horarios: []));
         }
       } else {
-        // Admin and Superadmin see all
-        emit(HorariosLoaded(horarios: horarios));
+        // Admin and Superadmin see current week and future only
+        emit(HorariosLoaded(horarios: horariosSemanaActual));
       }
     } catch (e) {
       emit(HorariosError(message: limpiarError(e)));
@@ -67,6 +84,31 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
       emit(HorariosError(message: limpiarError(e)));
       add(LoadHorariosRequested());
     }
+  }
+
+  Future<void> _onCreateParaTodos(CreateHorarioParaTodosRequested event, Emitter<HorariosState> emit) async {
+    emit(HorariosLoading());
+    int exitosos = 0;
+    int fallidos = 0;
+    for (final barberoId in event.barberoIds) {
+      try {
+        await horarioService.crearHorarioSemanal(HorarioSemanal(
+          barberoId: barberoId,
+          fechaInicioSemana: event.templateHorario.fechaInicioSemana,
+          fechaFinSemana: event.templateHorario.fechaFinSemana,
+          estado: event.templateHorario.estado,
+          detalles: event.templateHorario.detalles,
+        ));
+        exitosos++;
+      } catch (_) {
+        fallidos++;
+      }
+    }
+    final msg = fallidos == 0
+        ? 'Horario asignado a $exitosos barbero${exitosos != 1 ? "s" : ""} correctamente'
+        : '$exitosos creado${exitosos != 1 ? "s" : ""}, $fallidos con error${fallidos != 1 ? "es" : ""}';
+    emit(HorarioActionSuccess(message: msg));
+    add(LoadHorariosRequested());
   }
 
   Future<void> _onUpdateHorarioSemanal(UpdateHorarioSemanalRequested event, Emitter<HorariosState> emit) async {

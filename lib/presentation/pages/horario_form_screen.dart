@@ -17,8 +17,16 @@ import 'package:parte_movil/core/utils/app_format.dart';
 class HorarioFormScreen extends StatefulWidget {
   final HorarioSemanal? horarioSemanal;
   final AppRole role;
-  
-  const HorarioFormScreen({super.key, this.horarioSemanal, required this.role});
+  /// Barberos activos que no tienen horario esta semana.
+  /// Si se proporciona, aparece la opción "asignar a todos".
+  final List<Barbero> barberosLibres;
+
+  const HorarioFormScreen({
+    super.key,
+    this.horarioSemanal,
+    required this.role,
+    this.barberosLibres = const [],
+  });
 
   @override
   State<HorarioFormScreen> createState() => _HorarioFormScreenState();
@@ -30,6 +38,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
   TimeOfDay _horaInicio = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _horaFin = const TimeOfDay(hour: 18, minute: 0);
   bool _estado = true; // true = Activo, false = Finalizado
+  bool _asignarATodos = false;
   DateTime _fechaInicioSemana = DateTime.now();
 
   List<Barbero> _barberos = [];
@@ -59,10 +68,9 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
     } else {
       // Por defecto seleccionar de Lunes a Viernes (1 a 5)
       _diasSeleccionados.addAll([1, 2, 3, 4, 5]);
-      // Ajustar fechaInicioSemana al próximo lunes si no es lunes hoy
-      while (_fechaInicioSemana.weekday != 1) {
-        _fechaInicioSemana = _fechaInicioSemana.add(const Duration(days: 1));
-      }
+      // Usar el lunes de la semana actual (no el próximo)
+      final now = DateTime.now();
+      _fechaInicioSemana = now.subtract(Duration(days: now.weekday - 1));
     }
   }
 
@@ -300,7 +308,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
   }
 
   void _save() {
-    if (_barberoSeleccionado == null) {
+    if (!_asignarATodos && _barberoSeleccionado == null) {
       AppToast.showError(context, 'Seleccione un barbero');
       return;
     }
@@ -308,7 +316,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
       AppToast.showError(context, 'Seleccione al menos un día');
       return;
     }
-    
+
     final startMin = _horaInicio.hour * 60 + _horaInicio.minute;
     final endMin = _horaFin.hour * 60 + _horaFin.minute;
     if (startMin >= endMin) {
@@ -318,42 +326,72 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
 
     final fechaInicioStr = DateFormat('yyyy-MM-dd').format(_fechaInicioSemana);
     final fechaFinStr = DateFormat('yyyy-MM-dd').format(_fechaInicioSemana.add(const Duration(days: 6)));
+    final detalles = _diasSeleccionados.map((dia) {
+      final mappedDay = dia == 0 ? 7 : dia;
+      return DetalleHorarioDia(
+        diaSemana: mappedDay,
+        horaInicio: _formatTimeOfDay(_horaInicio),
+        horaFin: _formatTimeOfDay(_horaFin),
+      );
+    }).toList();
+
+    if (_asignarATodos) {
+      final count = widget.barberosLibres.length;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.card,
+          title: const Text('Confirmar asignación', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+          content: Text(
+            '¿Asignar este horario a $count barbero${count != 1 ? "s" : ""} sin horario esta semana?',
+            style: const TextStyle(color: AppColors.greyLight),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                context.read<HorariosBloc>().add(CreateHorarioParaTodosRequested(
+                  barberoIds: widget.barberosLibres.map((b) => b.id!).toList(),
+                  templateHorario: HorarioSemanal(
+                    barberoId: 0,
+                    fechaInicioSemana: fechaInicioStr,
+                    fechaFinSemana: fechaFinStr,
+                    estado: _estado ? 'Activo' : 'Finalizado',
+                    detalles: detalles,
+                  ),
+                ));
+                Navigator.pop(context);
+              },
+              child: const Text('Confirmar', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     if (widget.horarioSemanal == null) {
-      // Create mode
-      final horario = HorarioSemanal(
+      context.read<HorariosBloc>().add(CreateHorarioSemanalRequested(HorarioSemanal(
         barberoId: _barberoSeleccionado!.id!,
         fechaInicioSemana: fechaInicioStr,
         fechaFinSemana: fechaFinStr,
         estado: _estado ? 'Activo' : 'Finalizado',
-        detalles: _diasSeleccionados.map((dia) {
-          final mappedDay = dia == 0 ? 7 : dia;
-          return DetalleHorarioDia(
-            diaSemana: mappedDay,
-            horaInicio: _formatTimeOfDay(_horaInicio),
-            horaFin: _formatTimeOfDay(_horaFin),
-          );
-        }).toList(),
-      );
-      context.read<HorariosBloc>().add(CreateHorarioSemanalRequested(horario));
+        detalles: detalles,
+      )));
     } else {
-      // Edit mode
-      final newHorario = HorarioSemanal(
+      final updated = HorarioSemanal(
         id: widget.horarioSemanal!.id,
         barberoId: _barberoSeleccionado!.id!,
         fechaInicioSemana: fechaInicioStr,
         fechaFinSemana: fechaFinStr,
         estado: _estado ? 'Activo' : 'Finalizado',
-        detalles: _diasSeleccionados.map((dia) {
-          final mappedDay = dia == 0 ? 7 : dia;
-          return DetalleHorarioDia(
-            diaSemana: mappedDay,
-            horaInicio: _formatTimeOfDay(_horaInicio),
-            horaFin: _formatTimeOfDay(_horaFin),
-          );
-        }).toList(),
+        detalles: detalles,
       );
-      context.read<HorariosBloc>().add(UpdateHorarioSemanalRequested(newHorario.id!, newHorario));
+      context.read<HorariosBloc>().add(UpdateHorarioSemanalRequested(updated.id!, updated));
     }
     Navigator.pop(context);
   }
@@ -384,7 +422,78 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                     // ── SECCIÓN BARBERO ──
                     const Text('1. BARBERO', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.gold, letterSpacing: 1.2)),
                     const SizedBox(height: 12),
-                    if (canChangeBarber)
+
+                    // Toggle "asignar a todos" (solo en modo creación para admin/manager con barberos libres)
+                    if (canChangeBarber && widget.barberosLibres.isNotEmpty) ...[
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          _asignarATodos = !_asignarATodos;
+                          if (_asignarATodos) _barberoSeleccionado = null;
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _asignarATodos ? AppColors.gold.withOpacity(0.1) : AppColors.card,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _asignarATodos ? AppColors.gold : AppColors.divider,
+                              width: _asignarATodos ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.group_rounded, color: AppColors.gold, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Asignar a todos los barberos libres',
+                                      style: TextStyle(color: AppColors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${widget.barberosLibres.length} barbero${widget.barberosLibres.length != 1 ? "s" : ""} sin horario esta semana',
+                                      style: const TextStyle(color: AppColors.grey, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                _asignarATodos ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                                color: _asignarATodos ? AppColors.gold : AppColors.grey,
+                                size: 24,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider(color: AppColors.divider)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'O BARBERO ESPECÍFICO',
+                              style: TextStyle(color: AppColors.grey.withOpacity(0.7), fontSize: 10, letterSpacing: 0.8),
+                            ),
+                          ),
+                          const Expanded(child: Divider(color: AppColors.divider)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    if (canChangeBarber && !_asignarATodos)
                       SearchableSelector<Barbero>(
                         label: 'Seleccionar barbero',
                         hint: 'Buscar por nombre...',
@@ -394,7 +503,7 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
                         searchText: (b) => b.nombreCompleto,
                         onSelected: (b) => setState(() => _barberoSeleccionado = b),
                       )
-                    else
+                    else if (!canChangeBarber)
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
