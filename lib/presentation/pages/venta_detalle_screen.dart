@@ -152,6 +152,8 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildHeader(Venta venta) {
     final String numeroVenta = '${venta.id ?? 'N/A'}';
+    // Si es crédito barbero, el total recibido es 0
+    final double totalRecibido = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,7 +163,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         const SizedBox(height: 14),
         // Total
         Text(
-          AppFormat.cop(venta.total),
+          AppFormat.cop(totalRecibido),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: const Color(0xFFD8B081),
             fontWeight: FontWeight.bold,
@@ -440,7 +442,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Saldo a Favor aplicado',
+                'Saldo a Favor Usado:',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
               ),
               Text(
@@ -453,16 +455,36 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
             ],
           ),
         ],
+        if ((venta.creditoBarberoUsado ?? 0) > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Crédito generado:',
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                ' ${AppFormat.cop(venta.creditoBarberoUsado!)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ],
         const Divider(height: 32, thickness: 0.5, color: Colors.grey),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Total',
+              'Total Recibido',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
             ),
             Text(
-              AppFormat.cop(venta.total),
+              AppFormat.cop((venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,

@@ -280,10 +280,6 @@ class AuthService {
           }
         }
 
-        // Generar documento aleatorio si no se proporciona (como en la web)
-        final rnd = Random.secure();
-        final randomDoc = additionalData?['documento'] ?? (10000000 + rnd.nextInt(89999999)).toString();
-
         final nuevo = Usuario(
           correo: correo,
           nombre: nombre,
@@ -291,8 +287,8 @@ class AuthService {
           fotoPerfil: user.photoURL,
           contrasena: passwordValue,
           rolId: rolId,
-          documento: randomDoc,
-          tipoDocumento: additionalData?['tipoDocumento'] ?? 'OT',
+          documento: additionalData?['documento'],
+          tipoDocumento: additionalData?['tipoDocumento'] ?? 'CC',
           telefono: additionalData?['telefono'],
           estado: true,
         );

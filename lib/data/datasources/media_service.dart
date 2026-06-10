@@ -71,7 +71,22 @@ class MediaService {
       request.headers['Authorization'] = 'Bearer $token';
     }
 
-    request.files.add(await http.MultipartFile.fromPath('imagen', imagePath));
+    final nameToParse = imagePath.toLowerCase();
+    String ext = 'jpeg';
+    if (nameToParse.contains('.')) {
+      final extParts = nameToParse.split('.').last;
+      if (extParts == 'png' || extParts == 'gif' || extParts == 'webp') {
+        ext = extParts;
+      } else if (extParts == 'jpg') {
+        ext = 'jpeg';
+      }
+    }
+
+    request.files.add(await http.MultipartFile.fromPath(
+      'imagen', 
+      imagePath,
+      contentType: MediaType('image', ext),
+    ));
 
     final response = await request.send();
     if (response.statusCode == 200 || response.statusCode == 201) {

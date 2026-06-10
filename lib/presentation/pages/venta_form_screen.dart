@@ -129,6 +129,10 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   int _plazoDias = 7;
   bool _tieneCicloActivo = false;
   bool _checkingCiclo = false;
+  bool _creditoBarberoBloqueado = false;
+  bool _creditoBarberoVencido = false;
+  bool _extensionUsada = false;
+  String? _estadoCreditoBarbero;
   final CreditoBarberoService _creditoBarberoService = CreditoBarberoService();
 
   // Detalles
@@ -179,8 +183,17 @@ class _VentaFormScreenState extends State<VentaFormScreen>
   // ─── VERIFICAR CICLO CRÉDITO BARBERO ──────────
   Future<void> _verificarCicloCredito() async {
     final barberoId = _barberoCompradorSeleccionado?.id;
-    if (barberoId == null || _metodoPago != 'Crédito') {
-      if (mounted) setState(() { _tieneCicloActivo = false; _checkingCiclo = false; });
+    if (barberoId == null || !_esVentaBarbero) {
+      if (mounted) {
+        setState(() {
+          _tieneCicloActivo = false;
+          _checkingCiclo = false;
+          _creditoBarberoBloqueado = false;
+          _creditoBarberoVencido = false;
+          _extensionUsada = false;
+          _estadoCreditoBarbero = null;
+        });
+      }
       return;
     }
     if (mounted) setState(() => _checkingCiclo = true);
@@ -189,12 +202,71 @@ class _VentaFormScreenState extends State<VentaFormScreen>
       if (mounted) {
         final estado = (info?.estado ?? '').toLowerCase();
         setState(() {
-          _tieneCicloActivo = estado == 'activo' || estado.startsWith('bloqueado');
+          _tieneCicloActivo = estado == 'activo' || info?.estaBloqueado == true;
+          _creditoBarberoBloqueado = info?.estaBloqueado ?? false;
+          _creditoBarberoVencido = info?.estaVencido ?? false;
+          _extensionUsada = info?.extensionUsada ?? false;
+          _estadoCreditoBarbero = info?.estado;
           _checkingCiclo = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() { _tieneCicloActivo = false; _checkingCiclo = false; });
+      if (mounted) {
+        setState(() {
+          _tieneCicloActivo = false;
+          _checkingCiclo = false;
+          _creditoBarberoBloqueado = false;
+          _creditoBarberoVencido = false;
+          _extensionUsada = false;
+          _estadoCreditoBarbero = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _extenderPlazoBarbero() async {
+    final barberoId = _barberoCompradorSeleccionado?.id;
+    final usuarioId = _usuarioIdActual;
+    if (barberoId == null || usuarioId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Extender Plazo', style: TextStyle(color: AppColors.white)),
+        content: const Text(
+          '¿Deseas extender el plazo de pago por 7 días adicionales? Esto solo se puede hacer una vez por ciclo.',
+          style: TextStyle(color: AppColors.greyLight),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar', style: TextStyle(color: AppColors.bg)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final success = await _creditoBarberoService.extenderPlazo(barberoId, usuarioId);
+      if (success) {
+        AppToast.showSuccess(context, 'Plazo extendido exitosamente.');
+        await _verificarCicloCredito();
+      } else {
+        AppToast.showError(context, 'No se pudo extender el plazo. Verifique si ya se usó la extensión.');
+      }
+    } catch (e) {
+      AppToast.showError(context, 'Error al extender el plazo: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -450,6 +522,27 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     }
   }
 
+  // ─── LÓGICA DE PRECIOS BARBERO ────────────────
+  double _getPrecioProductoCorrecto(Producto p) {
+    if (!_esVentaBarbero) return p.precioVenta;
+    // Si es venta barbero: precioCompra si > 0, sino precioVenta * 0.7
+    if (p.precioCompra > 0) return p.precioCompra;
+    return (p.precioVenta * 0.7).roundToDouble();
+  }
+
+  void _recalcularPreciosCarrito() {
+    setState(() {
+      for (var d in _detalles) {
+        if (d.productoId != null) {
+          final prod = _productos.where((p) => p.id == d.productoId).firstOrNull;
+          if (prod != null) {
+            d.precioUnitario = _getPrecioProductoCorrecto(prod);
+          }
+        }
+      }
+    });
+  }
+
   // ─── AGREGAR ITEMS ────────────────────────────
   void _agregarProducto() {
     if (_productoParaAgregar == null) {
@@ -481,7 +574,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             productoId: prod.id,
             itemSeleccionado: ItemVenta(tipo: 'Producto', id: prod.id!),
             cantidad: 1,
-            precioUnitario: prod.precioVenta,
+            precioUnitario: _getPrecioProductoCorrecto(prod),
             stockDisponible: stock,
           ),
         );
@@ -606,6 +699,12 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     if (_esVentaBarbero) {
       if (_barberoCompradorSeleccionado == null) {
         _mostrarError('Debe seleccionar el barbero comprador.');
+        return;
+      }
+      if (_creditoBarberoBloqueado) {
+        _mostrarError(
+          'Este barbero tiene el crédito bloqueado ($_estadoCreditoBarbero). No se puede registrar ninguna venta.',
+        );
         return;
       }
       if (_metodoPago == 'Crédito') {
@@ -1096,6 +1195,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                   _barberoCompradorSeleccionado = null;
                   _metodoPago = 'Efectivo';
                 });
+                _recalcularPreciosCarrito();
               }
             },
             child: AnimatedContainer(
@@ -1139,6 +1239,7 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                   _saldoDisponible = 0;
                   _metodoPago = 'Efectivo';
                 });
+                _recalcularPreciosCarrito();
               }
             },
             child: AnimatedContainer(
@@ -1212,6 +1313,50 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             _verificarCicloCredito();
           },
         ),
+        if (_creditoBarberoBloqueado) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.red.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.red.withOpacity(0.4)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline, size: 14, color: AppColors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Barbero bloqueado — $_estadoCreditoBarbero. No se puede registrar ninguna venta.',
+                        style: const TextStyle(color: AppColors.red, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_creditoBarberoVencido && !_extensionUsada && (_rolActual == AppRole.admin || _rolActual == AppRole.manager) && _estadoCreditoBarbero == 'BloqueadoVencimiento') ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.bg,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _extenderPlazoBarbero,
+                      icon: const Icon(Icons.timer_outlined, size: 16),
+                      label: const Text('Extender Plazo (7 días)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1410,7 +1555,11 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             onChanged: (v) {
               setState(() {
                 _metodoPago = v!;
-                if (v == 'Crédito') _barberoSeleccionado = null;
+                if (v == 'Crédito') {
+                  _barberoSeleccionado = null;
+                  // ← NUEVO: Limpiar servicios y paquetes si se selecciona crédito
+                  _detalles.removeWhere((d) => d.servicioId != null || d.paqueteId != null);
+                }
               });
               _verificarCicloCredito();
             },
@@ -1465,80 +1614,6 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                 ),
               );
             }),
-          ],
-          // Plazo del ciclo de crédito (solo cuando es crédito nuevo y no tiene ciclo activo)
-          if (_esVentaBarbero && _metodoPago == 'Crédito') ...[
-            const SizedBox(height: 12),
-            if (_checkingCiclo) ...[
-              Row(
-                children: const [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.gold),
-                  ),
-                  SizedBox(width: 8),
-                  Text('Verificando ciclo de crédito...',
-                      style: TextStyle(color: AppColors.grey, fontSize: 11)),
-                ],
-              ),
-            ] else if (_tieneCicloActivo) ...[
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(8),
-                  border:
-                      Border.all(color: AppColors.gold.withOpacity(0.25)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        size: 14, color: AppColors.gold),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Este barbero ya tiene un ciclo activo. La venta se sumará a su deuda actual.',
-                        style:
-                            TextStyle(color: AppColors.gold, fontSize: 11),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              DropdownButtonFormField<int>(
-                value: _plazoDias,
-                style: const TextStyle(
-                    color: AppColors.whiteSecondary, fontSize: 14),
-                dropdownColor: AppColors.card,
-                decoration: _inputDecoration('Plazo del ciclo de crédito',
-                    icon: Icons.calendar_month_outlined),
-                items: const [
-                  DropdownMenuItem(
-                      value: 7,
-                      child: Text('1 semana (7 días)',
-                          style: TextStyle(
-                              color: AppColors.whiteSecondary))),
-                  DropdownMenuItem(
-                      value: 14,
-                      child: Text('2 semanas (14 días)',
-                          style: TextStyle(
-                              color: AppColors.whiteSecondary))),
-                ],
-                onChanged: (v) => setState(() => _plazoDias = v ?? 7),
-              ),
-              const SizedBox(height: 4),
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
-                child: Text(
-                  'Plazo para el nuevo ciclo de crédito de este barbero.',
-                  style: TextStyle(color: AppColors.grey, fontSize: 10),
-                ),
-              ),
-            ],
           ],
           const SizedBox(height: 12),
 
@@ -1669,22 +1744,22 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.nombre,
-                        style: const TextStyle(
-                            color: AppColors.whiteSecondary, fontSize: 14),
-                      ),
-                      Text(
-                        '${AppFormat.cop(p.precioVenta)}  ·  Stock: ${p.cantidad}',
-                        style: const TextStyle(
-                            color: AppColors.greyLight, fontSize: 11),
-                      ),
-                    ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.nombre,
+                          style: const TextStyle(
+                              color: AppColors.whiteSecondary, fontSize: 14),
+                        ),
+                        Text(
+                          '${AppFormat.cop(_getPrecioProductoCorrecto(p))}  ·  Stock: ${p.cantidad}',
+                          style: const TextStyle(
+                              color: AppColors.greyLight, fontSize: 11),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             );
           },

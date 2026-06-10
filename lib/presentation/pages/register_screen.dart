@@ -19,9 +19,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nombreCtrl = TextEditingController();
   final _apellidoCtrl = TextEditingController();
-  final _documentoCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _emailConfirmCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _passConfirmCtrl = TextEditingController();
   final _auth = AuthService();
@@ -29,15 +27,131 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _loading = false;
   bool _obscurePass = true;
   bool _obscurePassConfirm = true;
-  final AppRole _selectedRole = AppRole.client; // Todos los registros de la app móvil son Clientes por defecto
+  List<String> _emailErrors = [];
+  String? _nombreError;
+  String? _apellidoError;
+  List<String> _passErrors = [];
+  String? _passConfirmError;
+  final AppRole _selectedRole = AppRole.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl.addListener(_validarEmail);
+    _nombreCtrl.addListener(_validarNombre);
+    _apellidoCtrl.addListener(_validarApellido);
+    _passCtrl.addListener(_validarPass);
+    _passConfirmCtrl.addListener(_validarPassConfirm);
+  }
+
+  void _validarPass() {
+    final pass = _passCtrl.text;
+    final List<String> errors = [];
+
+    if (pass.isEmpty) {
+      errors.add('El campo es obligatorio');
+    } else {
+      if (pass.length < 8) {
+        errors.add('Mínimo 8 caracteres');
+      }
+      if (pass.length > 50) {
+        errors.add('Máximo 50 caracteres');
+      }
+      if (!pass.contains(RegExp(r'[A-Z]'))) {
+        errors.add('Al menos una letra mayúscula');
+      }
+      if (!pass.contains(RegExp(r'[a-z]'))) {
+        errors.add('Al menos una letra minúscula');
+      }
+      if (!pass.contains(RegExp(r'[0-9]'))) {
+        errors.add('Al menos un número');
+      }
+    }
+
+    setState(() {
+      _passErrors = errors;
+    });
+    // Also validate the confirmation when the password changes
+    _validarPassConfirm();
+  }
+
+  void _validarPassConfirm() {
+    final pass = _passCtrl.text;
+    final passConfirm = _passConfirmCtrl.text;
+    String? error;
+
+    if (passConfirm.isNotEmpty && pass != passConfirm) {
+      error = 'Las contraseñas no coinciden';
+    }
+
+    setState(() {
+      _passConfirmError = error;
+    });
+  }
+
+  void _validarNombre() {
+    final text = _nombreCtrl.text.trim();
+    String? error;
+    if (text.isEmpty) {
+      error = 'El nombre es obligatorio';
+    } else if (text.length < 2) {
+      error = 'Mínimo 2 caracteres';
+    } else if (text.length > 18) {
+      error = 'Máximo 18 caracteres';
+    }
+    setState(() => _nombreError = error);
+  }
+
+  void _validarApellido() {
+    final text = _apellidoCtrl.text.trim();
+    String? error;
+    if (text.isEmpty) {
+      error = 'El apellido es obligatorio';
+    } else if (text.length < 2) {
+      error = 'Mínimo 2 caracteres';
+    } else if (text.length > 18) {
+      error = 'Máximo 18 caracteres';
+    }
+    setState(() => _apellidoError = error);
+  }
+
+  void _validarEmail() {
+    final email = _emailCtrl.text;
+    final List<String> errors = [];
+
+    if (email.isEmpty) {
+      errors.add('El correo es obligatorio');
+    } else {
+      if (email.length < 5) {
+        errors.add('Mínimo 5 caracteres');
+      }
+      if (email.length > 154) {
+        errors.add('Máximo 154 caracteres');
+      }
+      if (email.contains(' ')) {
+        errors.add('Sin espacios');
+      }
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(email)) {
+        errors.add('Formato de correo inválido');
+      }
+    }
+
+    setState(() {
+      _emailErrors = errors;
+    });
+  }
 
   @override
   void dispose() {
+    _emailCtrl.removeListener(_validarEmail);
+    _nombreCtrl.removeListener(_validarNombre);
+    _apellidoCtrl.removeListener(_validarApellido);
+    _passCtrl.removeListener(_validarPass);
+    _passConfirmCtrl.removeListener(_validarPassConfirm);
     _nombreCtrl.dispose();
     _apellidoCtrl.dispose();
-    _documentoCtrl.dispose();
     _emailCtrl.dispose();
-    _emailConfirmCtrl.dispose();
     _passCtrl.dispose();
     _passConfirmCtrl.dispose();
     super.dispose();
@@ -55,13 +169,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register() async {
     final nombre = _nombreCtrl.text.trim();
     final apellido = _apellidoCtrl.text.trim();
-    final documento = _documentoCtrl.text.trim();
     final email = _emailCtrl.text.trim();
-    final emailConf = _emailConfirmCtrl.text.trim();
     final pass = _passCtrl.text;
     final passConf = _passConfirmCtrl.text;
 
-    if (nombre.isEmpty || apellido.isEmpty || documento.isEmpty || email.isEmpty || pass.isEmpty) {
+    if (nombre.isEmpty || apellido.isEmpty || email.isEmpty || pass.isEmpty) {
       _showMessage('Complete todos los campos obligatorios');
       return;
     }
@@ -70,15 +182,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     if (!emailRegex.hasMatch(email)) {
       _showMessage('Ingresa un correo electrónico válido');
-      return;
-    }
-
-    if (emailConf.isEmpty) {
-      _showMessage('Confirma tu correo electrónico');
-      return;
-    }
-    if (email != emailConf) {
-      _showMessage('Los correos no coinciden');
       return;
     }
 
@@ -113,16 +216,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await _auth.signUp(email, pass);
       
-      // Sincronizar el usuario con la API incluyendo nombre, apellido y documento
+      // Sincronizar el usuario con la API incluyendo nombre y apellido
       final usuarioApi = await _auth.syncUsuarioConApi(
         rolId: rolIdForRole(_selectedRole),
         contrasena: pass,
         additionalData: {
           'nombre': nombre,
           'apellido': apellido,
-          'documento': documento,
+          'documento': null, // Se deja vacío para completar perfil después
           'tipoDocumento': 'CC',
-          'telefono': '0000000000', // Valor por defecto ya que no se pide en el form móvil aún
+          'telefono': '0000000000',
         },
       );
 
@@ -138,7 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // Crear registro de cliente con los datos reales
       final cliente = Cliente(
-        documento: documento,
+        documento: '', // Se deja vacío para completar perfil después
         nombre: nombre,
         apellido: apellido,
         email: email,
@@ -226,9 +329,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             
             TextField(
               controller: _nombreCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Nombre *',
-                prefixIcon: Icon(Icons.person_outline),
+                prefixIcon: const Icon(Icons.person_outline),
+                errorText: _nombreError,
+                errorStyle: const TextStyle(color: Colors.redAccent),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -236,52 +341,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
             
             TextField(
               controller: _apellidoCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Apellido *',
-                prefixIcon: Icon(Icons.person_outline),
+                prefixIcon: const Icon(Icons.person_outline),
+                errorText: _apellidoError,
+                errorStyle: const TextStyle(color: Colors.redAccent),
               ),
-              style: const TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _documentoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Documento / Cédula *',
-                prefixIcon: Icon(Icons.badge_outlined),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
 
             TextField(
               controller: _emailCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Correo Electrónico *',
-                prefixIcon: Icon(Icons.email_outlined),
+                prefixIcon: const Icon(Icons.email_outlined),
+                errorText: _emailErrors.isNotEmpty ? _emailErrors.first : null,
+                errorStyle: const TextStyle(color: Colors.redAccent),
               ),
               keyboardType: TextInputType.emailAddress,
               style: const TextStyle(color: Colors.white),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailConfirmCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Confirmar Correo',
-                prefixIcon: Icon(Icons.mail_outline),
+            if (_emailErrors.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _emailErrors
+                      .skip(1)
+                      .map((err) => Text(
+                            '• $err',
+                            style: const TextStyle(
+                                color: Colors.redAccent, fontSize: 12),
+                          ))
+                      .toList(),
+                ),
               ),
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white),
-            ),
             const SizedBox(height: 16),
             TextField(
               controller: _passCtrl,
               decoration: InputDecoration(
                 labelText: 'Contraseña *',
-                helperText: 'Mínimo 6 caracteres, una mayúscula y un número',
-                helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -291,10 +391,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     setState(() => _obscurePass = !_obscurePass);
                   },
                 ),
+                errorText: _passErrors.isNotEmpty ? _passErrors.first : null,
+                errorStyle: const TextStyle(color: Colors.redAccent),
               ),
               obscureText: _obscurePass,
               style: const TextStyle(color: Colors.white),
             ),
+            if (_passErrors.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _passErrors
+                      .skip(1)
+                      .map((err) => Text(
+                            '• $err',
+                            style: const TextStyle(
+                                color: Colors.redAccent, fontSize: 12),
+                          ))
+                      .toList(),
+                ),
+              ),
             const SizedBox(height: 16),
             TextField(
               controller: _passConfirmCtrl,
@@ -309,6 +426,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     setState(() => _obscurePassConfirm = !_obscurePassConfirm);
                   },
                 ),
+                errorText: _passConfirmError,
+                errorStyle: const TextStyle(color: Colors.redAccent),
               ),
               obscureText: _obscurePassConfirm,
               style: const TextStyle(color: Colors.white),
@@ -317,7 +436,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _loading ? null : _register,
+                onPressed: (_loading ||
+                        _emailErrors.isNotEmpty ||
+                        _nombreError != null ||
+                        _apellidoError != null ||
+                        _passErrors.isNotEmpty ||
+                        _passConfirmError != null)
+                    ? null
+                    : _register,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

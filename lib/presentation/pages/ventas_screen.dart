@@ -908,7 +908,9 @@ class _VentasScreenState extends State<VentasScreen> {
             && venta.barberoId != null);
     final String labelNumero = 'Nº ${venta.id}';
     final String labelCliente = _getNombreMostrar(venta, catalogo);
-    final String labelPrecio = AppFormat.cop(venta.total);
+    // Si es crédito barbero, el total recibido es 0
+    final double totalMostrar = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
+    final String labelPrecio = AppFormat.cop(totalMostrar);
     final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false)
         ? venta.fechaRegistro!.split('T')[0]
         : (venta.fechaRegistro ?? '');
@@ -952,22 +954,28 @@ class _VentasScreenState extends State<VentasScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Número + estado
-                  Row(
+                  // Número + estado + badges (usando Wrap para evitar overflow)
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
                       Text(labelNumero,
                           style: const TextStyle(
                               color: AppColors.gold,
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
-                      const SizedBox(width: 8),
                       if (isAnulada)
                         _buildStatusBadge('ANULADA')
                       else
                         _buildStatusBadgeOk('COMPLETADA'),
+                      if ((venta.saldoAFavorUsado ?? 0) > 0)
+                        _buildSaldoAFavorBadge(),
+                      if ((venta.creditoBarberoUsado ?? 0) > 0)
+                        _buildCreditoGeneradoBadge(),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   // Cliente
                   Text(labelCliente,
                       style: const TextStyle(
@@ -1062,6 +1070,55 @@ class _VentasScreenState extends State<VentasScreen> {
         label,
         style: const TextStyle(
             color: AppColors.green, fontSize: 8, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildSaldoAFavorBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.blue.withOpacity(0.5), width: 0.5),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star, size: 8, color: Colors.blue),
+          SizedBox(width: 2),
+          Text(
+            'SALDO APLICADO',
+            style: TextStyle(
+                color: Colors.blue, fontSize: 8, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreditoGeneradoBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.gold.withOpacity(0.5), width: 0.5),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.account_balance_wallet_outlined,
+              size: 8, color: AppColors.gold),
+          SizedBox(width: 2),
+          Text(
+            'CRÉDITO GENERADO',
+            style: TextStyle(
+                color: AppColors.gold,
+                fontSize: 8,
+                fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }

@@ -592,26 +592,29 @@ class _TarjetaBloqueadoAdmin extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: _ActionButton(
-                  label: 'Extender plazo',
-                  icon: Icons.more_time,
-                  color: Colors.orange,
-                  enabled: !info.extensionUsada &&
-                      info.estado == 'BloqueadoVencimiento',
-                  onTap: onExtender,
+              if (!info.extensionUsada && info.estado == 'BloqueadoVencimiento')
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Extender plazo',
+                    icon: Icons.more_time,
+                    color: Colors.orange,
+                    enabled: true,
+                    onTap: onExtender,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ActionButton(
-                  label: 'Nuevo ciclo',
-                  icon: Icons.refresh,
-                  color: AppColors.gold,
-                  enabled: info.saldoDeuda == 0,
-                  onTap: onNuevoCiclo,
+              if (info.saldoDeuda == 0) ...[
+                if (!info.extensionUsada && info.estado == 'BloqueadoVencimiento')
+                  const SizedBox(width: 8),
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Nuevo ciclo',
+                    icon: Icons.refresh,
+                    color: AppColors.gold,
+                    enabled: true,
+                    onTap: onNuevoCiclo,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

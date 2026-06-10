@@ -180,6 +180,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ── Avatar Card ───────────────────────────────────────────────────────────
   Widget _buildProfileCard() {
     final fotoUrl = _getFotoPerfil();
+    
+    Future<void> _irAActualizarPerfil() async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => UpdateProfileScreen(
+          role: widget.role, 
+          entidadActual: _entidadActual,
+          email: _email,
+        )),
+      );
+      if (result == true) _cargarPerfil();
+    }
+    
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 28),
@@ -190,60 +203,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          Stack(
-            children: [
-              // Circle avatar
-              Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.greyLight, width: 2.5),
-                  color: const Color(0xFF3A2E25),
-                  image: fotoUrl != null 
-                      ? DecorationImage(image: NetworkImage(fotoUrl), fit: BoxFit.cover)
-                      : null,
-                ),
-                child: fotoUrl == null 
-                  ? ClipOval(
-                      child: Container(
-                        color: const Color(0xFF3A2E25),
-                        child: const Icon(Icons.person, size: 60, color: Colors.white30),
-                      ),
-                    )
-                  : null,
+          // Circle avatar as a button
+          GestureDetector(
+            onTap: _irAActualizarPerfil,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.greyLight, width: 2.5),
+                color: const Color(0xFF3A2E25),
+                image: fotoUrl != null 
+                    ? DecorationImage(image: NetworkImage(fotoUrl), fit: BoxFit.cover)
+                    : null,
               ),
-              // Camera badge
-              Positioned(
-                bottom: 4,
-                right: 4,
-                child: GestureDetector(
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => UpdateProfileScreen(
-                        role: widget.role, 
-                        entidadActual: _entidadActual,
-                        email: _email,
-                      )),
-                    );
-                    if (result == true) _cargarPerfil();
-                  },
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: AppColors.gold,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.card, width: 2),
+              child: fotoUrl == null 
+                ? ClipOval(
+                    child: Container(
+                      color: const Color(0xFF3A2E25),
+                      child: const Icon(Icons.person, size: 60, color: Colors.white30),
                     ),
-                    child: const Icon(Icons.camera_alt, color: AppColors.bg, size: 14),
-                  ),
+                  )
+                : null,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // "Cambiar foto de perfil" as a button
+          GestureDetector(
+            onTap: _irAActualizarPerfil,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+              ),
+              child: const Text(
+                'Cambiar foto de perfil',
+                style: TextStyle(
+                  color: AppColors.gold,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Text(
             _getNombre().toUpperCase(),
             style: const TextStyle(
@@ -317,13 +322,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () async {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => UpdateProfileScreen(
-                    role: widget.role, 
-                    entidadActual: _entidadActual,
-                    email: _email,
-                  )),
+                  MaterialPageRoute(
+                    builder: (_) => UpdateProfileScreen(
+                      role: widget.role,
+                      entidadActual: _entidadActual,
+                      email: _email,
+                    ),
+                  ),
                 );
-                // Si guardó exitosamente, recargamos la pantalla
+                // Si guardó exitosamente, recargamos los datos
                 if (result == true) {
                   _cargarPerfil();
                 }
@@ -337,7 +344,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _profileRow(Map<String, dynamic> item) {
     return InkWell(
-      onTap: () {},
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UpdateProfileScreen(
+              role: widget.role,
+              entidadActual: _entidadActual,
+              email: _email,
+            ),
+          ),
+        );
+        // Si guardó exitosamente, recargamos los datos
+        if (result == true) {
+          _cargarPerfil();
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
@@ -699,7 +721,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                       readOnly: !_documentoEditable,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(10),
+                        LengthLimitingTextInputFormatter(18),
                       ],
                     ),
                     _inputField(label: 'Nombre *',     ctrl: _nombreCtrl),
@@ -752,58 +774,55 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
 
     return Column(
       children: [
-        Stack(
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.greyLight, width: 2.5),
-                color: const Color(0xFF3A2E25),
-                image: _nuevaFotoFile != null 
-                    ? DecorationImage(image: FileImage(_nuevaFotoFile!), fit: BoxFit.cover)
-                    : (networkFotoUrl != null 
-                        ? DecorationImage(image: NetworkImage(networkFotoUrl), fit: BoxFit.cover)
-                        : null),
-              ),
-              child: _nuevaFotoFile == null && networkFotoUrl == null
-                ? ClipOval(
-                    child: Container(
-                      color: const Color(0xFF3A2E25),
-                      child: const Icon(Icons.person, size: 54, color: Colors.white30),
-                    ),
-                  )
-                : null,
+        GestureDetector(
+          onTap: _saving ? null : _pickAndUploadImage,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.greyLight, width: 2.5),
+              color: const Color(0xFF3A2E25),
+              image: _nuevaFotoFile != null 
+                  ? DecorationImage(image: FileImage(_nuevaFotoFile!), fit: BoxFit.cover)
+                  : (networkFotoUrl != null 
+                      ? DecorationImage(image: NetworkImage(networkFotoUrl), fit: BoxFit.cover)
+                      : null),
             ),
-            Positioned(
-              bottom: 2,
-              right: 2,
-              child: GestureDetector(
-                onTap: _saving ? null : _pickAndUploadImage,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.gold,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.bg, width: 2),
+            child: _nuevaFotoFile == null && networkFotoUrl == null
+              ? ClipOval(
+                  child: Container(
+                    color: const Color(0xFF3A2E25),
+                    child: const Icon(Icons.person, size: 54, color: Colors.white30),
                   ),
-                  child: const Icon(Icons.camera_alt, color: AppColors.bg, size: 13),
-                ),
+                )
+              : null,
+          ),
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: _saving ? null : _pickAndUploadImage,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+            ),
+            child: const Text(
+              'Cambiar foto de perfil',
+              style: TextStyle(
+                color: AppColors.gold,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          'Cambiar foto de perfil',
-          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 6),
         const Text(
           'JPG o PNG. Máx. 5MB',
-          style: TextStyle(color: AppColors.grey, fontSize: 12),
+          style: TextStyle(color: AppColors.grey, fontSize: 11),
         ),
       ],
     );

@@ -35,7 +35,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final session = await _loginUseCase(event.email, event.password);
       emit(AuthAuthenticated(session.role));
     } on FirebaseAuthException catch (e) {
-      emit(AuthError(e.message ?? 'Error en autenticación'));
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        emit(AuthError('La contraseña no es correcta. Inténtalo de nuevo o haz clic en ¿Has olvidado tu contraseña? para ver más opciones.'));
+      } else {
+        emit(AuthError(e.message ?? 'Error en autenticación'));
+      }
     } catch (e) {
       emit(AuthError(limpiarError(e)));
     }

@@ -19,9 +19,60 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscureText = true;
+  List<String> _emailErrors = [];
+  String? _passError;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl.addListener(_validarEmail);
+    _passCtrl.addListener(_validarPass);
+  }
+
+  void _validarEmail() {
+    final email = _emailCtrl.text;
+    final List<String> errors = [];
+
+    if (email.isEmpty) {
+      errors.add('El correo es obligatorio');
+    } else {
+      if (email.length < 5) {
+        errors.add('Mínimo 5 caracteres');
+      }
+      if (email.length > 154) {
+        errors.add('Máximo 154 caracteres');
+      }
+      if (email.contains(' ')) {
+        errors.add('No debe contener espacios');
+      }
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(email)) {
+        errors.add('Formato de correo inválido');
+      }
+    }
+
+    setState(() {
+      _emailErrors = errors;
+    });
+  }
+
+  void _validarPass() {
+    final pass = _passCtrl.text;
+    String? error;
+
+    if (pass.isEmpty) {
+      error = 'La contraseña es obligatoria';
+    }
+
+    setState(() {
+      _passError = error;
+    });
+  }
 
   @override
   void dispose() {
+    _emailCtrl.removeListener(_validarEmail);
+    _passCtrl.removeListener(_validarPass);
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
@@ -116,11 +167,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Correo Electrónico',
-                        prefixIcon: Icon(Icons.email_outlined),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        errorText: _emailErrors.isNotEmpty ? _emailErrors.first : null,
+                        errorStyle: const TextStyle(color: Colors.redAccent),
                       ),
                     ),
+                    if (_emailErrors.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: _emailErrors
+                              .skip(1)
+                              .map((err) => Text(
+                                    '• $err',
+                                    style: const TextStyle(
+                                        color: Colors.redAccent, fontSize: 12),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _passCtrl,
@@ -137,6 +205,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () =>
                               setState(() => _obscureText = !_obscureText),
                         ),
+                        errorText: _passError,
+                        errorStyle: const TextStyle(color: Colors.redAccent),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -162,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: isLoading ? null : _login,
+                        onPressed: (isLoading || _emailErrors.isNotEmpty || _passError != null) ? null : _login,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           elevation: 8,
