@@ -54,7 +54,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       final updated = event.agendamiento.copyWith(estadoCita: event.nuevoEstado);
       await _agendamientoService.actualizarAgendamiento(updated);
       
-      emit(const AgendamientosActionSuccess('Estado actualizado'));
+      emit(const AgendamientosActionSuccess('Estado de la cita actualizado correctamente.'));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
       emit(AgendamientosError(limpiarError(e)));
@@ -74,6 +74,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
       }
       
       final role = roleForRolId(user.rolId);
+      const int pageSize = 200; // Aumentamos el tamaño de página para ver más citas
 
       if (role == AppRole.client) {
         final cliente = await _userContextService.obtenerClienteActual();
@@ -86,8 +87,8 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         final paginacion = await _agendamientoService.obtenerAgendamientosPorCliente(
           cliente.id!,
           page: event.page,
-          pageSize: 20,
-          estaSemana: event.estaSemana,
+          pageSize: pageSize,
+          // NO pasamos estaSemana para que muestre todas las citas
         );
         
         emit(AgendamientosLoaded(
@@ -105,8 +106,8 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         final paginacion = await _agendamientoService.obtenerAgendamientosPorBarbero(
           barberoLocal.id!,
           page: event.page,
-          pageSize: 20,
-          estaSemana: event.estaSemana,
+          pageSize: pageSize,
+          // NO pasamos estaSemana para que muestre todas las citas
         );
 
         emit(AgendamientosLoaded(
@@ -120,8 +121,8 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         final bool isWeekly = event.estaSemana ?? false;
         final paginacion = await _agendamientoService.obtenerAgendamientos(
           page: event.page,
-          pageSize: 20,
-          estaSemana: event.estaSemana,
+          pageSize: pageSize,
+          // NO pasamos estaSemana para que muestre todas las citas
         );
 
         emit(AgendamientosLoaded(
@@ -169,7 +170,7 @@ class AgendamientosBloc extends Bloc<AgendamientosEvent, AgendamientosState> {
         );
       }
 
-      emit(const AgendamientosActionSuccess('Agendamiento cancelado'));
+      emit(const AgendamientosActionSuccess('Cita cancelada correctamente.'));
       add(LoadAgendamientosRequested(page: page, estaSemana: currentMode));
     } catch (e) {
       emit(AgendamientosError(limpiarError(e)));

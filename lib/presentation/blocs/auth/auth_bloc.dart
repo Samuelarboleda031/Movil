@@ -35,10 +35,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final session = await _loginUseCase(event.email, event.password);
       emit(AuthAuthenticated(session.role));
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        emit(AuthError('La contraseña no es correcta. Inténtalo de nuevo o haz clic en ¿Has olvidado tu contraseña? para ver más opciones.'));
-      } else {
-        emit(AuthError(e.message ?? 'Error en autenticación'));
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+        case 'user-not-found':
+          emit(AuthError('Correo o contraseña incorrectos. Verifica tus datos.'));
+        case 'user-disabled':
+          emit(AuthError('Esta cuenta ha sido desactivada. Contacta al administrador.'));
+        case 'too-many-requests':
+          emit(AuthError('Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.'));
+        case 'network-request-failed':
+          emit(AuthError('Sin conexión a internet. Verifica tu red e intenta de nuevo.'));
+        case 'invalid-email':
+          emit(AuthError('El formato del correo electrónico no es válido.'));
+        default:
+          emit(AuthError(e.message ?? 'Error en autenticación. Intenta de nuevo.'));
       }
     } catch (e) {
       emit(AuthError(limpiarError(e)));

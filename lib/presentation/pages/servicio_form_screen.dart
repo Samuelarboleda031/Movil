@@ -242,9 +242,12 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
       }
 
       if (mounted) {
+        final nombre = _nombreCtrl.text.trim();
         AppToast.showSuccess(
           context,
-          _isNew ? '✅ Servicio creado' : '✅ Servicio actualizado',
+          _isNew
+              ? 'El servicio "$nombre" ha sido agregado exitosamente.'
+              : 'El servicio "$nombre" ha sido actualizado exitosamente.',
         );
         Navigator.pop(context, true);
       }

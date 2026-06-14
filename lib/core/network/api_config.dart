@@ -19,6 +19,9 @@ class ApiConfig {
   // Agendamientos
   static const String agendamientos = '/Agendamientos';
 
+  // Descuentos por día (sincronizados con el panel web)
+  static const String descuentosDia = '/DescuentosDia';
+
   // Horarios
   static const String horariosBarberos = '/HorariosBarberos';
 

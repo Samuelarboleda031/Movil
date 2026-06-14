@@ -30,6 +30,7 @@ import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 import 'package:parte_movil/core/themes/app_colors.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/core/utils/logger.dart';
 
 
@@ -576,22 +577,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.card,
-        title: const Text('Cerrar Sesión', style: TextStyle(color: AppColors.white)),
-        content: const Text('¿Estás seguro de que deseas salir?', style: TextStyle(color: AppColors.white)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.grey))),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Salir', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showWarning(
+      context,
+      title: 'Cerrar Sesión',
+      message: '¿Estás seguro de que deseas salir de tu cuenta?',
+      confirmLabel: 'Salir',
     );
-    if (confirm == true && mounted) {
+    if (confirm && mounted) {
       context.read<AuthBloc>().add(LogoutRequested());
       Navigator.pushReplacementNamed(context, '/');
     }

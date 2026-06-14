@@ -78,7 +78,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
     emit(HorariosLoading());
     try {
       await horarioService.crearHorarioSemanal(event.horario);
-      emit(const HorarioActionSuccess(message: 'Horario semanal creado exitosamente'));
+      emit(const HorarioActionSuccess(message: 'Se han registrado los horarios correctamente.'));
       add(LoadHorariosRequested());
     } catch (e) {
       emit(HorariosError(message: limpiarError(e)));
@@ -115,7 +115,7 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
     emit(HorariosLoading());
     try {
       await horarioService.actualizarHorarioSemanal(event.id, event.horario);
-      emit(const HorarioActionSuccess(message: 'Horario semanal actualizado exitosamente'));
+      emit(const HorarioActionSuccess(message: 'Los cambios han sido guardados exitosamente.'));
       add(LoadHorariosRequested());
     } catch (e) {
       emit(HorariosError(message: limpiarError(e)));
@@ -178,7 +178,11 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
         }
       }
 
-      emit(const HorarioActionSuccess(message: 'Estado cambiado exitosamente'));
+      emit(HorarioActionSuccess(
+        message: event.nuevoEstado
+            ? 'El horario ahora está activo.'
+            : 'Horario finalizado correctamente.',
+      ));
       add(LoadHorariosRequested());
     } catch (e) {
       emit(HorariosError(message: limpiarError(e)));

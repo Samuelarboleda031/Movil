@@ -68,27 +68,27 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
         );
 
         final paginacion = await _ventaService.obtenerVentas(
-          page: event.page,
-          pageSize: 20,
+          page: 1,
+          pageSize: 1000,
         );
 
         emit(VentasLoaded(
           ventas: paginacion.items,
           catalogoClientes: _catalogoClientes,
           paginacion: paginacion,
-          currentPage: event.page,
+          currentPage: 1,
         ));
       } else {
         // MODO ADMIN / MANAGER
         final paginacion = await _ventaService.obtenerVentas(
-          page: event.page,
-          pageSize: 20,
+          page: 1,
+          pageSize: 1000,
         );
         emit(VentasLoaded(
           ventas: paginacion.items,
           catalogoClientes: _catalogoClientes,
           paginacion: paginacion,
-          currentPage: event.page,
+          currentPage: 1,
         ));
       }
 
@@ -110,7 +110,7 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
     emit(VentasLoading());
     try {
       await _ventaService.anularVenta(event.id);
-      emit(const VentasActionSuccess('Venta anulada correctamente'));
+      emit(const VentasActionSuccess('La venta ha sido anulada exitosamente. El estado se ha actualizado en el sistema.'));
       
       add(LoadVentasRequested(page: page));
     } catch (e) {

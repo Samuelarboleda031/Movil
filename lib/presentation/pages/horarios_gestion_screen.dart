@@ -12,6 +12,7 @@ import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
 import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/presentation/pages/cancelar_dias_screen.dart';
@@ -187,29 +188,17 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
     return groups;
   }
 
-  void _eliminarHorario(HorarioSemanal horario, String nombreBarbero) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kSurface,
-        title: const Text('Eliminar Horario Semanal', style: TextStyle(color: kTextPrim)),
-        content: Text(
-          '¿Desea eliminar el horario semanal del ${horario.fechaInicioSemana} al ${horario.fechaFinSemana} de $nombreBarbero?',
-          style: const TextStyle(color: kTextMuted),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: kTextDim))),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<HorariosBloc>().add(DeleteHorarioSemanalRequested(horario.id!));
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+  Future<void> _eliminarHorario(HorarioSemanal horario, String nombreBarbero) async {
+    final confirm = await AppConfirmDialog.showDelete(
+      context,
+      itemName: 'horario de $nombreBarbero',
+      title: 'Eliminar Horario Semanal',
+      message: '¿Estás seguro de que deseas eliminar el horario del ${horario.fechaInicioSemana} al ${horario.fechaFinSemana} de $nombreBarbero?\n\nEsta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar Horario',
     );
+    if (confirm && mounted) {
+      context.read<HorariosBloc>().add(DeleteHorarioSemanalRequested(horario.id!));
+    }
   }
 
   Future<void> _cancelarDias() async {

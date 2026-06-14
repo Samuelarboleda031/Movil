@@ -76,7 +76,7 @@ class _CancelarDiasScreenState extends State<CancelarDiasScreen> {
 
   void _confirmar() {
     if (widget.role != AppRole.barber && _barberoSeleccionado == null) {
-      AppToast.showError(context, "Selecciona un barbero");
+      AppToast.showError(context, "Por favor selecciona un barbero.");
       return;
     }
 
@@ -89,7 +89,7 @@ class _CancelarDiasScreenState extends State<CancelarDiasScreen> {
       final fecha = DateTime(_pickerInicio.year, _pickerInicio.month, _pickerInicio.day);
       if (_pickerInicio.isAfter(_pickerFin) ||
           (_pickerInicio.hour * 60 + _pickerInicio.minute) >= (_pickerFin.hour * 60 + _pickerFin.minute)) {
-        AppToast.showError(context, "La hora de inicio debe ser anterior a la hora de fin");
+        AppToast.showError(context, "La hora de inicio debe ser anterior a la hora de fin.");
         return;
       }
       fechas = [fecha];
@@ -97,14 +97,14 @@ class _CancelarDiasScreenState extends State<CancelarDiasScreen> {
       horaFin    = "${_pickerFin.hour.toString().padLeft(2, "0")}:${_pickerFin.minute.toString().padLeft(2, "0")}";
     } else if (_currentTab == 1) {
       if (_fechaHora == null) {
-        AppToast.showError(context, "Selecciona una fecha");
+        AppToast.showError(context, "Por favor selecciona una fecha.");
         return;
       }
       fechas = [_fechaHora!];
     } else {
       // Varios días: generar lista de fechas del rango
       if (_rangoDesde == null) {
-        AppToast.showError(context, "Selecciona la fecha de inicio");
+        AppToast.showError(context, "Por favor selecciona la fecha de inicio.");
         return;
       }
       final fin = _rangoHasta ?? _rangoDesde!;
@@ -117,7 +117,7 @@ class _CancelarDiasScreenState extends State<CancelarDiasScreen> {
     final todayNorm = DateTime(today.year, today.month, today.day);
     for (final f in fechas) {
       if (f.isBefore(todayNorm)) {
-        AppToast.showError(context, "No puedes seleccionar fechas del pasado");
+        AppToast.showError(context, "No puedes seleccionar fechas del pasado.");
         return;
       }
     }

@@ -358,14 +358,24 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       }
 
       if (mounted) {
+        final nombre = _nombreCtrl.text.trim();
         AppToast.showSuccess(
           context,
-          _isNew ? 'Producto creado correctamente' : 'Producto actualizado',
+          _isNew
+              ? 'El producto "$nombre" ha sido agregado exitosamente al inventario.'
+              : 'El producto "$nombre" ha sido actualizado correctamente.',
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) AppToast.showError(context, limpiarError(e));
+      if (mounted) {
+        AppToast.showError(
+          context,
+          _isNew
+              ? 'No se pudo crear el producto. Inténtalo nuevamente.'
+              : 'No se pudo actualizar el producto. Inténtalo nuevamente.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

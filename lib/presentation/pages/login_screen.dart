@@ -91,6 +91,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() {
+    _validarEmail();
+    _validarPass();
+    if (_emailErrors.isNotEmpty || _passError != null) return;
     context.read<AuthBloc>().add(
       LoginRequested(
         email: _emailCtrl.text.trim(),

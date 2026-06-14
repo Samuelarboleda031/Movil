@@ -5,6 +5,7 @@ import 'package:parte_movil/data/models/cliente.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/paginacion.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/data/models/servicio.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/app_role.dart';
@@ -594,7 +595,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     );
   }
 
-  void _showDeleteDialog(BuildContext context, Venta venta) {
+  Future<void> _showDeleteDialog(BuildContext context, Venta venta) async {
     // Validación 1: No se puede anular después de 3 días
     if (venta.fechaRegistro != null && venta.fechaRegistro!.isNotEmpty) {
       try {
@@ -623,33 +624,16 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
-        title: const Text('¿Anular venta?'),
-        content: const Text(
-          'Esta acción no se puede deshacer y el estado pasará a Anulada.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              final bloc = this.context.read<VentasBloc>();
-              Navigator.pop(dialogCtx); // cierra el popup
-              Navigator.pop(this.context); // cierra la pantalla de detalle
-              bloc.add(DeleteVentaRequested(venta.id!));
-            },
-            child: const Text(
-              'Confirmar Anulación',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showWarning(
+      context,
+      title: '¿Anular venta?',
+      message: 'Esta acción no se puede deshacer.\nEl estado de la venta pasará a Anulada.',
+      confirmLabel: 'Confirmar Anulación',
     );
+    if (confirm && mounted) {
+      final bloc = this.context.read<VentasBloc>();
+      Navigator.pop(this.context);
+      bloc.add(DeleteVentaRequested(venta.id!));
+    }
   }
 }

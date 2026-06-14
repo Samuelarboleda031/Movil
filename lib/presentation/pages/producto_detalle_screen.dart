@@ -697,7 +697,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                         try {
                           await _service.deleteProducto(_producto.id!);
                           if (context.mounted) {
-                            AppToast.showSuccess(context, 'Producto eliminado.');
+                            AppToast.showSuccess(context, 'El producto "${_producto.nombre}" ha sido eliminado exitosamente del inventario.');
                             Navigator.pop(context); // volver a la lista
                           }
                         } catch (e) {
@@ -707,7 +707,7 @@ class _ProductoDetalleScreenState extends State<ProductoDetalleScreen>
                             AppToast.showError(
                               context,
                               isConflict
-                                  ? 'El producto tiene referencias y no puede eliminarse. Desactívalo en su lugar.'
+                                  ? 'El producto "${_producto.nombre}" tiene conexiones y no puede eliminarse. Desactívalo en su lugar.'
                                   : limpiarError(e),
                             );
                           }

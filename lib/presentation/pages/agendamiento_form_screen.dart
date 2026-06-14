@@ -534,8 +534,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
       if (mounted) {
         _mostrarExito(
           widget.agendamiento == null
-              ? '✅ Cita creada exitosamente'
-              : '✅ Cita actualizada',
+              ? '¡Cita creada exitosamente! La cita ha sido registrada.'
+              : '¡Cita actualizada exitosamente! Los cambios han sido guardados correctamente.',
         );
         navigator.pop(true);
       }

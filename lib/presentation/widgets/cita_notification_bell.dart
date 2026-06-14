@@ -11,6 +11,7 @@ import 'package:parte_movil/presentation/pages/agendamiento_detalle_screen.dart'
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/barbero.dart';
 import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
+import 'package:parte_movil/data/datasources/day_discount_service.dart';
 import 'package:parte_movil/core/utils/logger.dart';
 
 class CitaNotification {
@@ -422,7 +423,7 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
       // Por ahora, como el usuario dice "no puede cambiar el estado", solo enviamos una "notificación" (simulada o vía log)
       // O podríamos actualizar a un estado que el Admin vea como "Terminado por Barbero"
       await _agendamientoService.actualizarEstadoAgendamiento(citaId, 'Terminado por Barbero');
-      AppToast.showSuccess(context, 'Aviso de término enviado al administrador');
+      AppToast.showSuccess(context, 'Aviso de término enviado al administrador.');
       
       setModalState(() {
         _notifications.removeWhere((n) => n.citaId == citaId);
@@ -432,7 +433,7 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
       });
       if (_notifications.isEmpty) Navigator.pop(context);
     } catch (e) {
-      AppToast.showError(context, 'Error al enviar aviso');
+      AppToast.showError(context, 'No se pudo enviar el aviso. Inténtalo nuevamente.');
     }
   }
 
@@ -450,7 +451,7 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
         Navigator.pop(context); // Close bottom sheet if empty
       }
     } catch (e) {
-      AppToast.showError(context, 'Error al actualizar estado');
+      AppToast.showError(context, 'No se pudo actualizar el estado. Inténtalo nuevamente.');
     }
   }
 
@@ -458,7 +459,13 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
     try {
       final cita = await _agendamientoService.obtenerAgendamientoPorId(citaId);
       if (!mounted) return;
-      
+      final fechaKey = cita.fechaCita != null && cita.fechaCita!.isNotEmpty
+          ? cita.fechaCita!.split('T').first
+          : '';
+      final descuento = fechaKey.isNotEmpty
+          ? await DayDiscountService.getDiscount(fechaKey)
+          : 0.0;
+      if (!mounted) return;
       ModalCompletarParcialmente.show(context, cita, () {
         setModalState(() {
           _notifications.removeWhere((n) => n.citaId == citaId);
@@ -469,9 +476,9 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
         if (_notifications.isEmpty) {
           Navigator.pop(context);
         }
-      });
+      }, descuentoDia: descuento);
     } catch (e) {
-      if (mounted) AppToast.showError(context, 'Error al cargar detalles de la cita');
+      if (mounted) AppToast.showError(context, 'No se pudieron cargar los detalles de la cita.');
     }
   }
 

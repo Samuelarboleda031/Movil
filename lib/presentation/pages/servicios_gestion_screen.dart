@@ -14,6 +14,9 @@ import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
+import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 
 class ServiciosGestionScreen extends StatefulWidget {
   const ServiciosGestionScreen({super.key});
@@ -81,9 +84,7 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }
@@ -134,86 +135,59 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
 
   // ── Eliminar servicio ─────────────────────────────────────────────────────
   Future<void> _eliminarServicio(Servicio servicio) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar Servicio'),
-        content: Text('¿Desea eliminar el servicio "${servicio.nombre}"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showDelete(
+      context,
+      itemName: servicio.nombre,
+      title: 'Eliminar Servicio',
+      message: '¿Estás seguro de que deseas eliminar el servicio "${servicio.nombre}"?\n\nEsta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar Servicio',
     );
     if (confirm == true) {
       try {
         await _servicioService.eliminarServicio(servicio.id!);
+        if (mounted) AppToast.showSuccess(context, 'El servicio "${servicio.nombre}" ha sido eliminado exitosamente del catálogo.');
         _cargarServicios(_currentPage);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.red),
-          );
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('conflict') || msg.contains('referenc') || msg.contains('asociad')) {
+            AppToast.showError(context, 'Este servicio está asociado a ventas, paquetes o citas. Debes eliminar o desasociar esos registros antes de eliminarlo.');
+          } else {
+            AppToast.showError(context, limpiarError(e));
+          }
         }
       }
     }
   }
 
   Future<void> _eliminarPaquete(Paquete paquete) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Eliminar Paquete', style: TextStyle(color: Colors.white)),
-        content: Text('¿Desea eliminar el paquete "${paquete.nombre}"?', style: const TextStyle(color: AppColors.white)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.greyLight))),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showDelete(
+      context,
+      itemName: paquete.nombre,
+      title: 'Eliminar Paquete',
+      message: '¿Estás seguro de que deseas eliminar el paquete "${paquete.nombre}"?\n\nEsta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar Paquete',
     );
     if (confirm == true) {
       try {
         await _paqueteService.eliminarPaquete(paquete.id!);
         _cargarPaquetes();
+        if (mounted) AppToast.showSuccess(context, 'El paquete "${paquete.nombre}" ha sido eliminado del sistema.');
       } catch (e) {
         if (mounted) {
-          final desactivar = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: AppColors.surface,
-              title: const Text('No se puede eliminar', style: TextStyle(color: Colors.white)),
-              content: const Text('Este paquete tiene conexiones o citas asociadas y no se puede borrar físicamente. ¿Desea desactivarlo en su lugar para conservar el historial?', style: TextStyle(color: AppColors.white)),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.greyLight))),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Desactivar', style: TextStyle(color: AppColors.gold)),
-                ),
-              ],
-            ),
+          final desactivar = await AppConfirmDialog.showWarning(
+            context,
+            title: 'No se puede eliminar',
+            message: 'Este paquete tiene conexiones o citas asociadas y no puede borrarse físicamente.\n\n¿Deseas desactivarlo en su lugar para conservar el historial?',
+            confirmLabel: 'Desactivar',
           );
           if (desactivar == true && mounted) {
             try {
               await _paqueteService.cambiarEstadoPaquete(paquete.id!, false);
               _cargarPaquetes();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('El paquete se desactivó correctamente.'), backgroundColor: Colors.green),
-              );
+              if (mounted) AppToast.showSuccess(context, 'El paquete "${paquete.nombre}" se desactivó automáticamente porque tiene conexiones.');
             } catch (ex) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error al desactivar: $ex'), backgroundColor: Colors.red),
-                );
-              }
+              if (mounted) AppToast.showError(context, limpiarError(ex));
             }
           }
         }
@@ -500,8 +474,18 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                           value: activo,
                           activeColor: AppColors.gold,
                           onChanged: (val) async {
-                            await _servicioService.cambiarEstadoServicio(s.id!, val);
-                            _cargarServicios(_currentPage);
+                            try {
+                              await _servicioService.cambiarEstadoServicio(s.id!, val);
+                              _cargarServicios(_currentPage);
+                              if (mounted) {
+                                AppToast.showSuccess(
+                                  context,
+                                  'El servicio "${s.nombre}" ha sido ${val ? "activado" : "desactivado"} exitosamente.',
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) AppToast.showError(context, limpiarError(e));
+                            }
                           },
                         ),
                         PopupMenuButton(
@@ -680,12 +664,14 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                             try {
                               await _paqueteService.cambiarEstadoPaquete(p.id!, val);
                               _cargarPaquetes();
-                            } catch (e) {
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                                AppToast.showSuccess(
+                                  context,
+                                  'El paquete "${p.nombre}" ha sido ${val ? "activado" : "desactivado"} exitosamente.',
                                 );
                               }
+                            } catch (e) {
+                              if (mounted) AppToast.showError(context, limpiarError(e));
                             }
                           },
                         ),

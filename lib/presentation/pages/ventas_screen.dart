@@ -12,6 +12,7 @@ import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/presentation/pages/venta_detalle_screen.dart';
 import 'package:parte_movil/data/datasources/venta_service.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
@@ -1141,19 +1142,30 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   Future<void> _eliminarVenta(Venta v) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar Anulación'),
-        content: Text('¿Desea anular la venta #${v.id}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Anular', style: TextStyle(color: Colors.red))),
-        ],
-      ),
+    if (v.fechaRegistro != null) {
+      final fechaVenta = DateTime.tryParse(v.fechaRegistro!);
+      if (fechaVenta != null) {
+        final diasTranscurridos = DateTime.now().difference(fechaVenta).inDays;
+        if (diasTranscurridos > 3) {
+          if (mounted) {
+            AppToast.showError(
+              context,
+              'No puedes anular esta venta porque han pasado más de 3 días desde su registro.',
+            );
+          }
+          return;
+        }
+      }
+    }
+
+    final ok = await AppConfirmDialog.showWarning(
+      context,
+      title: 'Confirmar Anulación',
+      message: '¿Deseas anular la venta #${v.id}?\n\nEsta acción no se puede deshacer y el estado pasará a Anulada.',
+      confirmLabel: 'Anular',
+      cancelLabel: 'No',
     );
-    if (ok == true) {
-      if (!mounted) return;
+    if (ok && mounted) {
       context.read<VentasBloc>().add(DeleteVentaRequested(v.id!));
     }
   }

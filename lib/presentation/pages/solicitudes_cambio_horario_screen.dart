@@ -338,7 +338,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
     if (_currentUserId == null) return;
     try {
       await _service.aprobar(s.id!, _currentUserId!);
-      AppToast.showSuccess(context, 'Solicitud aprobada');
+      AppToast.showSuccess(context, 'Solicitud aprobada correctamente.');
       _cargar();
     } catch (e) {
       AppToast.showError(context, limpiarError(e));
@@ -370,7 +370,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
               Navigator.pop(ctx);
               try {
                 await _service.rechazar(s.id!, _currentUserId!, observacion: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim());
-                AppToast.showSuccess(context, 'Solicitud rechazada');
+                AppToast.showSuccess(context, 'Solicitud rechazada correctamente.');
                 _cargar();
               } catch (e) {
                 AppToast.showError(context, limpiarError(e));
@@ -386,7 +386,7 @@ class _SolicitudesCambioHorarioScreenState extends State<SolicitudesCambioHorari
   Future<void> _responder(SolicitudCambioHorario s, bool acepta) async {
     try {
       await _service.responder(s.id!, acepta);
-      AppToast.showSuccess(context, acepta ? 'Propuesta aceptada' : 'Propuesta rechazada');
+      AppToast.showSuccess(context, acepta ? 'Propuesta aceptada correctamente.' : 'Propuesta rechazada correctamente.');
       _cargar();
     } catch (e) {
       AppToast.showError(context, limpiarError(e));
@@ -462,7 +462,7 @@ class _NuevaSolicitudFormState extends State<_NuevaSolicitudForm> {
     final startMin = _horaInicio.hour * 60 + _horaInicio.minute;
     final endMin = _horaFin.hour * 60 + _horaFin.minute;
     if (startMin >= endMin) {
-      AppToast.showError(context, 'Hora inicio debe ser anterior a hora fin');
+      AppToast.showError(context, 'La hora de inicio debe ser anterior a la hora de fin.');
       return;
     }
     setState(() => _saving = true);

@@ -604,7 +604,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
 
       if (mounted) {
         setState(() => _saving = false);
-        AppToast.showSuccess(context, 'Perfil actualizado correctamente');
+        AppToast.showSuccess(context, 'Tus cambios se han guardado correctamente.');
         Navigator.pop(context, true); // true indica exito para recargar
       }
     } catch (e) {
@@ -632,7 +632,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         if (userId != null) {
           final resFoto = await _mediaService.subirFotoPerfil(userId, image.path);
           if (mounted) {
-            AppToast.showSuccess(context, 'Foto subida correctamente');
+            AppToast.showSuccess(context, 'La imagen se ha subido correctamente.');
             setState(() {
               _nuevaFotoFile = File(image.path);
               _fotoPerfil = resFoto; // En caso de que la API devuelva la URL

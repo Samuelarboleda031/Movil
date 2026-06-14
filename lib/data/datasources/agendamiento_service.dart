@@ -150,13 +150,13 @@ class AgendamientoService {
   }
 
   // Devuelve el ventaId creado (si el backend lo incluye en el response).
-  Future<int?> actualizarEstadoAgendamiento(int id, String estado) async {
+  Future<int?> actualizarEstadoAgendamiento(int id, String estado, {double porcentajeDescuento = 0}) async {
     try {
       final headers = await _getHeaders();
       final response = await http.patch(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id/estado'),
         headers: headers,
-        body: jsonEncode({'estado': estado}),
+        body: jsonEncode({'estado': estado, 'porcentajeDescuento': porcentajeDescuento}),
       );
 
       if (response.statusCode != 200 && response.statusCode != 204) {
@@ -170,7 +170,7 @@ class AgendamientoService {
   }
 
   // Devuelve el ventaId creado (si el backend lo incluye en el response).
-  Future<int?> completarParcialmente(int id, List<int> serviciosCompletados, List<int> productosCompletados) async {
+  Future<int?> completarParcialmente(int id, List<int> serviciosCompletados, List<int> productosCompletados, {double porcentajeDescuento = 0}) async {
     try {
       final headers = await _getHeaders();
       final response = await http.post(
@@ -180,6 +180,7 @@ class AgendamientoService {
           'serviciosCompletados': serviciosCompletados,
           'productosCompletados': productosCompletados,
           'estado': 'Completada',
+          'porcentajeDescuento': porcentajeDescuento,
         }),
       );
 

@@ -24,6 +24,7 @@ import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/network/api_config.dart';
@@ -229,30 +230,14 @@ class _VentaFormScreenState extends State<VentaFormScreen>
     final usuarioId = _usuarioIdActual;
     if (barberoId == null || usuarioId == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
-        title: const Text('Extender Plazo', style: TextStyle(color: AppColors.white)),
-        content: const Text(
-          '¿Deseas extender el plazo de pago por 7 días adicionales? Esto solo se puede hacer una vez por ciclo.',
-          style: TextStyle(color: AppColors.greyLight),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar', style: TextStyle(color: AppColors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirmar', style: TextStyle(color: AppColors.bg)),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showWarning(
+      context,
+      title: 'Extender Plazo',
+      message: '¿Deseas extender el plazo de pago por 7 días adicionales?\n\nEsto solo se puede hacer una vez por ciclo.',
+      confirmLabel: 'Confirmar',
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
 
     setState(() => _isLoading = true);
     try {
@@ -835,8 +820,8 @@ class _VentaFormScreenState extends State<VentaFormScreen>
         AppToast.showSuccess(
           context,
           widget.venta == null
-              ? '✅ Venta #$_numeroVentaFormateado creada por ${AppFormat.cop(_total)}'
-              : '✅ Venta actualizada exitosamente',
+              ? 'La venta #$_numeroVentaFormateado ha sido registrada exitosamente por ${AppFormat.cop(_total)}.'
+              : 'La venta ha sido actualizada exitosamente.',
         );
         Navigator.of(context).pop(true);
       }

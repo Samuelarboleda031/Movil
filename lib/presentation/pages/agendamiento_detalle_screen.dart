@@ -13,8 +13,10 @@ import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/datasources/producto_service.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
+import 'package:parte_movil/data/datasources/day_discount_service.dart';
 
 class AgendamientoDetalleScreen extends StatefulWidget {
   final Agendamiento agendamiento;
@@ -542,28 +544,28 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
   }
 
   Future<void> _terminarTemprano() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
-        title: const Text('Terminar Temprano', style: TextStyle(color: Colors.white)),
-        content: const Text('¿Confirmas que terminaste esta cita antes de tiempo? Se marcará como Completada.', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('CONFIRMAR', style: TextStyle(color: Colors.green))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.showWarning(
+      context,
+      title: 'Terminar Temprano',
+      message: '¿Confirmas que terminaste esta cita antes de tiempo?\n\nSe marcará como Completada.',
+      confirmLabel: 'Confirmar',
     );
 
     if (ok == true) {
       setState(() => _isLoading = true);
       try {
+        final fechaKey = _currentAg.fechaCita != null && _currentAg.fechaCita!.isNotEmpty
+            ? _currentAg.fechaCita!.split('T').first
+            : '';
+        final descuento = fechaKey.isNotEmpty
+            ? await DayDiscountService.getDiscount(fechaKey)
+            : 0.0;
         final ventaId = await AgendamientoService()
-            .actualizarEstadoAgendamiento(_currentAg.id!, 'Completada');
+            .actualizarEstadoAgendamiento(_currentAg.id!, 'Completada', porcentajeDescuento: descuento);
         if (ventaId != null) {
           await VentaService().fijarNumeroRecibo(ventaId);
         }
-        AppToast.showSuccess(context, 'Cita finalizada temprano');
+        AppToast.showSuccess(context, 'Cita completada correctamente.');
         _refreshData();
       } catch (e) {
         setState(() => _isLoading = false);
@@ -572,23 +574,26 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
     }
   }
 
-  void _terminarParcial() {
+  Future<void> _terminarParcial() async {
+    final fechaKey = _currentAg.fechaCita != null && _currentAg.fechaCita!.isNotEmpty
+        ? _currentAg.fechaCita!.split('T').first
+        : '';
+    final descuento = fechaKey.isNotEmpty
+        ? await DayDiscountService.getDiscount(fechaKey)
+        : 0.0;
+    if (!mounted) return;
     ModalCompletarParcialmente.show(context, _currentAg, () {
       _refreshData();
-    });
+    }, descuentoDia: descuento);
   }
 
   Future<void> _cancelarComoCliente() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar Cancelación'),
-        content: const Text('¿Estás seguro de que deseas cancelar tu cita?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('SÍ, CANCELAR', style: TextStyle(color: Colors.red))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.showWarning(
+      context,
+      title: 'Confirmar Cancelación',
+      message: '¿Estás seguro de que deseas cancelar tu cita?\n\nEsta acción no se puede deshacer.',
+      confirmLabel: 'Sí, cancelar',
+      cancelLabel: 'No',
     );
 
     if (ok == true) {

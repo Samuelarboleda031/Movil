@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/datasources/password_reset_service.dart';
+import 'package:parte_movil/core/utils/app_snackbar.dart';
+import 'package:parte_movil/core/utils/error_utils.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -54,19 +56,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             setState(() {
               _emailSent = true;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Correo de recuperación enviado. Revise su bandeja (también spam).'),
-                backgroundColor: Colors.green,
-              ),
-            );
+            AppToast.showSuccess(context, 'Correo de recuperación enviado. Revise su bandeja (también spam).');
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Error al enviar el correo. Verifique que el correo esté registrado.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppToast.showError(context, 'Error al enviar el correo. Verifique que el correo esté registrado.');
           }
         }
       } catch (e) {
@@ -74,12 +66,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppToast.showError(context, limpiarError(e));
         }
       }
     }

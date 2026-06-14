@@ -13,6 +13,8 @@ import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'agendamiento_detalle_screen.dart';
 import 'package:parte_movil/presentation/widgets/cita_notification_bell.dart';
+import 'package:parte_movil/data/datasources/day_discount_service.dart';
+import 'package:parte_movil/presentation/widgets/modal_descuento_dia.dart';
 
 class AgendamientosScreen extends StatefulWidget {
   final AppRole role;
@@ -33,6 +35,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
   int _calendarViewMode = 0;
   final EventController<Agendamiento> _eventController = EventController<Agendamiento>();
   List<Agendamiento> _lastSyncedAgendamientos = [];
+
+  // ── Descuentos por día ─────────────────────────────────────────────────
+  Map<String, double> _dayDiscounts = {};
+
+  bool get _isAdminOrManager =>
+      widget.role == AppRole.admin || widget.role == AppRole.manager;
 
   List<Agendamiento> _agendamientosFiltrados(List<Agendamiento> agendamientos) {
     var resultado = agendamientos;
@@ -243,6 +251,12 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     super.initState();
     _searchController.clear();
     _searchQuery = '';
+    _loadDiscounts();
+  }
+
+  Future<void> _loadDiscounts() async {
+    final discounts = await DayDiscountService.getAllDiscounts();
+    if (mounted) setState(() => _dayDiscounts = discounts);
   }
 
   @override
@@ -659,7 +673,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       scrollPhysics: const BouncingScrollPhysics(),
       backgroundColor: AppColors.bg,
       weekNumberBuilder: (date) => Container(color: AppColors.surface),
-      weekTitleHeight: 50,
+      weekTitleHeight: 68,
       weekPageHeaderBuilder: (startDate, endDate) {
         return _buildCalendarHeader(startDate, endDate);
       },
@@ -707,6 +721,7 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
       scrollPhysics: const BouncingScrollPhysics(),
       backgroundColor: AppColors.bg,
       weekNumberBuilder: (date) => Container(color: AppColors.surface),
+      weekTitleHeight: 68,
       weekPageHeaderBuilder: (startDate, endDate) {
         return _buildCalendarHeader(startDate, endDate);
       },
@@ -764,49 +779,84 @@ class _AgendamientosScreenState extends State<AgendamientosScreen> {
     final isToday = DateTime.now().day == date.day &&
         DateTime.now().month == date.month &&
         DateTime.now().year == date.year;
+    final fechaKey = DayDiscountService.fechaKey(date);
+    final descuento = _dayDiscounts[fechaKey] ?? 0;
+    final tieneDescuento = descuento > 0;
 
-    return Container(
+    Widget label = Container(
       color: AppColors.surface,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isToday ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                dias[date.weekday - 1],
-                style: TextStyle(
-                  color: isToday ? AppColors.gold : AppColors.greyLight,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: isToday ? AppColors.gold : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    '${date.day}',
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: isToday ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    dias[date.weekday - 1],
                     style: TextStyle(
-                      color: isToday ? AppColors.bg : AppColors.greyLightest,
-                      fontSize: 13,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                      color: isToday ? AppColors.gold : AppColors.greyLight,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: isToday ? AppColors.gold : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          color: isToday ? AppColors.bg : AppColors.greyLightest,
+                          fontSize: 13,
+                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (tieneDescuento)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7a5c38),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '-${descuento.toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            color: Color(0xFFf3e8d8),
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
+    );
+
+    if (!_isAdminOrManager) return label;
+
+    return GestureDetector(
+      onLongPress: () async {
+        await ModalDescuentoDia.show(context, date, descuento, _loadDiscounts);
+      },
+      child: label,
     );
   }
 

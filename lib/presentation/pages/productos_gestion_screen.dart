@@ -11,6 +11,7 @@ import 'producto_detalle_screen.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/presentation/widgets/ellipsis_pagination.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
@@ -82,7 +83,7 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        AppToast.showError(context, limpiarError(e));
+        AppToast.showError(context, 'No se pudieron cargar los productos y categorías desde el servidor.');
       }
     }
   }
@@ -123,47 +124,81 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
   }
 
   Future<void> _eliminarProducto(Producto producto) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.card,
-        title: const Text('Eliminar Producto',
-            style: TextStyle(color: AppColors.white)),
-        content: Text(
-          '¿Desea eliminar "${producto.nombre}"?',
-          style: const TextStyle(color: AppColors.greyLight),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.showDelete(
+      context,
+      itemName: producto.nombre,
+      title: 'Eliminar Producto',
+      message: '¿Estás seguro de que deseas eliminar "${producto.nombre}"?\n\nEsta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar Producto',
     );
 
-    if (confirm == true) {
-      try {
-        await _productoService.deleteProducto(producto.id!);
-        if (mounted) AppToast.showSuccess(context, 'Producto eliminado.');
-        _cargarProductos(_currentPage);
-      } catch (e) {
-        if (mounted) {
-          final isConflict = e.toString().toLowerCase().contains('conflict') ||
-              e.toString().toLowerCase().contains('referenc');
+    if (!confirm) return;
+
+    try {
+      await _productoService.deleteProducto(producto.id!);
+
+      // Verificar si el backend lo eliminó o lo soft-deleted (sigue existiendo)
+      final still = await _productoService.getProductoById(producto.id!);
+      if (!mounted) return;
+
+      if (still != null) {
+        if (!still.activo) {
+          AppToast.showWarning(
+            context,
+            'El producto "${producto.nombre}" tiene conexiones (compras/ventas/entregas/devoluciones). Se desactivó en lugar de eliminarlo.',
+          );
+        } else {
           AppToast.showError(
             context,
-            isConflict
-                ? 'El producto tiene referencias y no puede eliminarse. Desactívalo en su lugar.'
-                : limpiarError(e),
+            'El producto "${producto.nombre}" no pudo eliminarse porque tiene conexiones.',
           );
         }
+      } else {
+        AppToast.showSuccess(
+          context,
+          'Producto "${producto.nombre}" eliminado exitosamente del inventario.',
+        );
+      }
+      _cargarProductos(_currentPage);
+    } catch (e) {
+      if (!mounted) return;
+      final rawMsg = e.toString().toLowerCase();
+      final isFkConflict = rawMsg.contains('foreign') ||
+          rawMsg.contains('constraint') ||
+          rawMsg.contains('referenc') ||
+          rawMsg.contains('conflict') ||
+          rawMsg.contains('asociado') ||
+          rawMsg.contains('en uso') ||
+          rawMsg.contains('inner exception') ||
+          rawMsg.contains('500');
+
+      if (isFkConflict) {
+        try {
+          if (producto.activo) {
+            await _productoService.toggleProductoActivo(producto.id!);
+            _cargarProductos(_currentPage);
+            if (mounted) {
+              AppToast.showWarning(
+                context,
+                'El producto "${producto.nombre}" tiene conexiones (ventas/compras/entregas/devoluciones). Se desactivó en lugar de eliminarlo.',
+              );
+            }
+          } else {
+            AppToast.showError(
+              context,
+              'El producto "${producto.nombre}" tiene conexiones y ya estaba desactivado.',
+            );
+          }
+        } catch (ex) {
+          if (mounted) {
+            AppToast.showError(
+              context,
+              'No se pudo desactivar el producto. Inténtalo nuevamente.',
+            );
+          }
+        }
+      } else {
+        AppToast.showError(context, limpiarError(e));
       }
     }
   }
@@ -462,10 +497,17 @@ class _ProductosGestionScreenState extends State<ProductosGestionScreen> {
                                 _productos.indexWhere((x) => x.id == p.id);
                             if (idx != -1) _productos[idx] = updated;
                           });
+                          AppToast.showSuccess(
+                            context,
+                            'El producto "${p.nombre}" ha sido ${updated.activo ? "activado" : "desactivado"} exitosamente.',
+                          );
                         }
                       } catch (e) {
                         if (context.mounted) {
-                          AppToast.showError(context, limpiarError(e));
+                          AppToast.showError(
+                            context,
+                            'No se pudo cambiar el estado del producto. Inténtalo nuevamente.',
+                          );
                         }
                       }
                     },

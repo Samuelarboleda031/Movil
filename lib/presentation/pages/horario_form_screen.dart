@@ -13,6 +13,7 @@ import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/searchable_selector.dart';
 import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/app_format.dart';
+import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 
 class HorarioFormScreen extends StatefulWidget {
   final HorarioSemanal? horarioSemanal;
@@ -307,13 +308,13 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_asignarATodos && _barberoSeleccionado == null) {
-      AppToast.showError(context, 'Seleccione un barbero');
+      AppToast.showError(context, 'Por favor selecciona un barbero.');
       return;
     }
     if (_diasSeleccionados.isEmpty) {
-      AppToast.showError(context, 'Seleccione al menos un día');
+      AppToast.showError(context, 'Por favor selecciona al menos un día de la semana.');
       return;
     }
 
@@ -337,40 +338,24 @@ class _HorarioFormScreenState extends State<HorarioFormScreen> {
 
     if (_asignarATodos) {
       final count = widget.barberosLibres.length;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.card,
-          title: const Text('Confirmar asignación', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
-          content: Text(
-            '¿Asignar este horario a $count barbero${count != 1 ? "s" : ""} sin horario esta semana?',
-            style: const TextStyle(color: AppColors.greyLight),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar', style: TextStyle(color: AppColors.grey)),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                context.read<HorariosBloc>().add(CreateHorarioParaTodosRequested(
-                  barberoIds: widget.barberosLibres.map((b) => b.id!).toList(),
-                  templateHorario: HorarioSemanal(
-                    barberoId: 0,
-                    fechaInicioSemana: fechaInicioStr,
-                    fechaFinSemana: fechaFinStr,
-                    estado: _estado ? 'Activo' : 'Finalizado',
-                    detalles: detalles,
-                  ),
-                ));
-                Navigator.pop(context);
-              },
-              child: const Text('Confirmar', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+      final confirm = await AppConfirmDialog.showWarning(
+        context,
+        title: 'Confirmar asignación',
+        message: '¿Asignar este horario a $count barbero${count != 1 ? "s" : ""} sin horario esta semana?',
+        confirmLabel: 'Confirmar',
       );
+      if (!confirm || !mounted) return;
+      context.read<HorariosBloc>().add(CreateHorarioParaTodosRequested(
+        barberoIds: widget.barberosLibres.map((b) => b.id!).toList(),
+        templateHorario: HorarioSemanal(
+          barberoId: 0,
+          fechaInicioSemana: fechaInicioStr,
+          fechaFinSemana: fechaFinStr,
+          estado: _estado ? 'Activo' : 'Finalizado',
+          detalles: detalles,
+        ),
+      ));
+      if (mounted) Navigator.pop(context);
       return;
     }
 

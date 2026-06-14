@@ -175,7 +175,7 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_serviciosAgregados.isEmpty) {
-      AppToast.showError(context, '⚠️ Debe agregar al menos un servicio al paquete.');
+      AppToast.showError(context, 'Debes agregar al menos un servicio al paquete.');
       return;
     }
 
@@ -199,7 +199,8 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
         );
 
         if (success && mounted) {
-          AppToast.showSuccess(context, '✅ Paquete creado exitosamente');
+          final nombre = _nombreCtrl.text.trim();
+          AppToast.showSuccess(context, 'El paquete "$nombre" ha sido creado correctamente con todos sus servicios en una sola operación.');
           Navigator.pop(context, true);
         }
       } else {
@@ -220,7 +221,8 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
         );
 
         if (successGral && successDetalles && mounted) {
-          AppToast.showSuccess(context, '✅ Paquete actualizado exitosamente');
+          final nombre = _nombreCtrl.text.trim();
+          AppToast.showSuccess(context, 'El paquete "$nombre" ha sido actualizado correctamente con la nueva información.');
           Navigator.pop(context, true);
         }
       }
