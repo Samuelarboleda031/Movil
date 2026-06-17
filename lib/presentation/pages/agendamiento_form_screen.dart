@@ -260,7 +260,12 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
         total += s.precio;
       }
     } else if (_paqueteSeleccionado != null) {
-      total += _paqueteSeleccionado!.precio;
+      final paquete = _paqueteSeleccionado!;
+      final descuento = paquete.descuento;
+      final precioFinal = descuento > 0 
+          ? paquete.precio - (paquete.precio * (descuento / 100)) 
+          : paquete.precio;
+      total += precioFinal;
     }
     _productoCantidades.forEach((pid, qty) {
       try {
@@ -1337,10 +1342,81 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     hint: 'Selecciona un paquete...',
     items: _paquetes,
     selectedItem: _paqueteSeleccionado,
-    displayText: (p) => p.nombre,
+    displayText: (p) {
+      final descuento = p.descuento;
+      final precioOriginal = p.precio;
+      final precioFinal = descuento > 0 
+          ? precioOriginal - (precioOriginal * (descuento / 100)) 
+          : precioOriginal;
+      
+      if (descuento > 0) {
+        return '${p.nombre} - \$${precioFinal.toStringAsFixed(0)} (antes \$${precioOriginal.toStringAsFixed(0)})';
+      }
+      return '${p.nombre} - \$${precioFinal.toStringAsFixed(0)}';
+    },
     searchText: (p) => p.nombre,
     prefixIcon: Icons.inventory_2_outlined,
     required: true,
+    renderItem: (p) {
+      final descuento = p.descuento;
+      final precioOriginal = p.precio;
+      final precioFinal = descuento > 0 
+          ? precioOriginal - (precioOriginal * (descuento / 100)) 
+          : precioOriginal;
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            p.nombre,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          if (descuento > 0)
+            Row(
+              children: [
+                Text(
+                  '\$${precioOriginal.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 11,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '\$${precioFinal.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: Color(0xFFC9A04E),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  ' (-${descuento.toStringAsFixed(0)}%)',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            )
+          else
+            Text(
+              '\$${precioFinal.toStringAsFixed(0)}',
+              style: const TextStyle(
+                color: Color(0xFFC9A04E),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+        ],
+      );
+    },
     onSelected: (p) {
       setState(() {
         _paqueteSeleccionado = p;

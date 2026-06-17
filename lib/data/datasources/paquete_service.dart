@@ -80,16 +80,21 @@ class PaqueteService {
     required double precio,
     required int duracionMinutos,
     required List<Map<String, dynamic>> detalles,
+    double descuento = 0.0,
   }) async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.paquetes}/completo';
+      
+      // Asegurar que el descuento no supere el 100%
+      final descuentoValido = descuento.clamp(0.0, 100.0);
       
       final payload = {
         'Nombre': nombre,
         'Descripcion': descripcion,
         'Precio': precio,
         'DuracionMinutos': duracionMinutos,
+        'descuento': descuentoValido,
         'Detalles': detalles.map((d) => <String, dynamic>{
           'ServicioId': d['servicioId'] ?? d['ServicioId'],
           'Cantidad': d['cantidad'] ?? d['Cantidad'] ?? 1,

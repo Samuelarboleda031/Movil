@@ -640,11 +640,37 @@ class _ServiciosGestionScreenState extends State<ServiciosGestionScreen> {
                                 AppColors.gold.withOpacity(0.15), AppColors.gold),
                           ]),
                           const SizedBox(height: 6),
-                          Text(AppFormat.cop(p.precio),
-                              style: const TextStyle(
-                                  color: AppColors.gold,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14)),
+                          // Calcular precio final con descuento
+                          Builder(builder: (context) {
+                            final double precioOriginal = p.precio;
+                            final double descuento = p.descuento;
+                            final double precioFinal = descuento > 0 
+                                ? precioOriginal - (precioOriginal * (descuento / 100)) 
+                                : precioOriginal;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (descuento > 0)
+                                  Text(
+                                    AppFormat.cop(precioOriginal),
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                Text(
+                                  AppFormat.cop(precioFinal),
+                                  style: const TextStyle(
+                                    color: AppColors.gold,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
                           if (p.descripcion != null && p.descripcion!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(p.descripcion!,

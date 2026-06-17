@@ -5,6 +5,7 @@ class Paquete {
   final double precio;
   final int duracionMinutos;
   final bool? estado;
+  final double descuento;
 
   Paquete({
     this.id,
@@ -13,7 +14,8 @@ class Paquete {
     required this.precio,
     required this.duracionMinutos,
     this.estado,
-  });
+    double descuento = 0.0,
+  }) : descuento = descuento.clamp(0.0, 100.0);
 
   factory Paquete.fromJson(Map<String, dynamic> json) {
     return Paquete(
@@ -22,7 +24,8 @@ class Paquete {
       descripcion: json['descripcion'] ?? json['Descripcion'],
       precio: (json['precio'] ?? json['Precio'] ?? 0).toDouble(),
       duracionMinutos: json['duracionMinutos'] ?? json['DuracionMinutos'] ?? 0,
-      estado: json['estado'] ?? json['Estado'],
+      estado: json['estado'] ?? json['Estado'] ?? json['activo'] ?? json['Activo'],
+      descuento: (json['descuento'] ?? json['Descuento'] ?? json['porcentajeDescuento'] ?? json['PorcentajeDescuento'] ?? 0.0).toDouble(),
     );
   }
 
@@ -34,6 +37,8 @@ class Paquete {
       'Precio': precio,
       'DuracionMinutos': duracionMinutos,
       'Estado': estado,
+      'Descuento': descuento,
+      'PorcentajeDescuento': descuento,
     };
   }
 }

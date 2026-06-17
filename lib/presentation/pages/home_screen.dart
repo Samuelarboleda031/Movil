@@ -1385,21 +1385,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.gold.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      '\$${paquete.precio.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final double precioOriginal = paquete.precio;
+                      final double descuento = paquete.descuento;
+                      final double precioFinal = descuento > 0 
+                          ? precioOriginal - (precioOriginal * (descuento / 100)) 
+                          : precioOriginal;
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (descuento > 0)
+                            Text(
+                              '\$${precioOriginal.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.gold.withOpacity(0.4)),
+                            ),
+                            child: Text(
+                              '\$${precioFinal.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppColors.gold,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

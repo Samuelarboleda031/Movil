@@ -62,7 +62,7 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
         _nombreCtrl.text = widget.paquete!.nombre;
         _descripcionCtrl.text = widget.paquete!.descripcion ?? '';
         _precioCtrl.text = widget.paquete!.precio.toStringAsFixed(0);
-        _descuentoCtrl.text = '0'; // Por defecto 0 en edición como en Front4
+        _descuentoCtrl.text = widget.paquete!.descuento.toStringAsFixed(0);
 
         final totalMinutos = widget.paquete!.duracionMinutos;
         final h = totalMinutos ~/ 60;
@@ -188,6 +188,8 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
 
       final double precioFinal = double.tryParse(_precioCtrl.text) ?? 0.0;
 
+      final double descuento = double.tryParse(_descuentoCtrl.text) ?? 0.0;
+
       if (_isNew) {
         // 1. Crear Paquete Completo con Detalles
         final success = await _paqueteService.crearPaqueteCompleto(
@@ -196,6 +198,7 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
           precio: precioFinal,
           duracionMinutos: duracionTotal,
           detalles: _serviciosAgregados.map((s) => {'servicioId': s.id, 'cantidad': 1}).toList(),
+          descuento: descuento,
         );
 
         if (success && mounted) {
@@ -212,6 +215,7 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
           precio: precioFinal,
           duracionMinutos: duracionTotal,
           estado: widget.paquete!.estado ?? true,
+          descuento: descuento,
         );
 
         final successGral = await _paqueteService.actualizarPaquete(p);
@@ -702,6 +706,13 @@ class _PaqueteFormScreenState extends State<PaqueteFormScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
+                              validator: (val) {
+                                final d = double.tryParse(val ?? '0') ?? 0;
+                                if (d < 0 || d > 100) {
+                                  return 'Entre 0 y 100';
+                                }
+                                return null;
+                              },
                               onChanged: (val) {
                                 final d = double.tryParse(val) ?? 0;
                                 if (d > 100) {

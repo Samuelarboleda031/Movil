@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:parte_movil/core/network/api_config.dart';
 import 'package:parte_movil/data/models/paquete.dart';
 import 'package:parte_movil/data/models/app_role.dart';
 import 'package:parte_movil/data/models/servicio.dart';
@@ -165,6 +166,13 @@ class _PaqueteDetalleScreenState extends State<PaqueteDetalleScreen> {
   }
 
   Widget _buildInfoGrid() {
+    // Calcular el precio con descuento
+    final double precioOriginal = _currentPaquete.precio;
+    final double descuento = _currentPaquete.descuento;
+    final double precioFinal = descuento > 0 
+        ? precioOriginal - (precioOriginal * (descuento / 100)) 
+        : precioOriginal;
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -173,8 +181,12 @@ class _PaqueteDetalleScreenState extends State<PaqueteDetalleScreen> {
       crossAxisSpacing: 12,
       childAspectRatio: 1.8,
       children: [
-        _buildInfoCard('Precio del Paquete', AppFormat.cop(_currentPaquete.precio)),
+        _buildInfoCard('Precio Final', AppFormat.cop(precioFinal)),
+        if (descuento > 0)
+          _buildInfoCard('Descuento', '${descuento.toStringAsFixed(0)}%'),
         _buildInfoCard('Duración Total', AppFormat.duracion(_currentPaquete.duracionMinutos)),
+        if (descuento > 0)
+          _buildInfoCard('Precio Original', AppFormat.cop(precioOriginal)),
       ],
     );
   }
@@ -357,16 +369,29 @@ class _PaqueteDetalleScreenState extends State<PaqueteDetalleScreen> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(10),
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 color: AppColors.bg,
                                 borderRadius: BorderRadius.circular(8),
+                                image: s.imagen != null && s.imagen!.isNotEmpty
+                                    ? DecorationImage(
+                                        image: NetworkImage(
+                                          s.imagen!.startsWith('http')
+                                              ? s.imagen!
+                                              : '${ApiConfig.baseUrl.replaceAll('/api', '')}${s.imagen}',
+                                        ),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
                               ),
-                              child: const Icon(
-                                Icons.content_cut,
-                                color: AppColors.gold,
-                                size: 20,
-                              ),
+                              child: s.imagen == null || s.imagen!.isEmpty
+                                  ? const Icon(
+                                      Icons.content_cut,
+                                      color: AppColors.gold,
+                                      size: 24,
+                                    )
+                                  : null,
                             ),
                             const SizedBox(width: 14),
                             Expanded(

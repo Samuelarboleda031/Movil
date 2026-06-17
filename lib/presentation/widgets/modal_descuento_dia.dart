@@ -149,23 +149,29 @@ class _ModalDescuentoDiaState extends State<ModalDescuentoDia> {
                   const Icon(Icons.percent, color: AppColors.gold, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?')),
-                      ],
-                      style: const TextStyle(color: AppColors.white, fontSize: 16),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: '0',
-                        hintStyle: TextStyle(color: AppColors.grey),
-                        suffixText: '%',
-                        suffixStyle: TextStyle(color: AppColors.grey, fontSize: 16),
+                        child: TextField(
+                          controller: _ctrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?')),
+                          ],
+                          style: const TextStyle(color: AppColors.white, fontSize: 16),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: '0',
+                            hintStyle: TextStyle(color: AppColors.grey),
+                            suffixText: '%',
+                            suffixStyle: TextStyle(color: AppColors.grey, fontSize: 16),
+                          ),
+                          onChanged: (val) {
+                            final d = double.tryParse(val) ?? 0;
+                            if (d > 100) {
+                              _ctrl.text = '100';
+                            }
+                          },
+                          autofocus: true,
+                        ),
                       ),
-                      autofocus: true,
-                    ),
-                  ),
                 ],
               ),
             ),

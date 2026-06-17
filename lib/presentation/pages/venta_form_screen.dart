@@ -636,8 +636,15 @@ class _VentaFormScreenState extends State<VentaFormScreen>
             0.0,
       'Servicio' =>
         _servicios.where((s) => s.id == item.id).firstOrNull?.precio ?? 0.0,
-      'Paquete' =>
-        _paquetes.where((p) => p.id == item.id).firstOrNull?.precio ?? 0.0,
+      'Paquete' => () {
+        final paquete = _paquetes.where((p) => p.id == item.id).firstOrNull;
+        if (paquete == null) return 0.0;
+        final descuento = paquete.descuento;
+        if (descuento > 0) {
+          return paquete.precio - (paquete.precio * (descuento / 100));
+        }
+        return paquete.precio;
+      }(),
       _ => 0.0,
     };
   }
@@ -1884,14 +1891,29 @@ class _VentaFormScreenState extends State<VentaFormScreen>
           hint: 'Escribe el nombre del paquete...',
           items: opciones,
           selectedItem: _paqueteVentaItem,
-          displayText: (item) =>
-              _paquetes.where((p) => p.id == item.id).firstOrNull?.nombre ?? '',
+          displayText: (item) {
+            final p = _paquetes.where((pk) => pk.id == item.id).firstOrNull;
+            if (p == null) return '';
+            final descuento = p.descuento;
+            final precioFinal = descuento > 0
+                ? p.precio - (p.precio * (descuento / 100))
+                : p.precio;
+            if (descuento > 0) {
+              return '${p.nombre} - ${AppFormat.cop(precioFinal)} (antes ${AppFormat.cop(p.precio)})';
+            }
+            return '${p.nombre} - ${AppFormat.cop(precioFinal)}';
+          },
           searchText: (item) =>
               _paquetes.where((p) => p.id == item.id).firstOrNull?.nombre ?? '',
           prefixIcon: Icons.card_giftcard_outlined,
           required: false,
           renderItem: (item) {
             final p = _paquetes.where((pk) => pk.id == item.id).firstOrNull;
+            if (p == null) return const SizedBox.shrink();
+            final descuento = p.descuento;
+            final precioFinal = descuento > 0
+                ? p.precio - (p.precio * (descuento / 100))
+                : p.precio;
             return Row(
               children: [
                 Container(
@@ -1914,14 +1936,51 @@ class _VentaFormScreenState extends State<VentaFormScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        p?.nombre ?? '',
+                        p.nombre,
                         style: const TextStyle(
                             color: AppColors.whiteSecondary, fontSize: 14),
                       ),
-                      Text(
-                        '${AppFormat.cop(p?.precio ?? 0)}  ·  ${AppFormat.duracion(p?.duracionMinutos ?? 0)}',
-                        style: const TextStyle(
-                            color: AppColors.greyLight, fontSize: 11),
+                      Row(
+                        children: [
+                          if (descuento > 0) ...[
+                            Text(
+                              AppFormat.cop(p.precio),
+                              style: const TextStyle(
+                                color: AppColors.grey,
+                                fontSize: 11,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            AppFormat.cop(precioFinal),
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '·  ${AppFormat.duracion(p.duracionMinutos)}',
+                            style: const TextStyle(
+                              color: AppColors.greyLight,
+                              fontSize: 11,
+                            ),
+                          ),
+                          if (descuento > 0) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '-${descuento.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: AppColors.green,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
