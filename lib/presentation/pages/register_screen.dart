@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePass = true;
   bool _obscurePassConfirm = true;
   List<String> _emailErrors = [];
+  String? _emailDuplicadoError; // "Este correo ya está registrado" (verificación en vivo)
+  Timer? _emailDebounce;
   String? _nombreError;
   String? _apellidoError;
   List<String> _passErrors = [];
@@ -140,10 +143,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _emailErrors = errors;
     });
+
+    // Verificación en tiempo real contra el backend (igual que en Front4).
+    // Solo se consulta cuando el formato es válido, con debounce para no
+    // disparar una petición por cada tecla.
+    _emailDebounce?.cancel();
+    if (errors.isEmpty && email.trim().isNotEmpty) {
+      _emailDebounce = Timer(const Duration(milliseconds: 500), () {
+        _verificarEmailExiste(email.trim());
+      });
+    } else if (_emailDuplicadoError != null) {
+      setState(() => _emailDuplicadoError = null);
+    }
+  }
+
+  Future<void> _verificarEmailExiste(String email) async {
+    final existe = await _auth.existeEmail(email);
+    if (!mounted) return;
+    // Evita condiciones de carrera: solo aplica si el correo no cambió mientras
+    // esperábamos la respuesta.
+    if (_emailCtrl.text.trim() != email) return;
+    setState(() {
+      _emailDuplicadoError = existe ? 'Este correo ya está registrado' : null;
+    });
   }
 
   @override
   void dispose() {
+    _emailDebounce?.cancel();
     _emailCtrl.removeListener(_validarEmail);
     _nombreCtrl.removeListener(_validarNombre);
     _apellidoCtrl.removeListener(_validarApellido);
@@ -182,6 +209,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     if (!emailRegex.hasMatch(email)) {
       _showMessage('Ingresa un correo electrónico válido');
+      return;
+    }
+
+    if (_emailDuplicadoError != null) {
+      _showMessage('Este correo ya está registrado. Intenta iniciar sesión.');
       return;
     }
 
@@ -377,6 +409,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       .toList(),
                 ),
               ),
+            if (_emailDuplicadoError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 12),
+                child: Text(
+                  _emailDuplicadoError!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                ),
+              ),
             const SizedBox(height: 16),
             TextField(
               controller: _passCtrl,
@@ -438,6 +478,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: ElevatedButton(
                 onPressed: (_loading ||
                         _emailErrors.isNotEmpty ||
+                        _emailDuplicadoError != null ||
                         _nombreError != null ||
                         _apellidoError != null ||
                         _passErrors.isNotEmpty ||

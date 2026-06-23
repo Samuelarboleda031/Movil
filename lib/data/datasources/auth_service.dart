@@ -125,6 +125,32 @@ class AuthService {
     }
   }
 
+  /// Verifica en el backend si un correo ya está registrado (endpoint público
+  /// `/Usuarios/existe-email`). Devuelve true solo si el backend confirma que
+  /// existe; ante cualquier error de red devuelve false para no bloquear el
+  /// registro por problemas de conexión.
+  Future<bool> existeEmail(String email) async {
+    final correo = email.trim();
+    if (correo.isEmpty) return false;
+    final url =
+        '${ApiConfig.baseUrl}${ApiConfig.usuarios}/existe-email?email=${Uri.encodeComponent(correo)}';
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final data = jsonDecode(response.body);
+        if (data is Map) {
+          return (data['existe'] ?? data['Existe'] ?? false) == true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ─── AUTH LOGIC ────────────────────────────────────────────────────────────
 
   // Inicia sesión con correo y contraseña

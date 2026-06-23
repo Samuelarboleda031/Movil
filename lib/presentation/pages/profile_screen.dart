@@ -484,6 +484,40 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     return (tipo: 'CC', numero: raw);
   }
 
+  // ── Helpers de fecha: formato visible dd/MM/aaaa <-> ISO yyyy-MM-dd ──────────
+  static String _isoADisplay(String iso) {
+    if (iso.isEmpty) return '';
+    final p = iso.split('-');
+    if (p.length == 3) {
+      return '${p[2].padLeft(2, '0')}/${p[1].padLeft(2, '0')}/${p[0]}';
+    }
+    return iso;
+  }
+
+  /// Convierte "dd/MM/aaaa" a DateTime, o null si no es una fecha real.
+  static DateTime? _parseDisplay(String s) {
+    final p = s.split('/');
+    if (p.length != 3) return null;
+    if (p[2].length != 4) return null;
+    final d = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    final y = int.tryParse(p[2]);
+    if (d == null || m == null || y == null) return null;
+    final dt = DateTime(y, m, d);
+    // Rechaza fechas imposibles como 31/02 (DateTime las "desborda" al mes siguiente).
+    if (dt.year != y || dt.month != m || dt.day != d) return null;
+    return dt;
+  }
+
+  static int _edadEnAnios(DateTime nacimiento, DateTime ref) {
+    int edad = ref.year - nacimiento.year;
+    if (ref.month < nacimiento.month ||
+        (ref.month == nacimiento.month && ref.day < nacimiento.day)) {
+      edad--;
+    }
+    return edad;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -513,7 +547,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
         dir = c.direccion ?? '';
         bar = c.barrio ?? '';
         fec = c.fechaNacimiento != null
-            ? c.fechaNacimiento!.split('T')[0]
+            ? _isoADisplay(c.fechaNacimiento!.split('T')[0])
             : '';
         _fotoPerfil = c.fotoPerfil;
       }
@@ -554,6 +588,39 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
       return;
     }
 
+    // El documento debe tener entre 4 y 18 dígitos (igual que la web/backend).
+    // El máximo (18) ya lo limita el inputFormatter; aquí validamos el mínimo.
+    final docNumero = _documentoCtrl.text.trim();
+    if (docNumero.length < 4) {
+      AppToast.showError(context, 'El número de documento debe tener al menos 4 dígitos');
+      return;
+    }
+
+    // Fecha de nacimiento (solo clientes): valida formato y rango 8-70 años,
+    // y la convierte a ISO (yyyy-MM-dd) que es lo que espera el backend.
+    String? fechaNacimientoIso;
+    if (widget.role == AppRole.client) {
+      final fechaRaw = _fechaNacimientoCtrl.text.trim();
+      if (fechaRaw.isNotEmpty) {
+        final dt = _parseDisplay(fechaRaw);
+        if (dt == null) {
+          AppToast.showError(context, 'La fecha de nacimiento no es válida. Usa el formato dd/mm/aaaa');
+          return;
+        }
+        final edad = _edadEnAnios(dt, DateTime.now());
+        if (edad < 8) {
+          AppToast.showError(context, 'El usuario debe tener al menos 8 años');
+          return;
+        }
+        if (edad > 70) {
+          AppToast.showError(context, 'La fecha de nacimiento ingresada no es válida');
+          return;
+        }
+        fechaNacimientoIso =
+            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      }
+    }
+
     setState(() => _saving = true);
 
     try {
@@ -591,7 +658,7 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
           email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
           direccion: _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
           barrio: _barrioCtrl.text.trim().isEmpty ? null : _barrioCtrl.text.trim(),
-          fechaNacimiento: _fechaNacimientoCtrl.text.trim().isEmpty ? null : _fechaNacimientoCtrl.text.trim(),
+          fechaNacimiento: fechaNacimientoIso,
           estado: true,
         );
 
@@ -868,62 +935,72 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     required String label,
     required TextEditingController ctrl,
   }) {
+    Future<void> abrirCalendario() async {
+      // Rango permitido: entre 8 y 70 años (igual que la web/backend).
+      final now = DateTime.now();
+      final DateTime firstDate = DateTime(now.year - 70, now.month, now.day);
+      final DateTime lastDate = DateTime(now.year - 8, now.month, now.day);
+      DateTime initial = DateTime(now.year - 18, now.month, now.day);
+      final actual = _parseDisplay(ctrl.text.trim());
+      if (actual != null) initial = actual;
+      // Aseguramos que initialDate quede dentro del rango para evitar el assert de Flutter.
+      if (initial.isBefore(firstDate)) initial = firstDate;
+      if (initial.isAfter(lastDate)) initial = lastDate;
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: initial,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        // Solo calendario: evita el modo de texto que exige "/" y muestra "formato no válido".
+        initialEntryMode: DatePickerEntryMode.calendarOnly,
+        locale: const Locale('es', 'CO'),
+        builder: (ctx, child) => Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.gold,
+              onPrimary: AppColors.bg,
+              surface: AppColors.card,
+              onSurface: AppColors.white,
+            ),
+            dialogBackgroundColor: AppColors.card,
+          ),
+          child: child!,
+        ),
+      );
+      if (picked != null) {
+        ctrl.text =
+            '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
+        setState(() {});
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: () async {
-          DateTime initial = DateTime.now().subtract(const Duration(days: 365 * 18));
-          if (ctrl.text.isNotEmpty) {
-            try { initial = DateTime.parse(ctrl.text); } catch (_) {}
-          }
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: initial,
-            firstDate: DateTime(1920),
-            lastDate: DateTime.now(),
-            locale: const Locale('es', 'CO'),
-            builder: (ctx, child) => Theme(
-              data: Theme.of(ctx).copyWith(
-                colorScheme: const ColorScheme.dark(
-                  primary: AppColors.gold,
-                  onPrimary: AppColors.bg,
-                  surface: AppColors.card,
-                  onSurface: AppColors.white,
-                ),
-                dialogBackgroundColor: AppColors.card,
-              ),
-              child: child!,
-            ),
-          );
-          if (picked != null) {
-            final formatted =
-                '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-            ctrl.text = formatted;
-          }
-        },
-        child: AbsorbPointer(
-          child: TextField(
-            controller: ctrl,
-            readOnly: true,
-            style: const TextStyle(color: AppColors.white, fontSize: 15),
-            decoration: InputDecoration(
-              labelText: label,
-              hintText: 'Seleccionar fecha',
-              labelStyle: const TextStyle(color: AppColors.grey, fontSize: 12),
-              hintStyle: const TextStyle(color: AppColors.grey, fontSize: 14),
-              filled: true,
-              fillColor: AppColors.inputBg,
-              suffixIcon: const Icon(Icons.calendar_today_outlined, color: AppColors.grey, size: 18),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.inputBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
-              ),
-            ),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        // Inserta las barras automáticamente mientras se escribe: 18012007 -> 18/01/2007
+        inputFormatters: [_FechaInputFormatter()],
+        style: const TextStyle(color: AppColors.white, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: 'dd/mm/aaaa',
+          labelStyle: const TextStyle(color: AppColors.grey, fontSize: 12),
+          hintStyle: const TextStyle(color: AppColors.grey, fontSize: 14),
+          filled: true,
+          fillColor: AppColors.inputBg,
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.calendar_today_outlined, color: AppColors.grey, size: 18),
+            onPressed: abrirCalendario,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.inputBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
           ),
         ),
       ),
@@ -1007,6 +1084,28 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
                 ),
         ),
       ),
+    );
+  }
+}
+
+/// Inserta automáticamente las barras para que la fecha quede como dd/MM/aaaa
+/// mientras el usuario escribe solo dígitos (ej: 18012007 -> 18/01/2007).
+class _FechaInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final limited = digits.length > 8 ? digits.substring(0, 8) : digits;
+    final buffer = StringBuffer();
+    for (int i = 0; i < limited.length; i++) {
+      buffer.write(limited[i]);
+      // Barra después del día (i==1) y del mes (i==3), sin dejarla colgando al final.
+      if ((i == 1 || i == 3) && i != limited.length - 1) buffer.write('/');
+    }
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }
