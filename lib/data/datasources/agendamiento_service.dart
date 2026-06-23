@@ -242,14 +242,20 @@ class AgendamientoService {
     }
   }
 
-  Future<void> cancelarDiaBarbero({
+  Future<Map<String, dynamic>> cancelarDiaBarbero({
     required int barberoId,
     required int usuarioSolicitanteId,
+    required String fechaReferencia,
     String? motivo,
+    int cantidadSugerencias = 3,
   }) async {
     try {
       final headers = await _getHeaders();
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/barbero/$barberoId/cancelar-dia';
+
+      final fechaISO = fechaReferencia.contains('T')
+          ? fechaReferencia
+          : '${fechaReferencia}T00:00:00';
 
       final response = await http.post(
         Uri.parse(url),
@@ -257,12 +263,24 @@ class AgendamientoService {
         body: jsonEncode({
           'estado': false,
           'usuarioSolicitanteId': usuarioSolicitanteId,
+          'fechaReferencia': fechaISO,
+          'motivo': motivo ?? 'Día cancelado desde la app.',
+          'cantidadSugerencias': cantidadSugerencias,
         }),
       );
 
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Error al cancelar día de barbero: ${response.statusCode} - ${response.body}');
       }
+
+      if (response.body.isNotEmpty) {
+        try {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        } catch (_) {
+          return {};
+        }
+      }
+      return {};
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }

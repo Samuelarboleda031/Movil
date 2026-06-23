@@ -130,15 +130,12 @@ class HorarioBarberoService {
       }
 
       final url = '${ApiConfig.baseUrl}${ApiConfig.horariosBarberos}/$id/estado';
+      final fechaISO = '${DateTime.now().toIso8601String().split('T').first}T00:00:00';
       final payload = jsonEncode({
         'estado': nuevoEstado,
-        'UsuarioSolicitanteId': resolvedUserId,
         'usuarioSolicitanteId': resolvedUserId,
-        'FechaReferencia': DateTime.now().toIso8601String().split('T').first,
-        'fechaReferencia': DateTime.now().toIso8601String().split('T').first,
-        'Motivo': 'Estado cambiado desde el móvil',
+        'fechaReferencia': fechaISO,
         'motivo': 'Estado cambiado desde el móvil',
-        'CantidadSugerencias': 3,
         'cantidadSugerencias': 3,
       });
 

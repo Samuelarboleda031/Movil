@@ -14,7 +14,6 @@ import 'package:parte_movil/core/utils/app_snackbar.dart';
 import 'package:parte_movil/core/utils/error_utils.dart';
 import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/data/datasources/agendamiento_service.dart';
-import 'package:parte_movil/data/datasources/emailjs_service.dart';
 import 'package:parte_movil/presentation/pages/cancelar_dias_screen.dart';
 import 'dart:math' as math;
 import 'horario_form_screen.dart';
@@ -233,64 +232,74 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
 
     try {
       final srv = AgendamientoService();
-      final allApps = await srv.obtenerAgendamientos(page: 1, pageSize: 5000);
-
-      final fechasObjetivo = dates
-          .map((d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}')
-          .toSet();
+      final motivo = (result['motivo'] as String?)?.isNotEmpty == true
+          ? result['motivo'] as String
+          : 'Día cancelado por administración.';
       final bool modoHora = horaInicio != null && horaFin != null;
+      final user = await AuthService().getCurrentUser();
+      final usuarioId = user?.id ?? 0;
 
-      int parseMinutes(String? time) {
-        if (time == null || time.isEmpty) return 0;
-        final parts = time.split(':');
-        if (parts.length < 2) return 0;
-        return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
-      }
+      int totalCanceladas = 0;
 
-      final int startMin = modoHora ? parseMinutes(horaInicio) : 0;
-      final int endMin = modoHora ? parseMinutes(horaFin) : 0;
+      if (modoHora) {
+        final allApps = await srv.obtenerAgendamientos(page: 1, pageSize: 5000);
+        final fechasObjetivo = dates
+            .map((d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}')
+            .toSet();
 
-      int canceladas = 0;
-
-      for (final cita in allApps.items) {
-        final fechaCita = cita.fechaCita ?? '';
-        if (!fechasObjetivo.contains(fechaCita)) continue;
-        if (b.id != -1 && cita.barberoId != b.id) continue;
-        final est = (cita.estadoCita ?? '').toLowerCase().trim();
-        if (est == 'cancelada' || est == 'cancelado' || est == 'completada' || est == 'finalizado') continue;
-        if (cita.id == null) continue;
-
-        if (modoHora) {
-          final citaMin = parseMinutes(cita.horaInicio);
-          if (citaMin < startMin || citaMin >= endMin) continue;
+        int parseMinutes(String? time) {
+          if (time == null || time.isEmpty) return 0;
+          final parts = time.split(':');
+          if (parts.length < 2) return 0;
+          return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
         }
 
-        await srv.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
-        canceladas++;
+        final int startMin = parseMinutes(horaInicio);
+        final int endMin = parseMinutes(horaFin);
 
-        // Notificación al cliente vía email
-        final clienteEmail = cita.cliente?.email ?? '';
-        if (clienteEmail.isNotEmpty) {
-          final bNombre = b.id != -1 ? b.nombre : (cita.barberoNombre ?? 'Barbero');
-          final cNombre = cita.cliente?.nombre ?? cita.clienteNombre ?? 'Cliente';
+        for (final cita in allApps.items) {
+          final fechaCita = cita.fechaCita ?? '';
+          if (!fechasObjetivo.contains(fechaCita)) continue;
+          if (b.id != -1 && cita.barberoId != b.id) continue;
+          final est = (cita.estadoCita ?? '').toLowerCase().trim();
+          if (est == 'cancelada' || est == 'cancelado' || est == 'completada' || est == 'finalizado') continue;
+          if (cita.id == null) continue;
 
-          String fechaStr = '${cita.fechaCita} ${cita.horaInicio ?? ''}'.trim();
-          try {
-            if (cita.fechaCita != null) {
-              final dt = DateTime.parse(cita.fechaCita!);
-              fechaStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${cita.horaInicio ?? ''}';
+          final citaMin = parseMinutes(cita.horaInicio);
+          if (citaMin < startMin || citaMin >= endMin) continue;
+
+          await srv.actualizarEstadoAgendamiento(cita.id!, 'Cancelada');
+          totalCanceladas++;
+        }
+      } else {
+        if (b.id == -1) {
+          final barberoService = BarberoService();
+          final barberos = await barberoService.obtenerBarberos();
+          for (final fecha in dates) {
+            final fechaStr = '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
+            for (final barbero in barberos) {
+              try {
+                await srv.cancelarDiaBarbero(
+                  barberoId: barbero.id!,
+                  usuarioSolicitanteId: usuarioId,
+                  fechaReferencia: fechaStr,
+                  motivo: motivo,
+                );
+              } catch (_) {}
             }
-          } catch (_) {}
-
-          try {
-            await EmailJsService().notificarCancelacion(
-              clienteNombre: cNombre,
-              clienteEmail: clienteEmail,
-              barberoNombre: bNombre,
-              fechaOriginal: fechaStr,
-              motivo: 'El día/horario ha sido cancelado por la administración.',
+            totalCanceladas++;
+          }
+        } else {
+          for (final fecha in dates) {
+            final fechaStr = '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
+            await srv.cancelarDiaBarbero(
+              barberoId: b.id!,
+              usuarioSolicitanteId: usuarioId,
+              fechaReferencia: fechaStr,
+              motivo: motivo,
             );
-          } catch (_) {}
+            totalCanceladas++;
+          }
         }
       }
 
@@ -300,8 +309,8 @@ class _HorariosGestionScreenState extends State<HorariosGestionScreen> {
 
       if (mounted) {
         final String msg = modoHora
-            ? 'Se cancelaron $canceladas cita(s) en ese rango horario.'
-            : 'Se cancelaron $canceladas cita(s) para las fechas seleccionadas.';
+            ? 'Se cancelaron citas en ese rango horario.'
+            : 'Se cancelaron $totalCanceladas día(s) correctamente.';
         AppToast.showSuccess(context, msg);
         context.read<HorariosBloc>().add(LoadHorariosRequested());
       }
