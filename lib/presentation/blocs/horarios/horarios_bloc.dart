@@ -49,11 +49,20 @@ class HorariosBloc extends Bloc<HorariosEvent, HorariosState> {
           '${lunes.month.toString().padLeft(2, '0')}-'
           '${lunes.day.toString().padLeft(2, '0')}';
 
-      // Filtrar: excluir Finalizados y semanas anteriores a la actual
+      // Filtrar: excluir Finalizados, semanas anteriores y barberos eliminados/inválidos
+      // Un barbero eliminado llega con BarberoNombre null, vacío, o con nombre genérico
+      // como "Usuario" porque su registro de usuario fue eliminado
+      final barberoActivos = await barberoService.obtenerBarberos();
+      final barberoActivosIds = barberoActivos
+          .where((b) => b.estado == true)
+          .map((b) => b.id)
+          .toSet();
+
       final horariosSemanaActual = horarios
           .where((h) =>
               h.estado != 'Finalizado' &&
-              h.fechaInicioSemana.compareTo(lunesStr) >= 0)
+              h.fechaInicioSemana.compareTo(lunesStr) >= 0 &&
+              barberoActivosIds.contains(h.barberoId))
           .toList();
 
       // Filter schedules based on role

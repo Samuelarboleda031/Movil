@@ -92,13 +92,24 @@ class HorarioSemanal {
 
     // Intentar obtener nombre del barbero desde la relación
     String? barberoNombre;
-    final barberoObj = j['barbero'] ?? j['Barbero'];
-    if (barberoObj is Map) {
-      final usuario = barberoObj['usuario'] ?? barberoObj['Usuario'];
-      if (usuario is Map) {
-        final nombre = usuario['nombre'] ?? usuario['Nombre'] ?? '';
-        final apellido = usuario['apellido'] ?? usuario['Apellido'] ?? '';
-        barberoNombre = '$nombre $apellido'.trim();
+
+    // 1. Leer el campo directo del DTO (lo más confiable)
+    final rawNombre = j['barberoNombre'] ?? j['BarberoNombre'];
+    if (rawNombre is String && rawNombre.trim().isNotEmpty) {
+      barberoNombre = rawNombre.trim();
+    }
+
+    // 2. Fallback: navegar barbero.usuario si el campo directo no vino
+    if (barberoNombre == null) {
+      final barberoObj = j['barbero'] ?? j['Barbero'];
+      if (barberoObj is Map) {
+        final usuario = barberoObj['usuario'] ?? barberoObj['Usuario'];
+        if (usuario is Map) {
+          final nombre = usuario['nombre'] ?? usuario['Nombre'] ?? '';
+          final apellido = usuario['apellido'] ?? usuario['Apellido'] ?? '';
+          final full = '$nombre $apellido'.trim();
+          if (full.isNotEmpty) barberoNombre = full;
+        }
       }
     }
 

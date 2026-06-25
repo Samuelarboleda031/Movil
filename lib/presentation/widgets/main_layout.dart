@@ -13,6 +13,7 @@ import 'package:parte_movil/data/datasources/cliente_service.dart';
 import 'package:parte_movil/data/datasources/barbero_service.dart';
 import 'package:parte_movil/data/datasources/user_context_service.dart';
 import 'package:parte_movil/data/models/cliente.dart';
+import 'package:parte_movil/data/models/barbero.dart';
 
 import 'package:parte_movil/presentation/pages/home_screen.dart';
 import 'package:parte_movil/presentation/pages/agendamientos_screen.dart';
@@ -28,7 +29,9 @@ import 'package:parte_movil/presentation/pages/horarios_gestion_screen.dart';
 import 'package:parte_movil/presentation/pages/horario_form_screen.dart';
 import 'package:parte_movil/presentation/blocs/horarios/horarios_bloc.dart';
 import 'package:parte_movil/presentation/blocs/horarios/horarios_event.dart';
+import 'package:parte_movil/presentation/blocs/horarios/horarios_state.dart';
 import 'package:parte_movil/data/datasources/horario_barbero_service.dart';
+import 'package:parte_movil/data/models/horario_barbero.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 
 class MainLayout extends StatefulWidget {
@@ -371,9 +374,40 @@ class _MainLayoutState extends State<MainLayout> {
       );
     } else if (_currentIndex == 5 && (widget.role == AppRole.admin || widget.role == AppRole.manager)) {
       floatingActionButton = FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(value: _horariosBloc, child: HorarioFormScreen(role: widget.role)))).then((_) {
-          if (mounted) setState(() {});
-        }),
+        onPressed: () async {
+          final now = DateTime.now();
+          final lunes = now.subtract(Duration(days: now.weekday - 1));
+          final lunesStr =
+              '${lunes.year.toString().padLeft(4, '0')}-'
+              '${lunes.month.toString().padLeft(2, '0')}-'
+              '${lunes.day.toString().padLeft(2, '0')}';
+
+          final state = _horariosBloc.state;
+          final horariosCargados = state is HorariosLoaded ? state.horarios : <HorarioSemanal>[];
+          final idsConHorario = horariosCargados
+              .where((h) => h.fechaInicioSemana == lunesStr)
+              .map((h) => h.barberoId)
+              .toSet();
+
+          List<Barbero> barberosLibres = [];
+          try {
+            final todos = await BarberoService().obtenerBarberos();
+            barberosLibres = todos
+                .where((b) => (b.estado ?? true) && !idsConHorario.contains(b.id))
+                .toList();
+          } catch (_) {}
+
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BlocProvider.value(
+                value: _horariosBloc,
+                child: HorarioFormScreen(role: widget.role, barberosLibres: barberosLibres),
+              ),
+            ),
+          ).then((_) { if (mounted) setState(() {}); });
+        },
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
