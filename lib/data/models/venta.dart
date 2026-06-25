@@ -64,7 +64,17 @@ class Venta extends Equatable {
     final List<dynamic>? detallesList = 
         json['detalles'] ?? json['detalleVenta'] ?? json['DetalleVenta'];
 
-    String? rNombreStr = json['usuarioNombreCompleto'] ?? json['UsuarioNombreCompleto'] ?? json['responsableNombre'] ?? json['ResponsableNombre'] ?? json['usuarioNombre'] ?? json['UsuarioNombre'];
+    // Priorizar la información de usuario almacenada directamente en la venta
+    String? uNombre = json['usuarioNombre'] ?? json['UsuarioNombre'];
+    String? uApellido = json['usuarioApellido'] ?? json['UsuarioApellido'];
+    String? rNombreStr;
+    if (uNombre != null || uApellido != null) {
+      rNombreStr = '${uNombre ?? ''} ${uApellido ?? ''}'.trim();
+    }
+    if (rNombreStr == null || rNombreStr.isEmpty) {
+      rNombreStr = json['usuarioNombreCompleto'] ?? json['UsuarioNombreCompleto'] ?? json['responsableNombre'] ?? json['ResponsableNombre'] ?? json['usuarioNombre'] ?? json['UsuarioNombre'];
+    }
+    
     String? bNombreStr = json['barberoNombreCompleto'] ?? json['BarberoNombreCompleto'] ?? json['barberoNombre'] ?? json['BarberoNombre'] ?? json['nombreBarbero'] ?? json['NombreBarbero'];
     if (bNombreStr == null && json['barbero'] is String) bNombreStr = json['barbero'];
     if (rNombreStr == null && json['usuario'] is String) rNombreStr = json['usuario'];
