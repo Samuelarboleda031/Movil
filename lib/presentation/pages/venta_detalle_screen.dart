@@ -426,6 +426,11 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     );
   }
 
+  double _calcSubtotalGeneral(Venta venta) {
+    if (venta.detalles == null || venta.detalles!.isEmpty) return venta.subtotal;
+    return venta.detalles!.fold(0.0, (sum, d) => sum + (d.precioUnitario * d.cantidad));
+  }
+
   Widget _buildPaymentSummary(Venta venta) {
     // Para barbero en vista ganancias: mostrar resumen de comisión
     if (widget.role == AppRole.barber && !_esCompraBarbero(venta)) {
@@ -494,6 +499,12 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
       );
     }
 
+    final double realSubtotalAdmin = _calcSubtotalGeneral(venta);
+    final double descuentoAdmin = venta.porcentajeDescuento;
+    final double saldoUsadoAdmin = venta.saldoAFavorUsado ?? 0.0;
+    double totalRecibidoAdmin = realSubtotalAdmin - descuentoAdmin - saldoUsadoAdmin;
+    if (totalRecibidoAdmin < 0) totalRecibidoAdmin = 0;
+    
     // Admin / Manager / Compra barbero: resumen financiero completo
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,7 +529,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
               ),
             ),
             Text(
-              AppFormat.cop(venta.subtotal),
+              AppFormat.cop(realSubtotalAdmin),
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 color: Colors.grey[400],
@@ -599,7 +610,7 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
             ),
             Text(
-              AppFormat.cop((venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total),
+              AppFormat.cop((venta.creditoBarberoUsado ?? 0) > 0 ? 0 : totalRecibidoAdmin),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
