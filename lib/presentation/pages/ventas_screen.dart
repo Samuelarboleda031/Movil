@@ -899,6 +899,13 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
+  double _calcTotalServicios(Venta venta) {
+    if (venta.detalles == null || venta.detalles!.isEmpty) return 0;
+    return venta.detalles!
+        .where((d) => d.servicioId != null || d.paqueteId != null)
+        .fold(0, (sum, d) => sum + (d.precioUnitario * d.cantidad));
+  }
+
   Widget _buildVentaCard(Venta venta, Map<int, Cliente> catalogo) {
     final bool isAnulada = venta.estado?.toLowerCase() == 'anulada';
     final bool isVentaBarbero = (venta.tipoVenta ?? '').toLowerCase().contains('barbero')
@@ -909,8 +916,14 @@ class _VentasScreenState extends State<VentasScreen> {
             && venta.barberoId != null);
     final String labelNumero = 'Nº ${venta.id}';
     final String labelCliente = _getNombreMostrar(venta, catalogo);
-    // Si es crédito barbero, el total recibido es 0
-    final double totalMostrar = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
+    // Calcular total a mostrar: si es barbero en vista ganancias, mostrar 60% del total de servicios
+    double totalMostrar;
+    if (widget.role == AppRole.barber && _barberoVista == 'ganancias') {
+      totalMostrar = _calcTotalServicios(venta) * 0.6;
+    } else {
+      // Si es crédito barbero, el total recibido es 0
+      totalMostrar = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
+    }
     final String labelPrecio = AppFormat.cop(totalMostrar);
     final String fechaStr = (venta.fechaRegistro?.contains('T') ?? false)
         ? venta.fechaRegistro!.split('T')[0]

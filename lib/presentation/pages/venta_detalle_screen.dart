@@ -80,6 +80,20 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
     }
   }
 
+  /// Total de servicios y paquetes (sin productos) de la venta.
+  double _calcTotalServicios(Venta venta) {
+    if (venta.detalles == null || venta.detalles!.isEmpty) return 0;
+    return venta.detalles!
+        .where((d) => d.servicioId != null || d.paqueteId != null)
+        .fold(0.0, (sum, d) => sum + (d.precioUnitario * d.cantidad));
+  }
+
+  /// Detecta si esta venta es una compra de barbero (no ganancia).
+  bool _esCompraBarbero(Venta venta) {
+    return (venta.tipoVenta ?? '').toLowerCase().contains('barbero')
+        || venta.metodoPago.toLowerCase() == 'creditobarbero';
+  }
+
   String _getNombreMostrar(Venta v) {
     if (v.clienteNombre != null &&
         v.clienteNombre!.isNotEmpty &&
@@ -153,8 +167,16 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
 
   Widget _buildHeader(Venta venta) {
     final String numeroVenta = '${venta.id ?? 'N/A'}';
-    // Si es crédito barbero, el total recibido es 0
-    final double totalRecibido = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
+
+    // Para barbero en vista ganancias: mostrar 60% del total de servicios
+    double totalRecibido;
+    String totalLabel = 'Total Recibido';
+    if (widget.role == AppRole.barber && !_esCompraBarbero(venta)) {
+      totalRecibido = _calcTotalServicios(venta) * 0.6;
+      totalLabel = 'Mi Ganancia (60%)';
+    } else {
+      totalRecibido = (venta.creditoBarberoUsado ?? 0) > 0 ? 0 : venta.total;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,6 +184,13 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
         // Nº Venta
         _buildHeaderBadge('Nº Venta', numeroVenta),
         const SizedBox(height: 14),
+        // Label
+        if (widget.role == AppRole.barber && !_esCompraBarbero(venta))
+          Text(
+            totalLabel,
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
+          ),
+        const SizedBox(height: 2),
         // Total
         Text(
           AppFormat.cop(totalRecibido),
@@ -293,12 +322,29 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   }
 
   Widget _buildItemsList(Venta venta) {
+    // Si es barbero y está viendo sus ganancias, ocultar los productos
+    final bool ocultarProductos = widget.role == AppRole.barber && !_esCompraBarbero(venta);
+    final detallesAMostrar = venta.detalles?.where((d) {
+      if (ocultarProductos && d.productoId != null) return false;
+      return true;
+    }).toList() ?? [];
+
+    if (detallesAMostrar.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text(
+          'No hay servicios registrados.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: venta.detalles?.length ?? 0,
+      itemCount: detallesAMostrar.length,
       itemBuilder: (context, index) {
-        final d = venta.detalles![index];
+        final d = detallesAMostrar[index];
         String itemName = 'Item Desconocido';
         String? itemImage;
         IconData defaultIcon = Icons.shopping_bag_outlined;
@@ -381,10 +427,78 @@ class _VentaDetalleScreenState extends State<VentaDetalleScreen> {
   }
 
   Widget _buildPaymentSummary(Venta venta) {
+    // Para barbero en vista ganancias: mostrar resumen de comisión
+    if (widget.role == AppRole.barber && !_esCompraBarbero(venta)) {
+      final totalServicios = _calcTotalServicios(venta);
+      final ganancia = totalServicios * 0.6;
+      final barberia = totalServicios * 0.4;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Resumen de Comisión',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Servicios',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                AppFormat.cop(totalServicios),
+                style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[400]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Barbería (40%)',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                AppFormat.cop(barberia),
+                style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
+              ),
+            ],
+          ),
+          const Divider(height: 32, thickness: 0.5, color: Colors.grey),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Mi Ganancia (60%)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+              ),
+              Text(
+                AppFormat.cop(ganancia),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFD8B081),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Admin / Manager / Compra barbero: resumen financiero completo
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Resumen Financiero',
           style: TextStyle(
             fontSize: 14,

@@ -72,8 +72,13 @@ class VentasBloc extends Bloc<VentasEvent, VentasState> {
           pageSize: 1000,
         );
 
+        // Filtrar solo las ventas asignadas a este barbero
+        final ventasBarbero = paginacion.items
+            .where((v) => v.barberoId == barberoLocal.id)
+            .toList();
+
         emit(VentasLoaded(
-          ventas: paginacion.items,
+          ventas: ventasBarbero,
           catalogoClientes: _catalogoClientes,
           paginacion: paginacion,
           currentPage: 1,
