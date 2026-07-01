@@ -14,6 +14,7 @@ import 'package:parte_movil/presentation/blocs/auth/auth_bloc.dart';
 import 'package:parte_movil/presentation/blocs/auth/auth_event.dart';
 import 'package:parte_movil/presentation/widgets/session_guard.dart';
 import 'package:parte_movil/presentation/widgets/dashboard_ganancias_widget.dart';
+import 'package:parte_movil/presentation/widgets/gastos_externos_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:parte_movil/data/models/producto.dart';
 import 'package:parte_movil/data/models/paquete.dart';
@@ -659,6 +660,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Text('Resumen del Día', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.white)),
                 const SizedBox(height: 16),
                 DashboardGananciasWidget(role: widget.role),
+                const SizedBox(height: 20),
+                const GastosExternosWidget(),
               ],
             ),
           ),
