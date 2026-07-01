@@ -136,9 +136,10 @@ class AgendamientoService {
   Future<void> cancelarAgendamiento(int id) async {
     try {
       final headers = await _getHeaders();
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id'),
+      final response = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.agendamientos}/$id/estado'),
         headers: headers,
+        body: jsonEncode({'estado': 'Cancelada'}),
       );
 
       if (response.statusCode != 200 && response.statusCode != 204) {
