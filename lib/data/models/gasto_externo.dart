@@ -88,6 +88,47 @@ class ResumenDia {
   }
 }
 
+class ResumenRango {
+  final String desde;
+  final String hasta;
+  final double ingresosVentas;
+  final double ingresosAgendamientos;
+  final double ingresosTotal;
+  final double gastosExternos;
+  final double gananciaNeta;
+  final int cantidadGastos;
+  final List<GastoExterno> gastos;
+
+  ResumenRango({
+    required this.desde,
+    required this.hasta,
+    required this.ingresosVentas,
+    required this.ingresosAgendamientos,
+    required this.ingresosTotal,
+    required this.gastosExternos,
+    required this.gananciaNeta,
+    required this.cantidadGastos,
+    required this.gastos,
+  });
+
+  factory ResumenRango.fromJson(Map<String, dynamic> json) {
+    return ResumenRango(
+      desde: json['desde'] ?? '',
+      hasta: json['hasta'] ?? '',
+      ingresosVentas: (json['ingresosVentas'] ?? 0).toDouble(),
+      ingresosAgendamientos: (json['ingresosAgendamientos'] ?? 0).toDouble(),
+      ingresosTotal: (json['ingresosTotal'] ?? 0).toDouble(),
+      gastosExternos: (json['gastosExternos'] ?? 0).toDouble(),
+      gananciaNeta: (json['gananciaNeta'] ?? 0).toDouble(),
+      cantidadGastos: json['cantidadGastos'] ?? 0,
+      gastos: (json['gastos'] as List<dynamic>?)
+              ?.map((g) => GastoExterno.fromJson(g))
+              .toList() ??
+          [],
+    );
+  }
+}
+
 const List<String> categoriasGasto = [
   'Servicios',
   'Suministros',

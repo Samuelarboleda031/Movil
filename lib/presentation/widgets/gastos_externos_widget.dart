@@ -43,6 +43,9 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
   // Data for day mode (full resumen with KPIs)
   ResumenDia? _resumen;
 
+  // Data for range modes (resumen with KPIs)
+  ResumenRango? _resumenRango;
+
   // Data for range modes (just gastos list)
   List<GastoExterno> _rangeGastos = [];
 
@@ -114,10 +117,10 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
     try {
       if (_filter == _FilterMode.dia) {
         final data = await _service.obtenerResumenDia(_fmtDate(_from));
-        if (mounted) setState(() { _resumen = data; _rangeGastos = []; _loading = false; });
+        if (mounted) setState(() { _resumen = data; _resumenRango = null; _rangeGastos = []; _loading = false; });
       } else {
-        final data = await _service.obtenerPorRango(_fmtDate(_from), _fmtDate(_to));
-        if (mounted) setState(() { _rangeGastos = data; _resumen = null; _loading = false; });
+        final data = await _service.obtenerResumenRango(_fmtDate(_from), _fmtDate(_to));
+        if (mounted) setState(() { _resumenRango = data; _rangeGastos = data.gastos; _resumen = null; _loading = false; });
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
@@ -313,30 +316,10 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
                 ),
               )
             else ...[
-              // KPI Row
+              // KPI Cards
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: _filter == _FilterMode.dia && _resumen != null
-                    ? Row(
-                        children: [
-                          Expanded(child: _miniKpi('Ingresos', _moneyFmt.format(_resumen!.ingresosTotal), const Color(0xFF34D399))),
-                          const SizedBox(width: 8),
-                          Expanded(child: _miniKpi('Gastos', _moneyFmt.format(_resumen!.gastosExternos), const Color(0xFFFB923C))),
-                          const SizedBox(width: 8),
-                          Expanded(child: _miniKpi(
-                            'Neta',
-                            _moneyFmt.format(_resumen!.gananciaNeta),
-                            _resumen!.gananciaNeta >= 0 ? const Color(0xFF60A5FA) : Colors.redAccent,
-                          )),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(child: _miniKpi('Total Gastos', _moneyFmt.format(_totalGastos), const Color(0xFFFB923C))),
-                          const SizedBox(width: 8),
-                          Expanded(child: _miniKpi('Cantidad', '${_gastos.length}', const Color(0xFF6EA8FE))),
-                        ],
-                      ),
+                child: _buildKpiSection(),
               ),
               const SizedBox(height: 12),
 
@@ -369,6 +352,58 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildKpiSection() {
+    final double ingresos;
+    final double gastos;
+    final double neta;
+
+    if (_filter == _FilterMode.dia && _resumen != null) {
+      ingresos = _resumen!.ingresosTotal;
+      gastos = _resumen!.gastosExternos;
+      neta = _resumen!.gananciaNeta;
+    } else if (_resumenRango != null) {
+      ingresos = _resumenRango!.ingresosTotal;
+      gastos = _resumenRango!.gastosExternos;
+      neta = _resumenRango!.gananciaNeta;
+    } else {
+      ingresos = 0;
+      gastos = _totalGastos;
+      neta = -_totalGastos;
+    }
+
+    final netaColor = neta >= 0 ? const Color(0xFF60A5FA) : Colors.redAccent;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Si el ancho es menor a 340, apilar en 2 filas
+        if (constraints.maxWidth < 340) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _miniKpi('Ingresos', _moneyFmt.format(ingresos), const Color(0xFF34D399))),
+                  const SizedBox(width: 8),
+                  Expanded(child: _miniKpi('Gastos', _moneyFmt.format(gastos), const Color(0xFFFB923C))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _miniKpi('Ganancia Neta', _moneyFmt.format(neta), netaColor),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: _miniKpi('Ingresos', _moneyFmt.format(ingresos), const Color(0xFF34D399))),
+            const SizedBox(width: 8),
+            Expanded(child: _miniKpi('Gastos', _moneyFmt.format(gastos), const Color(0xFFFB923C))),
+            const SizedBox(width: 8),
+            Expanded(child: _miniKpi('Neta', _moneyFmt.format(neta), netaColor)),
+          ],
+        );
+      },
     );
   }
 
