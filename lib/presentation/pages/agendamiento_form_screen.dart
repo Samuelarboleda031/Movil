@@ -108,6 +108,9 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
   List<HorarioSemanal> _todosLosHorarios = [];
 
   Cliente? _clienteSeleccionado;
+  // Nombre de invitado (walk-in sin registro). Cuando no es null, la cita se
+  // agenda sin clienteId y al completarla genera una "Venta Invitado".
+  String? _clienteInvitado;
   Barbero? _barberoSeleccionado;
   List<Servicio> _serviciosSeleccionados = [];
   Paquete? _paqueteSeleccionado;
@@ -281,10 +284,17 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
   void _rellenarFormulario(Agendamiento a) {
     setState(() {
-      try {
-        _clienteSeleccionado = _clientes.firstWhere((c) => c.id == a.clienteId);
-      } catch (_) {
-        _clienteSeleccionado = a.cliente;
+      // Cita de invitado: sin clienteId registrado pero con nombre libre.
+      if (a.clienteId <= 0 && (a.clienteNombre?.trim().isNotEmpty ?? false)) {
+        _clienteInvitado = a.clienteNombre!.trim();
+        _clienteSeleccionado = null;
+      } else {
+        _clienteInvitado = null;
+        try {
+          _clienteSeleccionado = _clientes.firstWhere((c) => c.id == a.clienteId);
+        } catch (_) {
+          _clienteSeleccionado = a.cliente;
+        }
       }
       try {
         _barberoSeleccionado = _barberos.firstWhere((b) => b.id == a.barberoId);
@@ -469,8 +479,9 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
 
   Future<void> _guardarAgendamiento() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_clienteSeleccionado == null) {
-      _mostrarError('Por favor seleccione un cliente');
+    final bool esInvitado = _clienteInvitado != null && _clienteInvitado!.trim().isNotEmpty;
+    if (_clienteSeleccionado == null && !esInvitado) {
+      _mostrarError('Por favor seleccione un cliente o agende como invitado');
       return;
     }
     if (_barberoSeleccionado == null) {
@@ -510,7 +521,8 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     try {
       final agendamiento = Agendamiento(
         id: widget.agendamiento?.id,
-        clienteId: _clienteSeleccionado!.id!,
+        clienteId: esInvitado ? 0 : _clienteSeleccionado!.id!,
+        clienteNombre: esInvitado ? _clienteInvitado!.trim() : null,
         barberoId: _barberoSeleccionado!.id!,
         servicioId: _esServicio && _serviciosSeleccionados.isNotEmpty
             ? _serviciosSeleccionados.first.id
@@ -582,6 +594,64 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
     _recalcularSlots();
   }
 
+  /// Diálogo para capturar el nombre de un cliente invitado (sin registro).
+  void _showInvitadoDialog() {
+    final ctrl = TextEditingController(text: _clienteInvitado ?? '');
+    void confirmar() {
+      final n = ctrl.text.trim();
+      if (n.isEmpty) return;
+      setState(() {
+        _clienteInvitado = n;
+        _clienteSeleccionado = null;
+      });
+      Navigator.pop(context);
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_kRadius)),
+        title: const Text(
+          'Cliente invitado',
+          style: TextStyle(color: _kText, fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          style: const TextStyle(color: _kText, fontSize: 14),
+          onSubmitted: (_) => confirmar(),
+          decoration: InputDecoration(
+            hintText: 'Nombre del invitado',
+            hintStyle: const TextStyle(color: _kTextFaint, fontSize: 14),
+            filled: true,
+            fillColor: _kSurface2,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: _kBorder, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: _kGoldDark, width: 0.5),
+              borderRadius: BorderRadius.circular(_kRadiusMd),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: _kTextDim)),
+          ),
+          TextButton(
+            onPressed: confirmar,
+            child: const Text('Aceptar', style: TextStyle(color: _kGoldMid, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showClienteSelector() {
     showModalBottomSheet(
       context: context,
@@ -613,7 +683,37 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _kGoldTint,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _kGoldBorder, width: 0.5),
+                  ),
+                  child: const Icon(Icons.person_add_alt, color: _kGoldMid, size: 20),
+                ),
+                title: const Text(
+                  'Cliente invitado',
+                  style: TextStyle(color: _kGoldMid, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Agendar sin registrar al cliente',
+                  style: TextStyle(color: _kTextDim, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showInvitadoDialog();
+                },
+              ),
+            ),
+            const Divider(color: _kBorder, height: 1),
+            const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
                 itemCount: _clientes.length,
@@ -630,6 +730,7 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                     onTap: () {
                       setState(() {
                         _clienteSeleccionado = c;
+                        _clienteInvitado = null;
                       });
                       Navigator.pop(context);
                     },
@@ -2164,7 +2265,14 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                               onTap: null,
                               locked: true,
                             )
-                          : _clienteSeleccionado != null
+                          : _clienteInvitado != null
+                              ? _buildSelectorCard(
+                                  icon: Icons.person_outline,
+                                  name: _clienteInvitado!,
+                                  hint: 'Invitado · toca para cambiar',
+                                  onTap: () => setState(() => _clienteInvitado = null),
+                                )
+                              : _clienteSeleccionado != null
                               ? _buildSelectorCard(
                                   icon: Icons.person_outline,
                                   name: _clienteSeleccionado!.nombreCompleto,
@@ -2172,34 +2280,53 @@ class _AgendamientoFormScreenState extends State<AgendamientoFormScreen> {
                                   foto: _clienteSeleccionado!.fotoPerfil,
                                   onTap: () => _showClienteSelector(),
                                 )
-                              : SearchableSelector<Cliente>(
-                                  label: '',
-                                  hint: 'Selecciona un cliente...',
-                                  items: _clientes,
-                                  selectedItem: _clienteSeleccionado,
-                                  displayText: (c) => c.nombreCompleto,
-                                  searchText: (c) => c.nombreCompleto,
-                                  prefixIcon: Icons.person_outline,
-                                  required: true,
-                                  renderItem: (c) => Row(
-                                    children: [
-                                      _buildAvatar(
-                                        c.fotoPerfil,
-                                        Icons.person_outline,
-                                        size: 30,
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SearchableSelector<Cliente>(
+                                      label: '',
+                                      hint: 'Selecciona un cliente...',
+                                      items: _clientes,
+                                      selectedItem: _clienteSeleccionado,
+                                      displayText: (c) => c.nombreCompleto,
+                                      searchText: (c) => c.nombreCompleto,
+                                      prefixIcon: Icons.person_outline,
+                                      required: true,
+                                      renderItem: (c) => Row(
+                                        children: [
+                                          _buildAvatar(
+                                            c.fotoPerfil,
+                                            Icons.person_outline,
+                                            size: 30,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            c.nombreCompleto,
+                                            style: const TextStyle(
+                                              color: _kText,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        c.nombreCompleto,
-                                        style: const TextStyle(
-                                          color: _kText,
-                                          fontSize: 14,
-                                        ),
+                                      onSelected: (c) =>
+                                          setState(() => _clienteSeleccionado = c),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextButton.icon(
+                                      onPressed: _showInvitadoDialog,
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                    ],
-                                  ),
-                                  onSelected: (c) =>
-                                      setState(() => _clienteSeleccionado = c),
+                                      icon: const Icon(Icons.person_add_alt, size: 16, color: _kGoldMid),
+                                      label: const Text(
+                                        'Agendar como invitado',
+                                        style: TextStyle(color: _kGoldMid, fontSize: 13, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  ],
                                 ),
 
                       _buildDivider(),

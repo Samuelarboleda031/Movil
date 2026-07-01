@@ -201,14 +201,18 @@ class Agendamiento extends Equatable {
       } catch (_) {}
     }
 
-    // Construir el JSON exactamente como lo espera AgendamientoInput del backend
+    // Construir el JSON exactamente como lo espera AgendamientoInput del backend.
+    // Invitado: ClienteId = 0 y se envía ClienteNombre (nombre libre, sin registro).
+    final bool esInvitado = clienteId <= 0 &&
+        (clienteNombre != null && clienteNombre!.trim().isNotEmpty);
     final Map<String, dynamic> result = {
-      'ClienteId': clienteId,
+      'ClienteId': esInvitado ? 0 : clienteId,
       'BarberoId': barberoId,
       'FechaHora': fechaHoraFinal,
       'Duracion': '$duracionMinutos minutos',
       'Precio': precio > 0 ? precio : (monto ?? 0.0),
     };
+    if (esInvitado) result['ClienteNombre'] = clienteNombre!.trim();
 
     if (servicioId != null) result['ServicioId'] = servicioId;
     if (servicioIds.isNotEmpty) result['ServicioIds'] = servicioIds;
