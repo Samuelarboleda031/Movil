@@ -354,35 +354,25 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
                 ),
                 Row(
                   children: [
-                    if (widget.role == AppRole.barber) ...[
-                      if (notif.minutosRestantes <= 0)
-                        _actionButton(
-                          icon: Icons.notifications_active,
-                          color: AppColors.gold,
-                          label: 'AVISAR',
-                          onTap: () => _handleAvisar(notif.citaId, setModalState),
-                        ),
-                    ] else ...[
-                      if (notif.minutosRestantes <= 0) ...[
-                        _actionButton(
-                          icon: Icons.check,
-                          color: Colors.green,
-                          onTap: () => _handleAction(notif.citaId, 'Completada', setModalState),
-                        ),
-                        const SizedBox(width: 8),
-                        _actionButton(
-                          icon: Icons.checklist,
-                          color: AppColors.gold,
-                          onTap: () => _handleParcial(notif.citaId, setModalState),
-                        ),
-                      ],
+                    if (notif.minutosRestantes <= 0) ...[
+                      _actionButton(
+                        icon: Icons.check,
+                        color: Colors.green,
+                        onTap: () => _handleAction(notif.citaId, 'Completada', setModalState),
+                      ),
                       const SizedBox(width: 8),
                       _actionButton(
-                        icon: Icons.close,
-                        color: Colors.redAccent,
-                        onTap: () => _handleAction(notif.citaId, 'Cancelada', setModalState),
+                        icon: Icons.checklist,
+                        color: AppColors.gold,
+                        onTap: () => _handleParcial(notif.citaId, setModalState),
                       ),
                     ],
+                    const SizedBox(width: 8),
+                    _actionButton(
+                      icon: Icons.close,
+                      color: Colors.redAccent,
+                      onTap: () => _handleAction(notif.citaId, 'Cancelada', setModalState),
+                    ),
                   ],
                 ),
               ],
@@ -415,26 +405,6 @@ class _CitaNotificationBellState extends State<CitaNotificationBell> {
         ),
       ),
     );
-  }
-
-  Future<void> _handleAvisar(int citaId, StateSetter setModalState) async {
-    try {
-      // Mandar aviso sin cambiar el estado a Completada (se podría usar un estado intermedio si existe)
-      // Por ahora, como el usuario dice "no puede cambiar el estado", solo enviamos una "notificación" (simulada o vía log)
-      // O podríamos actualizar a un estado que el Admin vea como "Terminado por Barbero"
-      await _agendamientoService.actualizarEstadoAgendamiento(citaId, 'Terminado por Barbero');
-      AppToast.showSuccess(context, 'Aviso de término enviado al administrador.');
-      
-      setModalState(() {
-        _notifications.removeWhere((n) => n.citaId == citaId);
-      });
-      setState(() {
-        _notifications.removeWhere((n) => n.citaId == citaId);
-      });
-      if (_notifications.isEmpty) Navigator.pop(context);
-    } catch (e) {
-      AppToast.showError(context, 'No se pudo enviar el aviso. Inténtalo nuevamente.');
-    }
   }
 
   Future<void> _handleAction(int citaId, String estado, StateSetter setModalState) async {

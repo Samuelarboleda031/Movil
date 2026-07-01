@@ -17,6 +17,7 @@ import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/presentation/widgets/modal_completar_parcialmente.dart';
 import 'package:parte_movil/data/datasources/day_discount_service.dart';
+import 'package:parte_movil/data/datasources/user_context_service.dart';
 
 class AgendamientoDetalleScreen extends StatefulWidget {
   final Agendamiento agendamiento;
@@ -37,12 +38,18 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
   bool _isLoading = true;
   List<Servicio> _catalogoServicios = [];
   List<Producto> _catalogoProductos = [];
+  int? _currentBarberId;
 
   @override
   void initState() {
     super.initState();
     _currentAg = widget.agendamiento;
     _refreshData();
+    if (widget.role == AppRole.barber) {
+      UserContextService().obtenerBarberoActual().then((barbero) {
+        if (mounted) setState(() => _currentBarberId = barbero?.id);
+      });
+    }
   }
 
   Future<void> _refreshData() async {
@@ -454,7 +461,10 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
 
     if (esTerminal) return const SizedBox.shrink();
 
-    final esAdmin = widget.role == AppRole.admin || widget.role == AppRole.manager;
+    // El barbero solo puede completar sus propias citas.
+    final puedeCompletar = widget.role == AppRole.admin ||
+        widget.role == AppRole.manager ||
+        (widget.role == AppRole.barber && _currentAg.barberoId == _currentBarberId);
     // Citas futuras: solo se puede cancelar (para cualquier rol)
     final soloCancel = _esCitaFutura();
 
@@ -472,7 +482,7 @@ class _AgendamientoDetalleScreenState extends State<AgendamientoDetalleScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (esAdmin && !soloCancel) ...[
+          if (puedeCompletar && !soloCancel) ...[
             // COMPLETAR
             SizedBox(
               width: double.infinity,
