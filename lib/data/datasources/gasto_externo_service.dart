@@ -57,6 +57,20 @@ class GastoExternoService {
     throw Exception('Error al actualizar gasto: ${response.statusCode}');
   }
 
+  Future<List<GastoExterno>> obtenerPorRango(String from, String to) async {
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_base/rango?from=$from&to=$to'),
+      headers: headers,
+    ).timeout(const Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final list = jsonDecode(response.body) as List<dynamic>;
+      return list.map((g) => GastoExterno.fromJson(g)).toList();
+    }
+    throw Exception('Error al obtener gastos por rango: ${response.statusCode}');
+  }
+
   Future<void> eliminar(int id) async {
     final headers = await _getHeaders();
     final response = await http.delete(

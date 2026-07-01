@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:parte_movil/core/themes/app_colors.dart';
 import 'package:parte_movil/core/utils/app_confirm_dialog.dart';
@@ -6,12 +7,13 @@ import 'package:parte_movil/data/datasources/gasto_externo_service.dart';
 import 'package:parte_movil/data/datasources/auth_service.dart';
 import 'package:parte_movil/data/models/gasto_externo.dart';
 
-String _todayColombia() {
-  final now = DateTime.now().toUtc().subtract(const Duration(hours: 5));
-  return DateFormat('yyyy-MM-dd').format(now);
-}
+DateTime _nowColombia() => DateTime.now().toUtc().subtract(const Duration(hours: 5));
+String _fmtDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
-final _moneyFormat = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+final _moneyFmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+final _dayFmt = DateFormat('d MMM', 'es');
+
+enum _FilterMode { dia, semana, mes, personalizado }
 
 const _categoriaColors = {
   'Servicios': Color(0xFF6EA8FE),
@@ -32,33 +34,105 @@ class GastosExternosWidget extends StatefulWidget {
 
 class _GastosExternosWidgetState extends State<GastosExternosWidget> {
   final _service = GastoExternoService();
-  ResumenDia? _resumen;
   bool _loading = true;
   String? _error;
   bool _expanded = true;
 
+  _FilterMode _filter = _FilterMode.dia;
+
+  // Data for day mode (full resumen with KPIs)
+  ResumenDia? _resumen;
+
+  // Data for range modes (just gastos list)
+  List<GastoExterno> _rangeGastos = [];
+
+  // Date range
+  late DateTime _from;
+  late DateTime _to;
+
   @override
   void initState() {
     super.initState();
+    final now = _nowColombia();
+    _from = now;
+    _to = now;
     _loadData();
+  }
+
+  void _applyFilter(_FilterMode mode) {
+    final now = _nowColombia();
+    setState(() => _filter = mode);
+    switch (mode) {
+      case _FilterMode.dia:
+        _from = now;
+        _to = now;
+        break;
+      case _FilterMode.semana:
+        _from = now.subtract(Duration(days: now.weekday - 1)); // Monday
+        _to = now;
+        break;
+      case _FilterMode.mes:
+        _from = DateTime(now.year, now.month, 1);
+        _to = now;
+        break;
+      case _FilterMode.personalizado:
+        return; // don't reload, user picks dates
+    }
+    _loadData();
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: _nowColombia(),
+      initialDateRange: DateTimeRange(start: _from, end: _to),
+      locale: const Locale('es'),
+      builder: (ctx, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.gold,
+            onPrimary: Color(0xFF111111),
+            surface: AppColors.card,
+            onSurface: AppColors.white,
+          ),
+          dialogTheme: const DialogThemeData(backgroundColor: AppColors.bg),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      _from = picked.start;
+      _to = picked.end;
+      setState(() => _filter = _FilterMode.personalizado);
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await _service.obtenerResumenDia(_todayColombia());
-      if (mounted) setState(() { _resumen = data; _loading = false; });
+      if (_filter == _FilterMode.dia) {
+        final data = await _service.obtenerResumenDia(_fmtDate(_from));
+        if (mounted) setState(() { _resumen = data; _rangeGastos = []; _loading = false; });
+      } else {
+        final data = await _service.obtenerPorRango(_fmtDate(_from), _fmtDate(_to));
+        if (mounted) setState(() { _rangeGastos = data; _resumen = null; _loading = false; });
+      }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
+
+  List<GastoExterno> get _gastos => _resumen?.gastos ?? _rangeGastos;
+  double get _totalGastos => _resumen?.gastosExternos ?? _rangeGastos.fold(0.0, (s, g) => s + g.monto);
 
   Future<void> _openForm({GastoExterno? gasto}) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _GastoFormSheet(gasto: gasto, fecha: _todayColombia()),
+      builder: (_) => _GastoFormSheet(gasto: gasto, fecha: _fmtDate(_nowColombia())),
     );
     if (result == true) _loadData();
   }
@@ -82,6 +156,13 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
         }
       }
     }
+  }
+
+  String get _dateLabel {
+    if (_filter == _FilterMode.dia) return 'Hoy';
+    final f = _dayFmt.format(_from);
+    final t = _dayFmt.format(_to);
+    return '$f - $t';
   }
 
   @override
@@ -157,6 +238,63 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
           if (_expanded) ...[
             Container(height: 1, color: AppColors.divider),
 
+            // ── Filter chips ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Row(
+                children: [
+                  _filterChip('Dia', _FilterMode.dia),
+                  const SizedBox(width: 6),
+                  _filterChip('Semana', _FilterMode.semana),
+                  const SizedBox(width: 6),
+                  _filterChip('Mes', _FilterMode.mes),
+                  const Spacer(),
+                  InkWell(
+                    onTap: _pickDateRange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _filter == _FilterMode.personalizado
+                            ? AppColors.gold.withValues(alpha: 0.15)
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _filter == _FilterMode.personalizado
+                              ? AppColors.gold.withValues(alpha: 0.5)
+                              : AppColors.divider,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calendar_today,
+                              size: 12,
+                              color: _filter == _FilterMode.personalizado ? AppColors.gold : AppColors.greyLight),
+                          const SizedBox(width: 4),
+                          Text(
+                            _filter == _FilterMode.personalizado ? _dateLabel : 'Fechas',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _filter == _FilterMode.personalizado ? AppColors.gold : AppColors.greyLight,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Date label
+            if (_filter != _FilterMode.dia)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                child: Text(_dateLabel, style: const TextStyle(color: AppColors.grey, fontSize: 11)),
+              ),
+
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(24),
@@ -177,35 +315,46 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
             else ...[
               // KPI Row
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: Row(
-                  children: [
-                    Expanded(child: _miniKpi('Ingresos', _moneyFormat.format(_resumen!.ingresosTotal), const Color(0xFF34D399))),
-                    const SizedBox(width: 8),
-                    Expanded(child: _miniKpi('Gastos', _moneyFormat.format(_resumen!.gastosExternos), const Color(0xFFFB923C))),
-                    const SizedBox(width: 8),
-                    Expanded(child: _miniKpi(
-                      'Neta',
-                      _moneyFormat.format(_resumen!.gananciaNeta),
-                      _resumen!.gananciaNeta >= 0 ? const Color(0xFF60A5FA) : Colors.redAccent,
-                    )),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: _filter == _FilterMode.dia && _resumen != null
+                    ? Row(
+                        children: [
+                          Expanded(child: _miniKpi('Ingresos', _moneyFmt.format(_resumen!.ingresosTotal), const Color(0xFF34D399))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _miniKpi('Gastos', _moneyFmt.format(_resumen!.gastosExternos), const Color(0xFFFB923C))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _miniKpi(
+                            'Neta',
+                            _moneyFmt.format(_resumen!.gananciaNeta),
+                            _resumen!.gananciaNeta >= 0 ? const Color(0xFF60A5FA) : Colors.redAccent,
+                          )),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: _miniKpi('Total Gastos', _moneyFmt.format(_totalGastos), const Color(0xFFFB923C))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _miniKpi('Cantidad', '${_gastos.length}', const Color(0xFF6EA8FE))),
+                        ],
+                      ),
               ),
               const SizedBox(height: 12),
 
               // Gastos list
-              if (_resumen!.gastos.isEmpty)
+              if (_gastos.isEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider, style: BorderStyle.solid),
+                      border: Border.all(color: AppColors.divider),
                     ),
-                    child: const Center(
-                      child: Text('Sin gastos registrados hoy', style: TextStyle(color: AppColors.grey, fontSize: 12)),
+                    child: Center(
+                      child: Text(
+                        _filter == _FilterMode.dia ? 'Sin gastos registrados hoy' : 'Sin gastos en este periodo',
+                        style: const TextStyle(color: AppColors.grey, fontSize: 12),
+                      ),
                     ),
                   ),
                 )
@@ -213,12 +362,38 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   child: Column(
-                    children: _resumen!.gastos.map((g) => _gastoTile(g)).toList(),
+                    children: _gastos.map((g) => _gastoTile(g)).toList(),
                   ),
                 ),
             ],
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, _FilterMode mode) {
+    final selected = _filter == mode;
+    return InkWell(
+      onTap: () => _applyFilter(mode),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.gold.withValues(alpha: 0.15) : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.gold.withValues(alpha: 0.5) : AppColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.gold : AppColors.greyLight,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -246,6 +421,7 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
 
   Widget _gastoTile(GastoExterno gasto) {
     final catColor = _categoriaColors[gasto.categoria] ?? const Color(0xFF94A3B8);
+    final showDate = _filter != _FilterMode.dia;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -261,18 +437,29 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
               children: [
                 Text(gasto.descripcion, style: const TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: catColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(gasto.categoria, style: TextStyle(color: catColor, fontSize: 9, fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(gasto.categoria, style: TextStyle(color: catColor, fontSize: 9, fontWeight: FontWeight.w600)),
+                    ),
+                    if (showDate) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        _dayFmt.format(DateTime.tryParse(gasto.fecha) ?? DateTime.now()),
+                        style: const TextStyle(color: AppColors.grey, fontSize: 9),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-          Text(_moneyFormat.format(gasto.monto), style: const TextStyle(color: Color(0xFFFB923C), fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(_moneyFmt.format(gasto.monto), style: const TextStyle(color: Color(0xFFFB923C), fontWeight: FontWeight.bold, fontSize: 13)),
           const SizedBox(width: 8),
           InkWell(
             onTap: () => _openForm(gasto: gasto),
@@ -293,6 +480,21 @@ class _GastosExternosWidgetState extends State<GastosExternosWidget> {
         ],
       ),
     );
+  }
+}
+
+// ── MONEY INPUT FORMATTER ────────────────────────────────────────────────────
+
+class _MoneyInputFormatter extends TextInputFormatter {
+  final _fmt = NumberFormat('#,###', 'es_CO');
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '', selection: TextSelection.collapsed(offset: 0));
+    final number = int.parse(digits);
+    final formatted = _fmt.format(number);
+    return TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
   }
 }
 
@@ -325,7 +527,10 @@ class _GastoFormSheetState extends State<_GastoFormSheet> {
   void initState() {
     super.initState();
     _descCtrl = TextEditingController(text: widget.gasto?.descripcion ?? '');
-    _montoCtrl = TextEditingController(text: widget.gasto != null ? widget.gasto!.monto.toStringAsFixed(0) : '');
+    final montoFmt = NumberFormat('#,###', 'es_CO');
+    _montoCtrl = TextEditingController(
+      text: widget.gasto != null ? montoFmt.format(widget.gasto!.monto.toInt()) : '',
+    );
     _notasCtrl = TextEditingController(text: widget.gasto?.notas ?? '');
     _categoria = widget.gasto?.categoria ?? 'Servicios';
   }
@@ -346,10 +551,11 @@ class _GastoFormSheetState extends State<_GastoFormSheet> {
     try {
       final user = _authService.currentUser;
       final usuarioId = widget.gasto?.usuarioId ?? (int.tryParse(user?.uid ?? '') ?? 0);
+      final rawMonto = _montoCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
 
       final data = {
         'descripcion': _descCtrl.text.trim(),
-        'monto': double.tryParse(_montoCtrl.text) ?? 0,
+        'monto': double.tryParse(rawMonto) ?? 0,
         'categoria': _categoria,
         'fecha': widget.fecha,
         'notas': _notasCtrl.text.trim(),
@@ -424,13 +630,33 @@ class _GastoFormSheetState extends State<_GastoFormSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label('Monto (\$)'),
-                          _textField(_montoCtrl, '0',
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                final n = double.tryParse(v ?? '');
-                                if (n == null || n <= 0) return 'Debe ser > 0';
-                                return null;
-                              }),
+                          TextFormField(
+                            controller: _montoCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              _MoneyInputFormatter(),
+                            ],
+                            validator: (v) {
+                              final raw = (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                              final n = int.tryParse(raw);
+                              if (n == null || n <= 0) return 'Debe ser > 0';
+                              return null;
+                            },
+                            style: const TextStyle(color: AppColors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: '0',
+                              prefixText: '\$ ',
+                              prefixStyle: const TextStyle(color: AppColors.gold, fontSize: 14, fontWeight: FontWeight.bold),
+                              hintStyle: const TextStyle(color: AppColors.grey, fontSize: 13),
+                              filled: true,
+                              fillColor: AppColors.surface,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.6))),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
                         ],
                       ),
                     ),
